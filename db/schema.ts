@@ -29,13 +29,20 @@ export const cvs = pgTable("cvs", {
   userId: integer("user_id").references(() => users.id).notNull(),
   originalFilename: text("original_filename").notNull(),
   fileContent: text("file_content").notNull(),
-  transformedContent: text("transformed_content"),
+  transformedContent: text("transformed_content").notNull(),
   targetRole: text("target_role").notNull(),
   jobDescription: text("job_description").notNull(),
-  score: integer("score"),
-  feedback: jsonb("feedback"),
-  latestEmployment: text("latest_employment"),
-  organizationalInsights: jsonb("organizational_insights"),
+  score: integer("score").notNull().default(0),
+  feedback: jsonb("feedback").$type<{
+    strengths: string[];
+    weaknesses: string[];
+    suggestions: string[];
+    organizationalInsights?: {
+      glassdoor: string[];
+      indeed: string[];
+      news: string[];
+    };
+  }>(),
   isFullyRegenerated: boolean("is_fully_regenerated").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
