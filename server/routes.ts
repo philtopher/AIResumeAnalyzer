@@ -8,6 +8,16 @@ import multer from "multer";
 import { extname } from "path";
 import mammoth from "mammoth";
 import { PDFDocument } from "pdf-lib";
+import { generateDocument } from "docx";
+import {
+  Document,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  SectionType,
+  Packer,
+} from "docx";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -421,21 +431,67 @@ Professional Development
         return res.status(400).send("Invalid CV ID");
       }
 
-      // Default to docx format
-      const format = "docx";
-      const contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-      const [cv] = await db.select().from(cvs).where(eq(cvs.id, cvId)).limit(1);
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, cvId))
+        .limit(1);
 
       if (!cv) {
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformedContent || "", "base64");
+      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
+      const sections = content.split("\n\n").filter(Boolean);
 
-      res.setHeader("Content-Type", contentType);
-      res.setHeader("Content-Disposition", `attachment; filename="transformed_cv.${format}"`);
-      res.send(content);
+      // Create Word document
+      const doc = new Document({
+        sections: [{
+          properties: {
+            type: SectionType.CONTINUOUS,
+          },
+          children: sections.map(section => {
+            const lines = section.split("\n");
+            const paragraphs = lines.map(line => {
+              if (line.trim().startsWith("•")) {
+                // Bullet points
+                return new Paragraph({
+                  text: line.trim().substring(1).trim(),
+                  bullet: {
+                    level: 0,
+                  },
+                });
+              } else if (line.toUpperCase() === line && line.trim().length > 0) {
+                // Headers
+                return new Paragraph({
+                  text: line,
+                  heading: HeadingLevel.HEADING_2,
+                  spacing: {
+                    before: 200,
+                    after: 200,
+                  },
+                });
+              } else {
+                // Regular text
+                return new Paragraph({
+                  text: line,
+                  spacing: {
+                    before: 100,
+                    after: 100,
+                  },
+                });
+              }
+            });
+            return paragraphs;
+          }).flat(),
+        }],
+      });
+
+      const buffer = await Packer.toBuffer(doc);
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="transformed_cv.docx"`);
+      res.send(buffer);
     } catch (error: any) {
       console.error("Public download CV error:", error);
       res.status(500).send(error.message);
