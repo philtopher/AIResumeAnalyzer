@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, FileText, Download, Eye } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 export default function DashboardPage() {
   const { user } = useUser();
@@ -43,10 +44,16 @@ export default function DashboardPage() {
         throw new Error(await response.text());
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["/api/cv/history"] });
+
       toast({
         title: "CV Transformed Successfully",
         description: "Your CV has been updated for the target role.",
       });
+
+      // Clear form
+      setFile(null);
+      e.currentTarget.reset();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -222,7 +229,6 @@ export default function DashboardPage() {
                                 Score: {cv.score}
                               </p>
                             </div>
-                            {/* Always show actions for admin users */}
                             {hasPro && (
                               <div className="space-x-2">
                                 <Button

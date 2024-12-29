@@ -5,7 +5,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, type User, loginSchema, resetPasswordRequestSchema, resetPasswordSchema } from "@db/schema";
+import { users, insertUserSchema, loginSchema, resetPasswordRequestSchema, resetPasswordSchema } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 import { sendPasswordResetEmail } from "./email";
@@ -50,15 +50,14 @@ export async function updateAdminPassword() {
         .where(eq(users.username, "tobechukwu"));
     } else {
       // Create new admin
-      await db
-        .insert(users)
-        .values({
-          username: "tobechukwu",
-          password: hashedPassword,
-          email: "t.unamka@yahoo.co.uk",
-          role: "admin"
-        });
+      await db.insert(users).values({
+        username: "tobechukwu",
+        password: hashedPassword,
+        email: "t.unamka@yahoo.co.uk",
+        role: "admin"
+      });
     }
+    console.log("Admin user created/updated successfully");
     return true;
   } catch (error) {
     console.error("Failed to update admin password:", error);
@@ -71,9 +70,9 @@ declare global {
     interface User {
       id: number;
       username: string;
-      password: string;
       email: string;
       role: string;
+      password: string;
       createdAt: Date;
     }
   }
@@ -85,7 +84,9 @@ export function setupAuth(app: Express) {
     secret: process.env.REPL_ID || "cv-transformer-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: {},
+    cookie: {
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
     }),
@@ -94,6 +95,7 @@ export function setupAuth(app: Express) {
   if (app.get("env") === "production") {
     app.set("trust proxy", 1);
     sessionSettings.cookie = {
+      ...sessionSettings.cookie,
       secure: true,
     };
   }
@@ -246,13 +248,18 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (req.isAuthenticated()) {
-      return res.json(req.user);
+      return res.json({
+        id: req.user.id,
+        username: req.user.username,
+        email: req.user.email,
+        role: req.user.role,
+      });
     }
 
     res.status(401).send("Not logged in");
   });
 
-  // New password reset endpoints
+  // Password reset endpoints
   app.post("/api/reset-password/request", async (req, res) => {
     try {
       const result = resetPasswordRequestSchema.safeParse(req.body);
