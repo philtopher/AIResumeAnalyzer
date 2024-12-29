@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Loader2 } from "lucide-react";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminPage from "./pages/AdminPage";
 import FeaturesPage from "./pages/FeaturesPage";
@@ -21,7 +22,7 @@ function AuthenticatedApp() {
     );
   }
 
-  if (!user) {
+  if (!user && window.location.pathname !== "/reset-password") {
     return <AuthPage />;
   }
 
@@ -29,8 +30,9 @@ function AuthenticatedApp() {
     <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/features" component={FeaturesPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/dashboard" component={DashboardPage} />
-      {user.role === "admin" && <Route path="/admin" component={AdminPage} />}
+      {user?.role === "admin" && <Route path="/admin" component={AdminPage} />}
       <Route component={NotFound} />
     </Switch>
   );

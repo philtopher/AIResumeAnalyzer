@@ -5,9 +5,10 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, type User, loginSchema } from "@db/schema";
+import { users, insertUserSchema, type User, loginSchema, resetPasswordRequestSchema, resetPasswordSchema } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
+import { sendPasswordResetEmail } from "./email";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -249,5 +250,89 @@ export function setupAuth(app: Express) {
     }
 
     res.status(401).send("Not logged in");
+  });
+
+  // New password reset endpoints
+  app.post("/api/reset-password/request", async (req, res) => {
+    try {
+      const result = resetPasswordRequestSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send("Invalid email address");
+      }
+
+      const { email } = result.data;
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      // Generate reset token
+      const resetToken = randomBytes(32).toString("hex");
+      const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+
+      // Update user with reset token
+      await db
+        .update(users)
+        .set({
+          resetToken,
+          resetTokenExpiry,
+        })
+        .where(eq(users.id, user.id));
+
+      // Send reset email
+      await sendPasswordResetEmail(email, resetToken);
+
+      res.json({ message: "Password reset email sent" });
+    } catch (error: any) {
+      console.error("Reset password request error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.post("/api/reset-password/reset", async (req, res) => {
+    try {
+      const result = resetPasswordSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(result.error.issues.map(i => i.message).join(", "));
+      }
+
+      const { token, password } = result.data;
+
+      // Find user with valid reset token
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.resetToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).send("Invalid or expired reset token");
+      }
+
+      if (!user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+        return res.status(400).send("Reset token has expired");
+      }
+
+      // Update password and clear reset token
+      const hashedPassword = await crypto.hash(password);
+      await db
+        .update(users)
+        .set({
+          password: hashedPassword,
+          resetToken: null,
+          resetTokenExpiry: null,
+        })
+        .where(eq(users.id, user.id));
+
+      res.json({ message: "Password reset successful" });
+    } catch (error: any) {
+      console.error("Reset password error:", error);
+      res.status(500).send(error.message);
+    }
   });
 }

@@ -107,7 +107,7 @@ export default function AuthPage() {
             </Button>
           </form>
 
-          <div className="mt-4 text-center">
+          <div className="mt-4 text-center space-y-2">
             <button
               className="text-sm text-muted-foreground hover:underline"
               onClick={() => setIsLogin(!isLogin)}
@@ -117,6 +117,18 @@ export default function AuthPage() {
                 ? "Don't have an account? Sign up"
                 : "Already have an account? Login"}
             </button>
+
+            {isLogin && (
+              <div>
+                <button
+                  className="text-sm text-muted-foreground hover:underline"
+                  onClick={() => setLocation("/reset-password")}
+                  type="button"
+                >
+                  Forgot your password?
+                </button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
