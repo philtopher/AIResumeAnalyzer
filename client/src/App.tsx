@@ -10,6 +10,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminPage from "./pages/AdminPage";
 import FeaturesPage from "./pages/FeaturesPage";
+import PublicCVPage from "./pages/PublicCVPage";
 import { useUser } from "./hooks/use-user";
 import {
   DropdownMenu,
@@ -37,6 +38,9 @@ function Navigation() {
         <div className="hidden md:flex items-center space-x-4">
           <Link href="/features">
             <Button variant="ghost">Features</Button>
+          </Link>
+          <Link href="/public-cv">
+            <Button variant="ghost">Try Demo</Button>
           </Link>
           {user ? (
             <>
@@ -69,6 +73,9 @@ function Navigation() {
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onClick={() => setLocation("/features")}>
                 Features
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLocation("/public-cv")}>
+                Try Demo
               </DropdownMenuItem>
               {user ? (
                 <>
@@ -108,12 +115,6 @@ function AuthenticatedApp() {
     );
   }
 
-  if (!user && window.location.pathname !== "/reset-password" && 
-      window.location.pathname !== "/" && 
-      window.location.pathname !== "/features") {
-    return <AuthPage />;
-  }
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
@@ -123,9 +124,19 @@ function AuthenticatedApp() {
           <Route path="/features" component={FeaturesPage} />
           <Route path="/auth" component={AuthPage} />
           <Route path="/reset-password" component={ResetPasswordPage} />
-          <Route path="/dashboard" component={DashboardPage} />
-          {user?.role === "admin" && (
-            <Route path="/admin" component={AdminPage} />
+          <Route path="/public-cv" component={PublicCVPage} />
+          {(!user && window.location.pathname !== "/reset-password" && 
+            window.location.pathname !== "/" && 
+            window.location.pathname !== "/features" &&
+            window.location.pathname !== "/public-cv") ? (
+            <Route component={AuthPage} />
+          ) : (
+            <>
+              <Route path="/dashboard" component={DashboardPage} />
+              {user?.role === "admin" && (
+                <Route path="/admin" component={AdminPage} />
+              )}
+            </>
           )}
           <Route component={NotFound} />
         </Switch>
