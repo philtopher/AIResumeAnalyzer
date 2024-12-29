@@ -1,0 +1,53 @@
+Goal:
+Develop an AI-powered tool that enables users to convert an uploaded CV from one job role/title to another. The tool should:
+1.	Focus on the latest employment entry in the CV, adjusting it to align with a new role specified by the user.
+2.	Tailor the CV to address challenges and requirements detailed in a job description supplied via a text box.
+3.	Enhance the CV using relevant and recent information about the target organization’s challenges gathered from Glassdoor reviews, Indeed reviews, articles, and YouTube videos.
+4.	Evaluate the revised CV against industry standards, highlighting strengths and weaknesses, and offering actionable advice for improvement.
+5.	Provide an option to fully regenerate the CV for the targeted role, ensuring consistency in start and end dates across all employment entries.
+________________________________________
+Features:
+Primary Functionality:
+•	Role Conversion:
+o	Extract the latest employment entry from the uploaded CV.
+o	Rewrite it to align with a new role specified by the user in a text box.
+o	Tailor responsibilities, skills, and achievements to meet the needs of the target job description.
+•	Research & Insights:
+o	Automatically gather and display organizational challenges from:
+	Glassdoor reviews
+	Indeed reviews
+	Articles and blogs
+	YouTube videos (via scraping or API integration)
+•	CV Evaluation:
+o	Score the generated CV against industry standards.
+o	Highlight areas of strength (e.g., relevant skills, measurable achievements).
+o	Suggest areas for improvement (e.g., insufficient keywords, lack of quantifiable outcomes).
+•	Full CV Generation:
+o	Optionally, regenerate the entire CV for the targeted role, ensuring alignment with the job description provided.
+o	Maintain consistent timelines across all entries.
+User Interface:
+•	Input Fields:
+o	Upload CV
+o	Job Description (text box)
+o	New Targeted Role (text box)
+•	Output:
+o	Display the revised CV on the page.
+o	Show research insights from reviews and articles about the organization.
+o	Display CV evaluation results, including:
+	Strengths
+	Weaknesses
+	Recommendations
+•	Options:
+o	Download revised CV.
+o	Download evaluation report.
+Security:
+•	User registration with:
+o	Secure password storage (e.g., hashed with bcrypt).
+o	Password reset functionality.
+•	Admin Panel:
+o	Super admin can:
+	Add/remove sub-admins.
+	Manually add/remove users.
+o	Sub-admins can:
+	View user activity logs.
+	Approve/reject flagged CV edits.

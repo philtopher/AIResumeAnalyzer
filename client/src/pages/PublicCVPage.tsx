@@ -6,12 +6,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Download, Eye, CheckCircle, XCircle, Lightbulb } from "lucide-react";
+import {
+  Loader2,
+  Upload,
+  Download,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Lightbulb,
+  Building,
+  MessageSquare,
+  Newspaper
+} from "lucide-react";
+
+type OrganizationalInsights = {
+  glassdoor: string[];
+  indeed: string[];
+  news: string[];
+};
 
 type Feedback = {
   strengths: string[];
   weaknesses: string[];
   suggestions: string[];
+  organizationalInsights: OrganizationalInsights;
 };
 
 export default function PublicCVPage() {
@@ -28,8 +46,15 @@ export default function PublicCVPage() {
     setIsProcessing(true);
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("targetRole", (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value);
-    formData.append("jobDescription", (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement).value);
+    formData.append(
+      "targetRole",
+      (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value
+    );
+    formData.append(
+      "jobDescription",
+      (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement)
+        .value
+    );
 
     try {
       const response = await fetch("/api/cv/transform/public", {
@@ -70,7 +95,9 @@ export default function PublicCVPage() {
     if (!transformedCV) return;
 
     try {
-      const response = await fetch(`/api/cv/${transformedCV.id}/download/public?format=docx`);
+      const response = await fetch(
+        `/api/cv/${transformedCV.id}/download/public?format=docx`
+      );
       if (!response.ok) {
         throw new Error(await response.text());
       }
@@ -130,7 +157,7 @@ export default function PublicCVPage() {
                       id="cv"
                       type="file"
                       accept=".pdf,.docx"
-                      onChange={e => setFile(e.target.files?.[0] || null)}
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
                       className="hidden"
                     />
                     <label
@@ -206,46 +233,103 @@ export default function PublicCVPage() {
                   </div>
 
                   {transformedCV.feedback && (
-                    <div className="space-y-4">
-                      <h3 className="font-medium">Analysis & Feedback</h3>
-                      <div className="grid gap-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="h-5 w-5 text-green-500" />
-                            <h4 className="font-medium">Strengths</h4>
+                    <>
+                      <div className="space-y-4">
+                        <h3 className="font-medium">Analysis & Feedback</h3>
+                        <div className="grid gap-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-5 w-5 text-green-500" />
+                              <h4 className="font-medium">Strengths</h4>
+                            </div>
+                            <ul className="list-disc list-inside text-sm text-muted-foreground">
+                              {transformedCV.feedback.strengths.map(
+                                (strength: string, i: number) => (
+                                  <li key={i}>{strength}</li>
+                                )
+                              )}
+                            </ul>
                           </div>
-                          <ul className="list-disc list-inside text-sm text-muted-foreground">
-                            {transformedCV.feedback.strengths.map((strength: string, i: number) => (
-                              <li key={i}>{strength}</li>
-                            ))}
-                          </ul>
-                        </div>
 
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <XCircle className="h-5 w-5 text-red-500" />
-                            <h4 className="font-medium">Areas for Improvement</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <XCircle className="h-5 w-5 text-red-500" />
+                              <h4 className="font-medium">Areas for Improvement</h4>
+                            </div>
+                            <ul className="list-disc list-inside text-sm text-muted-foreground">
+                              {transformedCV.feedback.weaknesses.map(
+                                (weakness: string, i: number) => (
+                                  <li key={i}>{weakness}</li>
+                                )
+                              )}
+                            </ul>
                           </div>
-                          <ul className="list-disc list-inside text-sm text-muted-foreground">
-                            {transformedCV.feedback.weaknesses.map((weakness: string, i: number) => (
-                              <li key={i}>{weakness}</li>
-                            ))}
-                          </ul>
-                        </div>
 
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Lightbulb className="h-5 w-5 text-yellow-500" />
-                            <h4 className="font-medium">Suggestions</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Lightbulb className="h-5 w-5 text-yellow-500" />
+                              <h4 className="font-medium">Suggestions</h4>
+                            </div>
+                            <ul className="list-disc list-inside text-sm text-muted-foreground">
+                              {transformedCV.feedback.suggestions.map(
+                                (suggestion: string, i: number) => (
+                                  <li key={i}>{suggestion}</li>
+                                )
+                              )}
+                            </ul>
                           </div>
-                          <ul className="list-disc list-inside text-sm text-muted-foreground">
-                            {transformedCV.feedback.suggestions.map((suggestion: string, i: number) => (
-                              <li key={i}>{suggestion}</li>
-                            ))}
-                          </ul>
                         </div>
                       </div>
-                    </div>
+
+                      {transformedCV.feedback.organizationalInsights && (
+                        <div className="space-y-4">
+                          <h3 className="font-medium">Organization Insights</h3>
+                          <div className="grid gap-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Building className="h-5 w-5 text-blue-500" />
+                                <h4 className="font-medium">Glassdoor Reviews</h4>
+                              </div>
+                              <ul className="list-disc list-inside text-sm text-muted-foreground">
+                                {transformedCV.feedback.organizationalInsights.glassdoor.map(
+                                  (insight: string, i: number) => (
+                                    <li key={i}>{insight}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <MessageSquare className="h-5 w-5 text-purple-500" />
+                                <h4 className="font-medium">Indeed Reviews</h4>
+                              </div>
+                              <ul className="list-disc list-inside text-sm text-muted-foreground">
+                                {transformedCV.feedback.organizationalInsights.indeed.map(
+                                  (insight: string, i: number) => (
+                                    <li key={i}>{insight}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Newspaper className="h-5 w-5 text-orange-500" />
+                                <h4 className="font-medium">Latest News</h4>
+                              </div>
+                              <ul className="list-disc list-inside text-sm text-muted-foreground">
+                                {transformedCV.feedback.organizationalInsights.news.map(
+                                  (insight: string, i: number) => (
+                                    <li key={i}>{insight}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

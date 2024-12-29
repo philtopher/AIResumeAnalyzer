@@ -30,12 +30,15 @@ export const cvs = pgTable("cvs", {
   originalFilename: text("original_filename").notNull(),
   fileContent: text("file_content").notNull(),
   transformedContent: text("transformed_content"),
-  targetRole: text("target_role"),
-  jobDescription: text("job_description"),
+  targetRole: text("target_role").notNull(),
+  jobDescription: text("job_description").notNull(),
   score: integer("score"),
   feedback: jsonb("feedback"),
+  latestEmployment: text("latest_employment"),
+  organizationalInsights: jsonb("organizational_insights"),
+  isFullyRegenerated: boolean("is_fully_regenerated").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const userRelations = relations(users, ({ many }) => ({
@@ -57,6 +60,7 @@ export const cvRelations = relations(cvs, ({ one }) => ({
   }),
 }));
 
+// Zod schemas for input validation
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export const insertSubscriptionSchema = createInsertSchema(subscriptions);
@@ -64,6 +68,7 @@ export const selectSubscriptionSchema = createSelectSchema(subscriptions);
 export const insertCvSchema = createInsertSchema(cvs);
 export const selectCvSchema = createSelectSchema(cvs);
 
+// Types for TypeScript
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Subscription = typeof subscriptions.$inferSelect;
@@ -71,6 +76,7 @@ export type InsertSubscription = typeof subscriptions.$inferInsert;
 export type CV = typeof cvs.$inferSelect;
 export type InsertCV = typeof cvs.$inferInsert;
 
+// Authentication schemas
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
