@@ -1,0 +1,69 @@
+Prompt Title: AI-Powered CV Transformation and Evaluation System
+Objective: Develop a platform that uses AI to transform a user-uploaded CV to align with a new job role/title based on a job description provided in a message box. Additionally, the platform will:
+1.	Identify problems the target organization might be facing using web searches (e.g., Glassdoor, Indeed, articles, YouTube).
+2.	Score the updated CV against industry standards.
+3.	Provide actionable feedback on strengths, weaknesses, and areas for improvement.
+4.	Offer the option to fully generate a new CV tailored to the job description.
+The website will be monetized with a subscription model (£5 monthly), include secure user registration, and an admin section for management.
+________________________________________
+Features and User Flow:
+1. User Input Section
+•	Upload CV: A file upload option for the user’s existing CV (supports PDF, DOCX).
+•	Targeted Role: A text box for users to specify the new role they are targeting.
+•	Job Description: A message box for users to paste the job description for the desired role.
+2. AI Processing Steps
+a. CV Transformation
+•	Partial Conversion: Update only the latest employment section of the CV to reflect the targeted role. Tailor it to address the job description and potential organizational problems.
+•	Full CV Generation Option: If selected, completely rewrite the CV targeting the new role and job description. Ensure consistency in start and end dates across all employments.
+b. Organizational Problem Analysis
+•	Use web scraping and AI to gather insights into challenges the organization might face. Pull information from:
+o	Glassdoor reviews
+o	Indeed reviews
+o	Recent articles
+o	YouTube videos
+•	Summarize findings on the webpage for user reference.
+c. CV Scoring and Feedback
+•	Evaluate the updated or newly generated CV against industry standards (e.g., formatting, skills alignment, action-oriented language).
+•	Highlight:
+o	Strengths (e.g., strong action verbs, relevant skills).
+o	Weaknesses (e.g., gaps in employment, vague language).
+•	Provide detailed improvement suggestions.
+3. Output Display
+•	Display the updated CV alongside:
+o	Analysis of organizational problems.
+o	CV score (e.g., out of 100).
+o	Feedback and recommendations for improvement.
+4. Subscription and Monetization
+•	Monthly Subscription: Users must subscribe (£5/month) to access the CV transformation and evaluation services.
+5. User Registration
+•	Secure registration with the following features:
+o	Email and password setup.
+o	Password reset functionality.
+6. Admin Section
+a. Super Admin Features:
+•	Add and remove sub-admins.
+•	Manage users (add/remove/reset passwords manually if these roles/permissions were selected to be granted by the Super Admin).
+•	View subscription status of users.
+b. Sub-Admin Features:
+•	Moderate uploaded content.
+•	View CV transformations for quality checks.
+•	Manage users (add/remove/reset passwords manually).
+•	View subscription status of users.
+________________________________________
+Implementation Suggestions
+1.	Backend: Use Python with Flask/Django for the CV processing and user management logic.
+2.	Frontend: React.js or Next.js for dynamic UI interactions.
+3.	AI Integration:
+o	Replit or OpenAI or Anthropic APIs for CV rewriting and scoring.
+o	Replit for hosting and debugging collaborative development.
+4.	Web Scraping: Use libraries like BeautifulSoup or Puppeteer for gathering organization-related problems.
+5.	Database: Use PostgreSQL for secure storage of user data and transformed CVs.
+6.	Security:
+o	Implement HTTPS.
+o	Encrypt passwords with bcrypt.
+o	Use OAuth 2.0 for authentication (e.g., Google sign-in).
+Monetization & Scalability
+•	Payment Integration: Stripe for handling subscriptions.
+•	Scalable Hosting: AWS or Replit for deployment.
+This system can revolutionize the CV tailoring process, providing users with insights into target organizations while ensuring their applications are industry-ready.
+
