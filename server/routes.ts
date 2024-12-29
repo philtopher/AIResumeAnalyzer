@@ -41,6 +41,27 @@ export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
 
+  // Helper function to check if user has pro access
+  async function hasProAccess(userId: number): Promise<boolean> {
+    // Super admin always has pro access
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (user?.role === "admin") return true;
+
+    // Check subscription
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .limit(1);
+
+    return subscription?.status === "active";
+  }
+
   // CV transformation endpoints
   app.post("/api/cv/transform", upload.single("file"), async (req: FileRequest, res) => {
     try {
@@ -85,6 +106,74 @@ export function registerRoutes(app: Express): Server {
         .returning();
 
       res.json(cv);
+    } catch (error: any) {
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Download transformed CV
+  app.get("/api/cv/:id/download", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const hasPro = await hasProAccess(req.user.id);
+      if (!hasPro) {
+        return res.status(403).send("Pro subscription required");
+      }
+
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, parseInt(req.params.id)))
+        .limit(1);
+
+      if (!cv || cv.userId !== req.user.id) {
+        return res.status(404).send("CV not found");
+      }
+
+      const content = Buffer.from(cv.transformedContent, "base64");
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="transformed_${cv.originalFilename}"`
+      );
+      res.send(content);
+    } catch (error: any) {
+      res.status(500).send(error.message);
+    }
+  });
+
+  // View transformed CV
+  app.get("/api/cv/:id/view", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const hasPro = await hasProAccess(req.user.id);
+      if (!hasPro) {
+        return res.status(403).send("Pro subscription required");
+      }
+
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, parseInt(req.params.id)))
+        .limit(1);
+
+      if (!cv || cv.userId !== req.user.id) {
+        return res.status(404).send("CV not found");
+      }
+
+      // For PDFs, we can send with proper content type
+      const ext = extname(cv.originalFilename).toLowerCase();
+      const contentType = ext === ".pdf" ? "application/pdf" : "application/octet-stream";
+
+      const content = Buffer.from(cv.transformedContent, "base64");
+      res.setHeader("Content-Type", contentType);
+      res.send(content);
     } catch (error: any) {
       res.status(500).send(error.message);
     }

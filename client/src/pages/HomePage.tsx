@@ -9,6 +9,9 @@ export default function HomePage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold">CV Transformer</h1>
           <div className="space-x-4">
+            <Link href="/features">
+              <Button variant="ghost">Features</Button>
+            </Link>
             <Link href="/dashboard">
               <Button variant="ghost">Dashboard</Button>
             </Link>

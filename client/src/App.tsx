@@ -7,6 +7,7 @@ import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminPage from "./pages/AdminPage";
+import FeaturesPage from "./pages/FeaturesPage";
 import { useUser } from "./hooks/use-user";
 
 function AuthenticatedApp() {
@@ -27,6 +28,7 @@ function AuthenticatedApp() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
+      <Route path="/features" component={FeaturesPage} />
       <Route path="/dashboard" component={DashboardPage} />
       {user.role === "admin" && <Route path="/admin" component={AdminPage} />}
       <Route component={NotFound} />

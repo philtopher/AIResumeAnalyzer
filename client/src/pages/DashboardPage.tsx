@@ -1,31 +1,45 @@
 import { useState } from "react";
 import { useUser } from "@/hooks/use-user";
 import { useSubscription } from "@/hooks/use-subscription";
+import { useCVHistory } from "@/hooks/use-cv-history";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText } from "lucide-react";
+import { Loader2, Upload, FileText, Download, Eye } from "lucide-react";
 
 export default function DashboardPage() {
   const { user } = useUser();
   const { subscription, isLoading: isLoadingSubscription } = useSubscription();
+  const { cvs, isLoading: isLoadingCVs } = useCVHistory();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+
+  const hasPro = subscription?.status === "active" || user?.role === "admin";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!file) return;
 
     setIsProcessing(true);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("targetRole", (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value);
+    formData.append("jobDescription", (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement).value);
 
     try {
-      // TODO: Implement CV transformation API call
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      const response = await fetch("/api/cv/transform", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
 
       toast({
         title: "CV Transformed Successfully",
@@ -39,6 +53,57 @@ export default function DashboardPage() {
       });
     } finally {
       setIsProcessing(false);
+    }
+  }
+
+  async function handleDownload(cvId: number) {
+    try {
+      const response = await fetch(`/api/cv/${cvId}/download`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "transformed_cv";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleView(cvId: number) {
+    try {
+      const response = await fetch(`/api/cv/${cvId}/view`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   }
 
@@ -59,7 +124,7 @@ export default function DashboardPage() {
             <span className="text-sm text-muted-foreground">
               Welcome, {user?.username}
             </span>
-            {!subscription && (
+            {!hasPro && (
               <Button variant="secondary">Upgrade to Pro</Button>
             )}
           </div>
@@ -132,11 +197,53 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* TODO: Implement recent transformations list */}
-                <div className="text-center text-muted-foreground py-8">
-                  <FileText className="h-12 w-12 mx-auto mb-2" />
-                  <p>No recent transformations</p>
-                </div>
+                {isLoadingCVs ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+                  </div>
+                ) : !cvs?.length ? (
+                  <div className="text-center text-muted-foreground py-8">
+                    <FileText className="h-12 w-12 mx-auto mb-2" />
+                    <p>No recent transformations</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {cvs.map((cv) => (
+                      <Card key={cv.id}>
+                        <CardContent className="pt-6">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-medium">{cv.targetRole}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                Score: {cv.score}
+                              </p>
+                            </div>
+                            {hasPro && (
+                              <div className="space-x-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleView(cv.id)}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleDownload(cv.id)}
+                                >
+                                  <Download className="h-4 w-4 mr-1" />
+                                  Download
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
