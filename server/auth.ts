@@ -16,21 +16,57 @@ const crypto = {
     const buf = (await scryptAsync(password, salt, 64)) as Buffer;
     return `${buf.toString("hex")}.${salt}`;
   },
-  compare: async (suppliedPassword: string, storedPassword: string) => {
-    const [hashedPassword, salt] = storedPassword.split(".");
-    const hashedPasswordBuf = Buffer.from(hashedPassword, "hex");
-    const suppliedPasswordBuf = (await scryptAsync(
-      suppliedPassword,
-      salt,
-      64
-    )) as Buffer;
-    return timingSafeEqual(hashedPasswordBuf, suppliedPasswordBuf);
+  compare: async (supplied: string, stored: string) => {
+    const [hash, salt] = stored.split(".");
+    if (!hash || !salt) return false;
+
+    const hashBuffer = Buffer.from(hash, "hex");
+    const suppliedBuffer = (await scryptAsync(supplied, salt, 64)) as Buffer;
+
+    return timingSafeEqual(hashBuffer, suppliedBuffer);
   },
 };
 
+// Add this function to handle admin password update
+export async function updateAdminPassword() {
+  try {
+    const hashedPassword = await crypto.hash("password123");
+    const [existingAdmin] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, "tobechukwu"))
+      .limit(1);
+
+    if (existingAdmin) {
+      // Update existing admin
+      await db
+        .update(users)
+        .set({
+          password: hashedPassword,
+          role: "admin",
+          email: "t.unamka@yahoo.co.uk"
+        })
+        .where(eq(users.username, "tobechukwu"));
+    } else {
+      // Create new admin
+      await db
+        .insert(users)
+        .values({
+          username: "tobechukwu",
+          password: hashedPassword,
+          email: "t.unamka@yahoo.co.uk",
+          role: "admin"
+        });
+    }
+    return true;
+  } catch (error) {
+    console.error("Failed to update admin password:", error);
+    return false;
+  }
+}
+
 declare global {
   namespace Express {
-    // extend the User interface with our schema
     interface User {
       id: number;
       username: string;

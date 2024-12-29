@@ -1,29 +1,22 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
+import { setupAuth, updateAdminPassword } from "./auth";
 import { db } from "@db";
 import { cvs, subscriptions, users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import multer from "multer";
 import { extname } from "path";
-import type { Request } from "express";
 
-interface MulterFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  buffer: Buffer;
-  size: number;
+// Properly type the multer request
+interface MulterRequest extends Express.Request {
+  file?: Express.Multer.File;
 }
 
-interface FileRequest extends Request {
-  file?: MulterFile;
-}
-
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
 const upload = multer({
-  storage: multer.memoryStorage(),
-  fileFilter: (_req, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  storage,
+  fileFilter: (_req, file, cb) => {
     const allowedExtensions = [".pdf", ".docx"];
     const ext = extname(file.originalname).toLowerCase();
     if (allowedExtensions.includes(ext)) {
@@ -33,17 +26,19 @@ const upload = multer({
     }
   },
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
+    fileSize: 5 * 1024 * 1024, // 5MB limit
   },
 });
 
-export function registerRoutes(app: Express): Server {
+export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
 
+  // Update admin password on server start
+  await updateAdminPassword();
+
   // Helper function to check if user has pro access
   async function hasProAccess(userId: number): Promise<boolean> {
-    // Super admin always has pro access
     const [user] = await db
       .select()
       .from(users)
@@ -52,7 +47,6 @@ export function registerRoutes(app: Express): Server {
 
     if (user?.role === "admin") return true;
 
-    // Check subscription
     const [subscription] = await db
       .select()
       .from(subscriptions)
@@ -63,9 +57,9 @@ export function registerRoutes(app: Express): Server {
   }
 
   // CV transformation endpoints
-  app.post("/api/cv/transform", upload.single("file"), async (req: FileRequest, res) => {
+  app.post("/api/cv/transform", upload.single("file"), async (req: MulterRequest, res) => {
     try {
-      if (!req.isAuthenticated()) {
+      if (!req.isAuthenticated() || !req.user) {
         return res.status(401).send("Authentication required");
       }
 
@@ -74,7 +68,6 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { targetRole, jobDescription } = req.body;
-
       if (!targetRole || !jobDescription) {
         return res.status(400).send("Target role and job description are required");
       }
@@ -107,6 +100,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json(cv);
     } catch (error: any) {
+      console.error("Transform CV error:", error);
       res.status(500).send(error.message);
     }
   });
@@ -114,7 +108,7 @@ export function registerRoutes(app: Express): Server {
   // Download transformed CV
   app.get("/api/cv/:id/download", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) {
+      if (!req.isAuthenticated() || !req.user) {
         return res.status(401).send("Authentication required");
       }
 
@@ -123,14 +117,23 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).send("Pro subscription required");
       }
 
+      const cvId = parseInt(req.params.id);
+      if (isNaN(cvId)) {
+        return res.status(400).send("Invalid CV ID");
+      }
+
       const [cv] = await db
         .select()
         .from(cvs)
-        .where(eq(cvs.id, parseInt(req.params.id)))
+        .where(eq(cvs.id, cvId))
         .limit(1);
 
       if (!cv || cv.userId !== req.user.id) {
         return res.status(404).send("CV not found");
+      }
+
+      if (!cv.transformedContent) {
+        return res.status(404).send("Transformed CV not found");
       }
 
       const content = Buffer.from(cv.transformedContent, "base64");
@@ -141,6 +144,7 @@ export function registerRoutes(app: Express): Server {
       );
       res.send(content);
     } catch (error: any) {
+      console.error("Download CV error:", error);
       res.status(500).send(error.message);
     }
   });
@@ -148,7 +152,7 @@ export function registerRoutes(app: Express): Server {
   // View transformed CV
   app.get("/api/cv/:id/view", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) {
+      if (!req.isAuthenticated() || !req.user) {
         return res.status(401).send("Authentication required");
       }
 
@@ -157,17 +161,25 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).send("Pro subscription required");
       }
 
+      const cvId = parseInt(req.params.id);
+      if (isNaN(cvId)) {
+        return res.status(400).send("Invalid CV ID");
+      }
+
       const [cv] = await db
         .select()
         .from(cvs)
-        .where(eq(cvs.id, parseInt(req.params.id)))
+        .where(eq(cvs.id, cvId))
         .limit(1);
 
       if (!cv || cv.userId !== req.user.id) {
         return res.status(404).send("CV not found");
       }
 
-      // For PDFs, we can send with proper content type
+      if (!cv.transformedContent) {
+        return res.status(404).send("Transformed CV not found");
+      }
+
       const ext = extname(cv.originalFilename).toLowerCase();
       const contentType = ext === ".pdf" ? "application/pdf" : "application/octet-stream";
 
@@ -175,13 +187,15 @@ export function registerRoutes(app: Express): Server {
       res.setHeader("Content-Type", contentType);
       res.send(content);
     } catch (error: any) {
+      console.error("View CV error:", error);
       res.status(500).send(error.message);
     }
   });
 
+  // Get CV history
   app.get("/api/cv/history", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) {
+      if (!req.isAuthenticated() || !req.user) {
         return res.status(401).send("Authentication required");
       }
 
@@ -193,6 +207,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json(userCVs);
     } catch (error: any) {
+      console.error("CV history error:", error);
       res.status(500).send(error.message);
     }
   });
@@ -200,7 +215,7 @@ export function registerRoutes(app: Express): Server {
   // Subscription endpoints
   app.get("/api/subscription", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) {
+      if (!req.isAuthenticated() || !req.user) {
         return res.status(401).send("Authentication required");
       }
 
@@ -212,6 +227,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json(subscription || null);
     } catch (error: any) {
+      console.error("Subscription error:", error);
       res.status(500).send(error.message);
     }
   });
@@ -219,31 +235,44 @@ export function registerRoutes(app: Express): Server {
   // Admin endpoints
   app.get("/api/admin/users", async (req, res) => {
     try {
-      if (!req.isAuthenticated() || req.user.role !== "admin") {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "admin") {
         return res.status(403).send("Admin access required");
       }
 
       const allUsers = await db.select().from(users);
       res.json(allUsers);
     } catch (error: any) {
+      console.error("Admin users error:", error);
       res.status(500).send(error.message);
     }
   });
 
   app.get("/api/admin/cvs", async (req, res) => {
     try {
-      if (!req.isAuthenticated() || req.user.role !== "admin") {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "admin") {
         return res.status(403).send("Admin access required");
       }
 
       const allCVs = await db.select().from(cvs);
       res.json(allCVs);
     } catch (error: any) {
+      console.error("Admin CVs error:", error);
       res.status(500).send(error.message);
     }
   });
 
   const httpServer = createServer(app);
+
+  // Handle WebSocket upgrade events
+  httpServer.on('upgrade', (request, socket, head) => {
+    const protocol = request.headers['sec-websocket-protocol'];
+    // Skip handling vite-hmr protocol
+    if (protocol === 'vite-hmr') {
+      return;
+    }
+    // Handle other WebSocket connections here if needed
+    socket.destroy();
+  });
 
   return httpServer;
 }
