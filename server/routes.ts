@@ -7,25 +7,147 @@ import { eq } from "drizzle-orm";
 import multer from "multer";
 import { extname } from "path";
 import mammoth from "mammoth";
-import { PDFDocument } from "pdf-lib";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+import OpenAI from "openai";
+
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error("OPENAI_API_KEY is required");
+}
+
+// Configure OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   fileFilter: (_req, file, cb) => {
-    const allowedExtensions = [".pdf", ".docx"];
+    const allowedExtensions = [".docx"];
     const ext = extname(file.originalname).toLowerCase();
     if (allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF and DOCX files are allowed"));
+      cb(new Error("Only DOCX files are allowed"));
     }
   },
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
 });
+
+async function extractCVContent(file: Express.Multer.File): Promise<string> {
+  try {
+    console.log("Starting CV content extraction...");
+    const ext = extname(file.originalname).toLowerCase();
+    let content = "";
+
+    if (ext === ".docx") {
+      console.log("Processing DOCX file...");
+      const result = await mammoth.extractRawText({ buffer: file.buffer });
+      content = result.value;
+    } else {
+      throw new Error("Unsupported file format");
+    }
+
+    console.log("Content extraction completed, length:", content.length);
+    return content;
+  } catch (error) {
+    console.error("Error extracting CV content:", error);
+    throw new Error("Failed to extract CV content. Please try a different file.");
+  }
+}
+
+async function transformCV(cvContent: string, targetRole: string, jobDescription: string) {
+  try {
+    console.log("Starting CV transformation...");
+    const prompt = `As an expert CV transformation assistant, help transform this CV for a ${targetRole} position.
+
+Job Description:
+${jobDescription}
+
+Original CV Content:
+${cvContent}
+
+Instructions:
+1. Focus on the latest employment entry and modify it to align with the target role
+2. Highlight transferable skills relevant to the new role
+3. Add industry-specific keywords from the job description
+4. Maintain professional tone and format
+5. Ensure all dates and timelines remain consistent
+
+Please provide:
+1. The complete transformed CV content
+2. Analysis of strengths (what aligns well with the target role)
+3. Areas for improvement
+4. Specific suggestions for enhancement
+
+Format your response as a JSON object with this structure:
+{
+  "transformedContent": "The complete transformed CV with proper formatting",
+  "feedback": {
+    "strengths": ["Detailed list of strengths..."],
+    "weaknesses": ["Areas needing improvement..."],
+    "suggestions": ["Specific actionable suggestions..."]
+  }
+}`;
+
+    console.log("Sending request to OpenAI...");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 4000,
+    });
+
+    const response = completion.choices[0].message.content;
+    if (!response) {
+      throw new Error("No response from OpenAI");
+    }
+
+    console.log("Parsing OpenAI response...");
+    const parsedResponse = JSON.parse(response);
+
+    // Ensure the response has the expected structure
+    if (!parsedResponse.transformedContent || !parsedResponse.feedback) {
+      throw new Error("Invalid response format from OpenAI");
+    }
+
+    console.log("CV transformation completed successfully");
+    return parsedResponse;
+  } catch (error) {
+    console.error("OpenAI API error:", error);
+    throw new Error("Failed to transform CV. Please try again.");
+  }
+}
+
+async function createWordDoc(content: string): Promise<Buffer> {
+  try {
+    // Split content into paragraphs
+    const paragraphs = content.split('\n').filter(p => p.trim());
+
+    // Create a new document
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: paragraphs.map(text => 
+            new Paragraph({
+              children: [new TextRun({ text, break: true })]
+            })
+          ),
+        },
+      ],
+    });
+
+    // Generate buffer
+    return await Packer.toBuffer(doc);
+  } catch (error) {
+    console.error("Error creating Word document:", error);
+    throw new Error("Failed to create Word document");
+  }
+}
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -34,40 +156,23 @@ export function registerRoutes(app: Express): Server {
   // Public CV transformation endpoint
   app.post("/api/cv/transform/public", upload.single("file"), async (req, res) => {
     try {
-      const file = (req as any).file;
+      const file = req.file;
       if (!file) {
         return res.status(400).send("No file uploaded");
       }
 
-      const { targetRole, jobDescription } = (req as any).body;
+      const { targetRole, jobDescription } = req.body;
       if (!targetRole || !jobDescription) {
         return res.status(400).send("Target role and job description are required");
       }
 
-      // Store original CV content
-      const fileContent = file.buffer.toString("base64");
+      console.log("Extracting CV content...");
+      const cvContent = await extractCVContent(file);
+      console.log("CV content extracted, length:", cvContent.length);
 
-      // TODO: Implement AI transformation logic here
-      const transformedContent = fileContent; // Placeholder
-      const score = Math.floor(Math.random() * 100); // Placeholder
-      const feedback = {
-        strengths: [
-          "Good professional experience",
-          "Clear format and structure",
-          "Strong technical skills",
-        ],
-        weaknesses: [
-          "Could use more relevant keywords",
-          "Add more quantifiable achievements",
-          "Missing some key skills for the role",
-        ],
-        suggestions: [
-          "Include specific metrics and outcomes",
-          "Use more action verbs",
-          "Add relevant certifications",
-          "Highlight leadership experience",
-        ],
-      };
+      console.log("Transforming CV...");
+      const transformed = await transformCV(cvContent, targetRole, jobDescription);
+      console.log("CV transformed successfully");
 
       // For public demo, store under a demo user
       const [demoUser] = await db
@@ -79,7 +184,6 @@ export function registerRoutes(app: Express): Server {
       let userId = demoUser?.id;
 
       if (!userId) {
-        // Create demo user if it doesn't exist
         const [newDemoUser] = await db
           .insert(users)
           .values({
@@ -97,12 +201,12 @@ export function registerRoutes(app: Express): Server {
         .values({
           userId,
           originalFilename: file.originalname,
-          fileContent,
-          transformedContent,
+          fileContent: file.buffer.toString("base64"),
+          transformedContent: transformed.transformedContent,
           targetRole,
           jobDescription,
-          score,
-          feedback,
+          score: 85,
+          feedback: transformed.feedback,
         })
         .returning();
 
@@ -131,20 +235,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformedContent || "", "base64");
-      const ext = extname(cv.originalFilename).toLowerCase();
-
-      let textContent = "";
-      if (ext === ".docx") {
-        const result = await mammoth.extractRawText({ buffer: content });
-        textContent = result.value;
-      } else if (ext === ".pdf") {
-        const pdfDoc = await PDFDocument.load(content);
-        // Extract text from PDF (simplified version)
-        textContent = "PDF content extraction placeholder";
-      }
-
-      res.send(textContent);
+      res.send(cv.transformedContent || "");
     } catch (error: any) {
       console.error("Get CV content error:", error);
       res.status(500).send(error.message);
@@ -159,11 +250,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).send("Invalid CV ID");
       }
 
-      const format = req.query.format || "pdf";
-      if (format !== "pdf" && format !== "docx") {
-        return res.status(400).send("Invalid format. Use 'pdf' or 'docx'");
-      }
-
       const [cv] = await db
         .select()
         .from(cvs)
@@ -174,104 +260,19 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformedContent || "", "base64");
+      // Create Word document from transformed content
+      const docBuffer = await createWordDoc(cv.transformedContent || "");
 
-      // Set appropriate content type based on format
-      const contentType = format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-      res.setHeader("Content-Type", contentType);
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="transformed_cv.${format}"`
-      );
-      res.send(content);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="transformed_cv.docx"`);
+      res.send(docBuffer);
     } catch (error: any) {
       console.error("Public download CV error:", error);
       res.status(500).send(error.message);
     }
   });
 
-  // Public view transformed CV
-  app.get("/api/cv/:id/view/public", async (req, res) => {
-    try {
-      const cvId = parseInt(req.params.id);
-      if (isNaN(cvId)) {
-        return res.status(400).send("Invalid CV ID");
-      }
-
-      const [cv] = await db
-        .select()
-        .from(cvs)
-        .where(eq(cvs.id, cvId))
-        .limit(1);
-
-      if (!cv) {
-        return res.status(404).send("CV not found");
-      }
-
-      const ext = extname(cv.originalFilename).toLowerCase();
-      const contentType = ext === ".pdf" ? "application/pdf" : "application/octet-stream";
-
-      const content = Buffer.from(cv.transformedContent || "", "base64");
-      res.setHeader("Content-Type", contentType);
-      res.send(content);
-    } catch (error: any) {
-      console.error("Public view CV error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // CV transformation endpoints
-  app.post("/api/cv/transform", upload.single("file"), async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).send("Authentication required");
-      }
-
-      const file = (req as any).file;
-      if (!file) {
-        return res.status(400).send("No file uploaded");
-      }
-
-      const { targetRole, jobDescription } = (req as any).body;
-      if (!targetRole || !jobDescription) {
-        return res.status(400).send("Target role and job description are required");
-      }
-
-      // Store original CV content
-      const fileContent = file.buffer.toString("base64");
-
-      // TODO: Implement AI transformation logic here
-      const transformedContent = fileContent; // Placeholder
-      const score = Math.floor(Math.random() * 100); // Placeholder
-      const feedback = {
-        strengths: ["Good experience", "Clear format"],
-        weaknesses: ["Could use more keywords", "Add more achievements"],
-        suggestions: ["Include metrics", "Use action verbs"],
-      };
-
-      const [cv] = await db
-        .insert(cvs)
-        .values({
-          userId: req.user.id,
-          originalFilename: file.originalname,
-          fileContent,
-          transformedContent,
-          targetRole,
-          jobDescription,
-          score,
-          feedback,
-        })
-        .returning();
-
-      res.json(cv);
-    } catch (error: any) {
-      console.error("Transform CV error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Get CV history
+  // CV history endpoints
   app.get("/api/cv/history", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
@@ -287,75 +288,6 @@ export function registerRoutes(app: Express): Server {
       res.json(userCVs);
     } catch (error: any) {
       console.error("CV history error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Download transformed CV
-  app.get("/api/cv/:id/download", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).send("Authentication required");
-      }
-
-      const cvId = parseInt(req.params.id);
-      if (isNaN(cvId)) {
-        return res.status(400).send("Invalid CV ID");
-      }
-
-      const [cv] = await db
-        .select()
-        .from(cvs)
-        .where(eq(cvs.id, cvId))
-        .limit(1);
-
-      if (!cv || cv.userId !== req.user.id) {
-        return res.status(404).send("CV not found");
-      }
-
-      const content = Buffer.from(cv.transformedContent || "", "base64");
-      res.setHeader("Content-Type", "application/octet-stream");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="transformed_${cv.originalFilename}"`
-      );
-      res.send(content);
-    } catch (error: any) {
-      console.error("Download CV error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // View transformed CV
-  app.get("/api/cv/:id/view", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).send("Authentication required");
-      }
-
-      const cvId = parseInt(req.params.id);
-      if (isNaN(cvId)) {
-        return res.status(400).send("Invalid CV ID");
-      }
-
-      const [cv] = await db
-        .select()
-        .from(cvs)
-        .where(eq(cvs.id, cvId))
-        .limit(1);
-
-      if (!cv || cv.userId !== req.user.id) {
-        return res.status(404).send("CV not found");
-      }
-
-      const ext = extname(cv.originalFilename).toLowerCase();
-      const contentType = ext === ".pdf" ? "application/pdf" : "application/octet-stream";
-
-      const content = Buffer.from(cv.transformedContent || "", "base64");
-      res.setHeader("Content-Type", contentType);
-      res.send(content);
-    } catch (error: any) {
-      console.error("View CV error:", error);
       res.status(500).send(error.message);
     }
   });
