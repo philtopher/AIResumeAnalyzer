@@ -6,13 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Download, Eye } from "lucide-react";
+import { Loader2, Upload, Download, Eye, CheckCircle, XCircle, Lightbulb } from "lucide-react";
+
+type Feedback = {
+  strengths: string[];
+  weaknesses: string[];
+  suggestions: string[];
+};
 
 export default function PublicCVPage() {
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [transformedCV, setTransformedCV] = useState<any>(null);
+  const [transformedContent, setTransformedContent] = useState<string>("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -37,6 +44,13 @@ export default function PublicCVPage() {
       const result = await response.json();
       setTransformedCV(result);
 
+      // Get the transformed content for display
+      const contentResponse = await fetch(`/api/cv/${result.id}/content/public`);
+      if (contentResponse.ok) {
+        const content = await contentResponse.text();
+        setTransformedContent(content);
+      }
+
       toast({
         title: "CV Transformed Successfully",
         description: "Your CV has been updated for the target role.",
@@ -56,7 +70,7 @@ export default function PublicCVPage() {
     if (!transformedCV) return;
 
     try {
-      const response = await fetch(`/api/cv/${transformedCV.id}/download/public`);
+      const response = await fetch(`/api/cv/${transformedCV.id}/download/public?format=docx`);
       if (!response.ok) {
         throw new Error(await response.text());
       }
@@ -65,7 +79,7 @@ export default function PublicCVPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "transformed_cv.pdf";
+      a.download = "transformed_cv.docx";
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -88,10 +102,8 @@ export default function PublicCVPage() {
         throw new Error(await response.text());
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      window.URL.revokeObjectURL(url);
+      const content = await response.text();
+      setTransformedContent(content);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -162,26 +174,79 @@ export default function PublicCVPage() {
               </form>
 
               {transformedCV && (
-                <div className="mt-8 space-y-4">
-                  <h3 className="font-medium">Transformed CV</h3>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={handleView}
-                      className="transition-all duration-200 hover:scale-[1.02]"
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={handleDownload}
-                      className="transition-all duration-200 hover:scale-[1.02]"
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Download
-                    </Button>
+                <div className="mt-8 space-y-6">
+                  <div>
+                    <h3 className="font-medium mb-2">Transformed CV</h3>
+                    <div className="flex gap-2 mb-4">
+                      <Button
+                        variant="secondary"
+                        onClick={handleView}
+                        className="transition-all duration-200 hover:scale-[1.02]"
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={handleDownload}
+                        className="transition-all duration-200 hover:scale-[1.02]"
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download as Word
+                      </Button>
+                    </div>
+
+                    {transformedContent && (
+                      <div className="bg-muted p-4 rounded-md mt-4">
+                        <pre className="whitespace-pre-wrap text-sm">
+                          {transformedContent}
+                        </pre>
+                      </div>
+                    )}
                   </div>
+
+                  {transformedCV.feedback && (
+                    <div className="space-y-4">
+                      <h3 className="font-medium">Analysis & Feedback</h3>
+                      <div className="grid gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            <h4 className="font-medium">Strengths</h4>
+                          </div>
+                          <ul className="list-disc list-inside text-sm text-muted-foreground">
+                            {transformedCV.feedback.strengths.map((strength: string, i: number) => (
+                              <li key={i}>{strength}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <XCircle className="h-5 w-5 text-red-500" />
+                            <h4 className="font-medium">Areas for Improvement</h4>
+                          </div>
+                          <ul className="list-disc list-inside text-sm text-muted-foreground">
+                            {transformedCV.feedback.weaknesses.map((weakness: string, i: number) => (
+                              <li key={i}>{weakness}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Lightbulb className="h-5 w-5 text-yellow-500" />
+                            <h4 className="font-medium">Suggestions</h4>
+                          </div>
+                          <ul className="list-disc list-inside text-sm text-muted-foreground">
+                            {transformedCV.feedback.suggestions.map((suggestion: string, i: number) => (
+                              <li key={i}>{suggestion}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

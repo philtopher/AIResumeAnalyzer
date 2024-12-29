@@ -6,6 +6,8 @@ import { cvs, subscriptions, users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import multer from "multer";
 import { extname } from "path";
+import mammoth from "mammoth";
+import { PDFDocument } from "pdf-lib";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -49,9 +51,22 @@ export function registerRoutes(app: Express): Server {
       const transformedContent = fileContent; // Placeholder
       const score = Math.floor(Math.random() * 100); // Placeholder
       const feedback = {
-        strengths: ["Good experience", "Clear format"],
-        weaknesses: ["Could use more keywords", "Add more achievements"],
-        suggestions: ["Include metrics", "Use action verbs"],
+        strengths: [
+          "Good professional experience",
+          "Clear format and structure",
+          "Strong technical skills",
+        ],
+        weaknesses: [
+          "Could use more relevant keywords",
+          "Add more quantifiable achievements",
+          "Missing some key skills for the role",
+        ],
+        suggestions: [
+          "Include specific metrics and outcomes",
+          "Use more action verbs",
+          "Add relevant certifications",
+          "Highlight leadership experience",
+        ],
       };
 
       // For public demo, store under a demo user
@@ -98,8 +113,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Public download transformed CV
-  app.get("/api/cv/:id/download/public", async (req, res) => {
+  // Get CV content
+  app.get("/api/cv/:id/content/public", async (req, res) => {
     try {
       const cvId = parseInt(req.params.id);
       if (isNaN(cvId)) {
@@ -117,10 +132,57 @@ export function registerRoutes(app: Express): Server {
       }
 
       const content = Buffer.from(cv.transformedContent || "", "base64");
-      res.setHeader("Content-Type", "application/octet-stream");
+      const ext = extname(cv.originalFilename).toLowerCase();
+
+      let textContent = "";
+      if (ext === ".docx") {
+        const result = await mammoth.extractRawText({ buffer: content });
+        textContent = result.value;
+      } else if (ext === ".pdf") {
+        const pdfDoc = await PDFDocument.load(content);
+        // Extract text from PDF (simplified version)
+        textContent = "PDF content extraction placeholder";
+      }
+
+      res.send(textContent);
+    } catch (error: any) {
+      console.error("Get CV content error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Public download transformed CV
+  app.get("/api/cv/:id/download/public", async (req, res) => {
+    try {
+      const cvId = parseInt(req.params.id);
+      if (isNaN(cvId)) {
+        return res.status(400).send("Invalid CV ID");
+      }
+
+      const format = req.query.format || "pdf";
+      if (format !== "pdf" && format !== "docx") {
+        return res.status(400).send("Invalid format. Use 'pdf' or 'docx'");
+      }
+
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, cvId))
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      const content = Buffer.from(cv.transformedContent || "", "base64");
+
+      // Set appropriate content type based on format
+      const contentType = format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+      res.setHeader("Content-Type", contentType);
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="transformed_${cv.originalFilename}"`
+        `attachment; filename="transformed_cv.${format}"`
       );
       res.send(content);
     } catch (error: any) {
