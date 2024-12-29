@@ -37,6 +37,62 @@ async function extractLatestEmployment(content: string): Promise<string> {
   return paragraphs.find(p => p.length > 100) || content;
 }
 
+// Helper function to transform employment details
+async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
+  try {
+    // Extract key requirements from job description
+    const requirements = jobDescription.toLowerCase().split(/[.,;]/)
+      .map(req => req.trim())
+      .filter(req => req.length > 10);
+
+    // Transform the employment details to match target role
+    const roleSpecificDuties = [
+      `Led strategic initiatives as ${targetRole}, focusing on organizational objectives`,
+      `Developed and implemented comprehensive solutions aligned with industry best practices`,
+      `Collaborated with cross-functional teams to deliver high-impact results`,
+      // Add job-specific duties based on requirements
+      ...requirements.slice(0, 3).map(req => 
+        `Successfully ${req.startsWith('must') ? req.replace('must', 'demonstrated ability to') : req}`
+      )
+    ];
+
+    return `
+Current Position: ${targetRole}
+
+Key Responsibilities:
+${roleSpecificDuties.map(duty => `• ${duty}`).join('\n')}
+
+Notable Achievements:
+• Improved operational efficiency by implementing innovative solutions
+• Reduced process bottlenecks through strategic planning and execution
+• Enhanced team performance through effective leadership and mentoring
+`.trim();
+  } catch (error) {
+    console.error('Error transforming employment:', error);
+    return `Current Position: ${targetRole}\n\nKey Responsibilities:\n• Led strategic initiatives and managed key projects\n• Developed innovative solutions to complex challenges\n• Collaborated with stakeholders to achieve business objectives`;
+  }
+}
+
+// Helper function to adapt skills for target role
+function adaptSkills(originalSkills: string[], jobDescription: string): string[] {
+  // Extract skills from job description
+  const jobSkills = jobDescription.toLowerCase()
+    .match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
+
+  // Combine some original skills with new skills from job description
+  const keepOriginalCount = Math.min(3, originalSkills.length);
+  const originalSkillsToKeep = originalSkills.slice(0, keepOriginalCount);
+
+  const newSkills = Array.from(new Set([
+    ...originalSkillsToKeep,
+    ...jobSkills.slice(0, 5).map(skill => 
+      skill.replace(/\b(?:proficient|experience|knowledge|skill)\w*\s+/g, '').trim()
+    )
+  ]));
+
+  return newSkills;
+}
+
 // Helper function to gather organizational insights
 async function gatherOrganizationalInsights(companyName: string): Promise<{
   glassdoor: string[];
@@ -128,47 +184,45 @@ export function registerRoutes(app: Express): Server {
         textContent = result.value;
       } else if (ext === ".pdf") {
         const pdfDoc = await PDFDocument.load(file.buffer);
-        // Extract text from PDF (simplified version)
         textContent = "PDF content extraction placeholder";
       }
 
-      // Extract latest employment
+      // Extract and transform latest employment
       const latestEmployment = await extractLatestEmployment(textContent);
+      const transformedEmployment = await transformEmployment(latestEmployment, targetRole, jobDescription);
+
+      // Extract current skills (simplified)
+      const currentSkills = textContent.toLowerCase()
+        .match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
+
+      // Adapt skills for target role
+      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
 
       // Transform the CV content
       const transformedContent = `
 ${targetRole.toUpperCase()}
+
 Professional Summary
-A results-driven professional with extensive experience in implementing innovative solutions and driving operational excellence. Seeking to leverage proven ${targetRole.toLowerCase()} expertise to deliver exceptional results and contribute to organizational success.
+A dynamic and accomplished professional transitioning into the role of ${targetRole}, bringing a strong foundation in ${adaptedSkills.slice(0, 3).join(', ')}. Committed to delivering exceptional results through strategic thinking and innovative solutions.
 
-PROFESSIONAL EXPERIENCE
-${latestEmployment}
+Professional Experience
+${transformedEmployment}
 
-Key Achievements:
-- Successfully led and delivered multiple high-impact projects, resulting in significant efficiency improvements
-- Demonstrated expertise in strategic planning and execution of complex initiatives
-- Established and maintained strong relationships with stakeholders at all levels
+Technical Proficiencies
+${adaptedSkills.map(skill => `• ${skill.charAt(0).toUpperCase() + skill.slice(1)}`).join('\n')}
 
-Core Competencies:
-- Leadership & Team Management
-- Project Planning & Execution
-- Strategic Problem-Solving
-- Cross-functional Collaboration
-- Process Optimization
-- Risk Management
+Additional Skills
+• Strategic Planning & Analysis
+• Team Leadership & Collaboration
+• Project Management
+• Stakeholder Communication
+• Problem-Solving & Innovation
+• Process Optimization
 
-Technical Skills:
-- Industry-standard Tools & Technologies
-- Performance Monitoring & Analytics
-- Quality Assurance & Control
-- Documentation & Reporting
-- Resource Optimization
-- Compliance & Best Practices
-
-Professional Development:
-- Continuous Learning & Skill Enhancement
-- Industry Certifications & Training
-- Professional Network Building
+Professional Development
+• Continuous Learning & Skill Enhancement
+• Industry Certifications & Training
+• Professional Network Building
 `.trim();
 
       // Gather company insights
@@ -208,7 +262,7 @@ Professional Development:
           transformedContent: Buffer.from(transformedContent).toString("base64"),
           targetRole,
           jobDescription,
-          latestEmployment,
+          latestEmployment: transformedEmployment,
           score: evaluation.score,
           feedback: {
             ...evaluation.feedback,
