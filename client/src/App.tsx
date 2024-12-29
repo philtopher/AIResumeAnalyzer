@@ -49,7 +49,7 @@ function Navigation() {
                 </Link>
               )}
               <Button onClick={handleLogout} variant="ghost">
-                Logout
+                Logout ({user.username})
               </Button>
             </>
           ) : (
@@ -81,7 +81,7 @@ function Navigation() {
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={handleLogout}>
-                    Logout
+                    Logout ({user.username})
                   </DropdownMenuItem>
                 </>
               ) : (

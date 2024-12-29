@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useUser } from "@/hooks/use-user";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useCVHistory } from "@/hooks/use-cv-history";
@@ -18,7 +19,8 @@ export default function DashboardPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
-  const hasPro = subscription?.status === "active" || user?.role === "admin";
+  // Consider admin users as having pro access
+  const hasPro = user?.role === "admin" || subscription?.status === "active";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -70,7 +72,7 @@ export default function DashboardPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "transformed_cv";
+      a.download = "transformed_cv.pdf";
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -124,8 +126,10 @@ export default function DashboardPage() {
             <span className="text-sm text-muted-foreground">
               Welcome, {user?.username}
             </span>
-            {!hasPro && (
-              <Button variant="secondary">Upgrade to Pro</Button>
+            {!hasPro && user?.role !== "admin" && (
+              <Link href="/features">
+                <Button variant="secondary">Upgrade to Pro</Button>
+              </Link>
             )}
           </div>
         </div>
@@ -178,7 +182,7 @@ export default function DashboardPage() {
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full transition-all duration-200 hover:scale-[1.02]"
                   disabled={isProcessing || !file}
                 >
                   {isProcessing ? (
@@ -218,12 +222,14 @@ export default function DashboardPage() {
                                 Score: {cv.score}
                               </p>
                             </div>
+                            {/* Always show actions for admin users */}
                             {hasPro && (
                               <div className="space-x-2">
                                 <Button
                                   variant="secondary"
                                   size="sm"
                                   onClick={() => handleView(cv.id)}
+                                  className="transition-all duration-200 hover:scale-[1.02]"
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
                                   View
@@ -232,6 +238,7 @@ export default function DashboardPage() {
                                   variant="secondary"
                                   size="sm"
                                   onClick={() => handleDownload(cv.id)}
+                                  className="transition-all duration-200 hover:scale-[1.02]"
                                 >
                                   <Download className="h-4 w-4 mr-1" />
                                   Download

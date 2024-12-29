@@ -1,27 +1,59 @@
 import { useState, useEffect } from "react";
-import { zxcvbn } from "@zxcvbn-ts/core";
-import * as zxcvbnCommonPackage from "@zxcvbn-ts/language-common";
-import * as zxcvbnEnPackage from "@zxcvbn-ts/language-en";
 
-const options = {
-  translations: zxcvbnEnPackage.translations,
-  graphs: zxcvbnCommonPackage.adjacencyGraphs,
-  dictionary: {
-    ...zxcvbnCommonPackage.dictionary,
-    ...zxcvbnEnPackage.dictionary,
-  },
+type StrengthResult = {
+  score: number;
+  feedback: string[];
 };
 
 export function usePasswordStrength(password: string) {
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<StrengthResult>({ score: 0, feedback: [] });
 
   useEffect(() => {
-    if (password) {
-      const score = zxcvbn(password, [], options);
-      setResult(score);
-    } else {
-      setResult(null);
+    if (!password) {
+      setResult({ score: 0, feedback: [] });
+      return;
     }
+
+    // Simple password strength rules
+    let score = 0;
+    const feedback: string[] = [];
+
+    // Length check
+    if (password.length < 8) {
+      feedback.push("Password should be at least 8 characters long");
+    } else {
+      score += 1;
+    }
+
+    // Uppercase check
+    if (!/[A-Z]/.test(password)) {
+      feedback.push("Add uppercase letters");
+    } else {
+      score += 1;
+    }
+
+    // Lowercase check
+    if (!/[a-z]/.test(password)) {
+      feedback.push("Add lowercase letters");
+    } else {
+      score += 1;
+    }
+
+    // Numbers check
+    if (!/\d/.test(password)) {
+      feedback.push("Add numbers");
+    } else {
+      score += 1;
+    }
+
+    // Special characters check
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      feedback.push("Add special characters");
+    } else {
+      score += 1;
+    }
+
+    setResult({ score: Math.min(score, 4), feedback });
   }, [password]);
 
   const strengthColors = {
@@ -41,9 +73,9 @@ export function usePasswordStrength(password: string) {
   };
 
   return {
-    score: result?.score ?? 0,
-    feedback: result?.feedback?.suggestions ?? [],
-    color: strengthColors[result?.score ?? 0],
-    label: strengthLabels[result?.score ?? 0],
+    score: result.score,
+    feedback: result.feedback,
+    color: strengthColors[result.score as keyof typeof strengthColors],
+    label: strengthLabels[result.score as keyof typeof strengthLabels],
   };
 }
