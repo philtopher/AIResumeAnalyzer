@@ -203,6 +203,7 @@ Certifications:
           transformedContent: Buffer.from(transformedContent).toString("base64"),
           targetRole,
           jobDescription,
+          latestEmployment,
           score: evaluation.score,
           feedback: {
             ...evaluation.feedback,
@@ -237,19 +238,7 @@ Certifications:
       }
 
       const content = Buffer.from(cv.transformedContent || "", "base64");
-      const ext = extname(cv.originalFilename).toLowerCase();
-
-      let textContent = "";
-      if (ext === ".docx") {
-        const result = await mammoth.extractRawText({ buffer: content });
-        textContent = result.value;
-      } else if (ext === ".pdf") {
-        const pdfDoc = await PDFDocument.load(content);
-        // Extract text from PDF (simplified version)
-        textContent = "PDF content extraction placeholder";
-      }
-
-      res.send(textContent);
+      res.send(content.toString());
     } catch (error: any) {
       console.error("Get CV content error:", error);
       res.status(500).send(error.message);
@@ -314,14 +303,125 @@ Certifications:
         return res.status(404).send("CV not found");
       }
 
-      const ext = extname(cv.originalFilename).toLowerCase();
-      const contentType = ext === ".pdf" ? "application/pdf" : "application/octet-stream";
-
       const content = Buffer.from(cv.transformedContent || "", "base64");
-      res.setHeader("Content-Type", contentType);
-      res.send(content);
+      res.send(content.toString());
     } catch (error: any) {
       console.error("Public view CV error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Protected routes
+  app.post("/api/cv/transform", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const file = (req as any).file;
+      if (!file) {
+        return res.status(400).send("No file uploaded");
+      }
+
+      const { targetRole, jobDescription } = (req as any).body;
+      if (!targetRole || !jobDescription) {
+        return res.status(400).send("Target role and job description are required");
+      }
+
+      // Extract content based on file type
+      const fileContent = file.buffer.toString("base64");
+      let textContent = "";
+      const ext = extname(file.originalname).toLowerCase();
+
+      if (ext === ".docx") {
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        textContent = result.value;
+      } else if (ext === ".pdf") {
+        const pdfDoc = await PDFDocument.load(file.buffer);
+        textContent = "PDF content extraction placeholder";
+      }
+
+      // Extract latest employment
+      const latestEmployment = await extractLatestEmployment(textContent);
+
+      // Transform the CV content (same as public route)
+      const transformedContent = `
+Original Role: [Previous Role]
+Target Role: ${targetRole}
+
+TRANSFORMED CV CONTENT:
+${latestEmployment}
+
+TAILORED FOR JOB REQUIREMENTS:
+${jobDescription}
+
+Key Responsibilities:
+1. Led cross-functional teams in developing innovative solutions
+2. Managed complex technical projects from conception to delivery
+3. Implemented best practices and improved team efficiency
+
+Achievements:
+- Reduced system downtime by 40% through implementation of automated monitoring
+- Increased team productivity by 25% through process improvements
+- Successfully delivered 15+ major projects ahead of schedule
+
+Technical Skills:
+- Programming Languages: Python, JavaScript, TypeScript
+- Frameworks: React, Node.js, Express
+- Tools: Git, Docker, AWS, Azure
+
+Certifications:
+- AWS Certified Solutions Architect
+- Scrum Master Certification
+      `.trim();
+
+      // Gather company insights
+      const companyInsights = await gatherOrganizationalInsights(targetRole.split(" at ")[1] || "");
+
+      // Evaluate the CV
+      const evaluation = evaluateCV(transformedContent, jobDescription);
+
+      const [cv] = await db
+        .insert(cvs)
+        .values({
+          userId: req.user.id,
+          originalFilename: file.originalname,
+          fileContent,
+          transformedContent: Buffer.from(transformedContent).toString("base64"),
+          targetRole,
+          jobDescription,
+          latestEmployment,
+          score: evaluation.score,
+          feedback: {
+            ...evaluation.feedback,
+            organizationalInsights: companyInsights
+          },
+        })
+        .returning();
+
+      res.json(cv);
+    } catch (error: any) {
+      console.error("Transform CV error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Get CV history
+  app.get("/api/cv/history", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const userCVs = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.userId, req.user.id))
+        .orderBy(cvs.createdAt);
+
+      res.json(userCVs);
+    } catch (error: any) {
+      console.error("CV history error:", error);
       res.status(500).send(error.message);
     }
   });
