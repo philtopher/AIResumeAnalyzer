@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useUser } from "@/hooks/use-user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -8,38 +9,181 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
-import type { User, CV } from "@db/schema";
+import { Loader2, UserPlus, Shield, Activity, FileText } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { User, ActivityLog, CV } from "@db/schema";
+
+type TabType = "users" | "cvs" | "logs";
 
 export default function AdminPage() {
+  const { user } = useUser();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"users" | "cvs">("users");
+  const [activeTab, setActiveTab] = useState<TabType>("users");
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const queryClient = useQueryClient();
 
-  // TODO: Implement actual data fetching
-  const users: User[] = [];
-  const cvs: CV[] = [];
+  const isSuperAdmin = user?.role === "super_admin";
 
-  async function handleAction(action: string, id: number) {
-    setIsLoading(true);
-    try {
-      // TODO: Implement admin actions
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  // Fetch users
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+    enabled: isSuperAdmin || activeTab === "users",
+  });
+
+  // Fetch activity logs
+  const { data: logs = [], isLoading: isLoadingLogs } = useQuery<ActivityLog[]>({
+    queryKey: ["/api/admin/logs"],
+    enabled: activeTab === "logs",
+  });
+
+  // Fetch CVs needing approval
+  const { data: pendingCVs = [], isLoading: isLoadingCVs } = useQuery<CV[]>({
+    queryKey: ["/api/admin/cvs/pending"],
+    enabled: activeTab === "cvs",
+  });
+
+  // Add user mutation
+  const addUserMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({
         title: "Success",
-        description: `Action ${action} completed successfully.`,
+        description: "User added successfully",
       });
-    } catch (error: any) {
+      setIsAddingUser(false);
+      formRef.current?.reset();
+    },
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message,
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
-    }
+    },
+  });
+
+  // Update user role mutation
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
+      const response = await fetch(`/api/admin/users/${userId}/role`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: "Success",
+        description: "User role updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // CV approval mutation
+  const approveCVMutation = useMutation({
+    mutationFn: async ({
+      cvId,
+      status,
+      comment,
+    }: {
+      cvId: number;
+      status: "approved" | "rejected";
+      comment?: string;
+    }) => {
+      const response = await fetch(`/api/admin/cvs/${cvId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, comment }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/cvs/pending"] });
+      toast({
+        title: "Success",
+        description: "CV status updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  async function handleAddUser(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    addUserMutation.mutate(formData);
+  }
+
+  if (!user || (user.role !== "super_admin" && user.role !== "sub_admin")) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold mb-4">Access Denied</h1>
+          <p className="text-muted-foreground">
+            You don't have permission to access this page.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -60,86 +204,245 @@ export default function AdminPage() {
                   variant={activeTab === "users" ? "default" : "outline"}
                   onClick={() => setActiveTab("users")}
                 >
+                  <Shield className="h-4 w-4 mr-2" />
                   Users
                 </Button>
                 <Button
                   variant={activeTab === "cvs" ? "default" : "outline"}
                   onClick={() => setActiveTab("cvs")}
                 >
-                  CVs
+                  <FileText className="h-4 w-4 mr-2" />
+                  Pending CVs
+                </Button>
+                <Button
+                  variant={activeTab === "logs" ? "default" : "outline"}
+                  onClick={() => setActiveTab("logs")}
+                >
+                  <Activity className="h-4 w-4 mr-2" />
+                  Activity Logs
                 </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            {activeTab === "users" && (
+              <div className="space-y-6">
+                {isSuperAdmin && (
+                  <div className="flex justify-end">
+                    <Dialog open={isAddingUser} onOpenChange={setIsAddingUser}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Add User
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add New User</DialogTitle>
+                          <DialogDescription>
+                            Create a new user or sub-admin account.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <form ref={formRef} onSubmit={handleAddUser} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="username">Username</Label>
+                            <Input
+                              id="username"
+                              name="username"
+                              required
+                              minLength={3}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input
+                              id="email"
+                              name="email"
+                              type="email"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="password">Password</Label>
+                            <Input
+                              id="password"
+                              name="password"
+                              type="password"
+                              required
+                              minLength={6}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="role">Role</Label>
+                            <Select name="role" defaultValue="user">
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="user">User</SelectItem>
+                                <SelectItem value="sub_admin">Sub Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex justify-end">
+                            <Button type="submit" disabled={addUserMutation.isPending}>
+                              {addUserMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Add User"
+                              )}
+                            </Button>
+                          </div>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                )}
+
+                {isLoadingUsers ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Username</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        {isSuperAdmin && <TableHead>Actions</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.id}</TableCell>
+                          <TableCell>{user.username}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell className="capitalize">{user.role}</TableCell>
+                          {isSuperAdmin && (
+                            <TableCell>
+                              <Select
+                                value={user.role}
+                                onValueChange={(newRole) =>
+                                  updateRoleMutation.mutate({
+                                    userId: user.id,
+                                    role: newRole,
+                                  })
+                                }
+                                disabled={user.role === "super_admin"}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="user">User</SelectItem>
+                                  <SelectItem value="sub_admin">Sub Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </div>
-            ) : activeTab === "users" ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map(user => (
-                    <TableRow key={user.id}>
-                      <TableCell>{user.id}</TableCell>
-                      <TableCell>{user.username}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.role}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAction("delete", user.id)}
-                        >
-                          Delete
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Original File</TableHead>
-                    <TableHead>Target Role</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cvs.map(cv => (
-                    <TableRow key={cv.id}>
-                      <TableCell>{cv.id}</TableCell>
-                      <TableCell>{cv.userId}</TableCell>
-                      <TableCell>{cv.originalFilename}</TableCell>
-                      <TableCell>{cv.targetRole}</TableCell>
-                      <TableCell>{cv.score}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAction("view", cv.id)}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            )}
+
+            {activeTab === "cvs" && (
+              <div className="space-y-6">
+                {isLoadingCVs ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Target Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingCVs.map((cv) => (
+                        <TableRow key={cv.id}>
+                          <TableCell>{cv.id}</TableCell>
+                          <TableCell>{cv.userId}</TableCell>
+                          <TableCell>{cv.targetRole}</TableCell>
+                          <TableCell className="capitalize">{cv.approvalStatus}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  approveCVMutation.mutate({
+                                    cvId: cv.id,
+                                    status: "approved",
+                                  })
+                                }
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() =>
+                                  approveCVMutation.mutate({
+                                    cvId: cv.id,
+                                    status: "rejected",
+                                  })
+                                }
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            )}
+
+            {activeTab === "logs" && (
+              <div className="space-y-6">
+                {isLoadingLogs ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Time</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Details</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {logs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell>
+                            {new Date(log.createdAt).toLocaleString()}
+                          </TableCell>
+                          <TableCell>{log.userId}</TableCell>
+                          <TableCell>{log.action}</TableCell>
+                          <TableCell>
+                            {log.details ? JSON.stringify(log.details) : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

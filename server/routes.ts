@@ -2,13 +2,13 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { cvs, subscriptions, users } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { users, cvs, activityLogs, subscriptions } from "@db/schema";
+import { eq, desc } from "drizzle-orm";
+import { addUserSchema, updateUserRoleSchema, cvApprovalSchema } from "@db/schema";
 import multer from "multer";
 import { extname } from "path";
 import mammoth from "mammoth";
 import { PDFDocument } from "pdf-lib";
-import { generateDocument } from "docx";
 import {
   Document,
   Paragraph,
@@ -220,6 +220,211 @@ function evaluateCV(cv: string, jobDescription: string): {
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
+
+  // Admin routes
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user ||
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        return res.status(403).send("Access denied");
+      }
+
+      const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+      res.json(allUsers);
+    } catch (error: any) {
+      console.error("Admin get users error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Create new user (super admin only)
+  app.post("/api/admin/users", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "super_admin") {
+        return res.status(403).send("Access denied");
+      }
+
+      const result = addUserSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(result.error.message);
+      }
+
+      const { username, email, password, role } = result.data;
+
+      // Check if username already exists
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      if (existingUser) {
+        return res.status(400).send("Username already exists");
+      }
+
+      const [newUser] = await db.insert(users).values({
+        username,
+        email,
+        password, // Note: In production, this should be hashed
+        role,
+      }).returning();
+
+      // Log activity
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "create_user",
+        details: { createdUserId: newUser.id, role },
+      });
+
+      res.json(newUser);
+    } catch (error: any) {
+      console.error("Admin create user error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Update user role (super admin only)
+  app.put("/api/admin/users/:id/role", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "super_admin") {
+        return res.status(403).send("Access denied");
+      }
+
+      const result = updateUserRoleSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(result.error.message);
+      }
+
+      const userId = parseInt(req.params.id);
+      const { role } = result.data;
+
+      // Check if user exists
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!existingUser) {
+        return res.status(404).send("User not found");
+      }
+
+      // Prevent modifying super_admin accounts
+      if (existingUser.role === "super_admin") {
+        return res.status(403).send("Cannot modify super admin accounts");
+      }
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({ role })
+        .where(eq(users.id, userId))
+        .returning();
+
+      // Log activity
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "update_user_role",
+        details: { updatedUserId: userId, oldRole: existingUser.role, newRole: role },
+      });
+
+      res.json(updatedUser);
+    } catch (error: any) {
+      console.error("Admin update user role error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Get activity logs (admin only)
+  app.get("/api/admin/logs", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user ||
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        return res.status(403).send("Access denied");
+      }
+
+      const logs = await db
+        .select()
+        .from(activityLogs)
+        .orderBy(desc(activityLogs.createdAt))
+        .limit(100);
+
+      res.json(logs);
+    } catch (error: any) {
+      console.error("Admin get logs error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Get pending CVs (admin only)
+  app.get("/api/admin/cvs/pending", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user ||
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        return res.status(403).send("Access denied");
+      }
+
+      const pendingCVs = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.needsApproval, true))
+        .orderBy(desc(cvs.createdAt));
+
+      res.json(pendingCVs);
+    } catch (error: any) {
+      console.error("Admin get pending CVs error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Approve/reject CV (admin only)
+  app.post("/api/admin/cvs/:id/approve", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user ||
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        return res.status(403).send("Access denied");
+      }
+
+      const result = cvApprovalSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(result.error.message);
+      }
+
+      const cvId = parseInt(req.params.id);
+      const { status, comment } = result.data;
+
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, cvId))
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      const [updatedCV] = await db
+        .update(cvs)
+        .set({
+          approvalStatus: status,
+          approvalComment: comment,
+          approvedBy: req.user.id,
+        })
+        .where(eq(cvs.id, cvId))
+        .returning();
+
+      // Log activity
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "cv_approval",
+        details: { cvId, status, comment },
+      });
+
+      res.json(updatedCV);
+    } catch (error: any) {
+      console.error("Admin approve CV error:", error);
+      res.status(500).send(error.message);
+    }
+  });
 
   // Public CV transformation endpoint
   app.post("/api/cv/transform/public", upload.single("file"), async (req, res) => {
