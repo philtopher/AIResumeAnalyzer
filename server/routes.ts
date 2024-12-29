@@ -1,6 +1,5 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
 import { db } from "@db";
 import { cvs, subscriptions, users } from "@db/schema";
 import { eq } from "drizzle-orm";
@@ -8,7 +7,7 @@ import multer from "multer";
 import { extname } from "path";
 import mammoth from "mammoth";
 import { Document, Packer, Paragraph, TextRun } from "docx";
-import OpenAI from "openai";
+import { OpenAI } from "openai";
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY is required");
@@ -16,7 +15,7 @@ if (!process.env.OPENAI_API_KEY) {
 
 // Configure OpenAI
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Configure multer for file uploads
@@ -24,12 +23,12 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   fileFilter: (_req, file, cb) => {
-    const allowedExtensions = [".docx"];
+    const allowedExtensions = [".docx", ".pdf"];
     const ext = extname(file.originalname).toLowerCase();
     if (allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error("Only DOCX files are allowed"));
+      cb(new Error("Only DOCX and PDF files are allowed"));
     }
   },
   limits: {
@@ -39,20 +38,11 @@ const upload = multer({
 
 async function extractCVContent(file: Express.Multer.File): Promise<string> {
   try {
-    console.log("Starting CV content extraction...");
-    const ext = extname(file.originalname).toLowerCase();
-    let content = "";
-
-    if (ext === ".docx") {
-      console.log("Processing DOCX file...");
-      const result = await mammoth.extractRawText({ buffer: file.buffer });
-      content = result.value;
-    } else {
-      throw new Error("Unsupported file format");
+    if (file.originalname.toLowerCase().endsWith('.pdf')) {
+      throw new Error("PDF processing not implemented yet. Please use DOCX files.");
     }
-
-    console.log("Content extraction completed, length:", content.length);
-    return content;
+    const result = await mammoth.extractRawText({ buffer: file.buffer });
+    return result.value;
   } catch (error) {
     console.error("Error extracting CV content:", error);
     throw new Error("Failed to extract CV content. Please try a different file.");
@@ -61,7 +51,6 @@ async function extractCVContent(file: Express.Multer.File): Promise<string> {
 
 async function transformCV(cvContent: string, targetRole: string, jobDescription: string) {
   try {
-    console.log("Starting CV transformation...");
     const prompt = `As an expert CV transformation assistant, help transform this CV for a ${targetRole} position.
 
 Job Description:
@@ -93,7 +82,6 @@ Format your response as a JSON object with this structure:
   }
 }`;
 
-    console.log("Sending request to OpenAI...");
     const completion = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [{ role: "user", content: prompt }],
@@ -106,16 +94,12 @@ Format your response as a JSON object with this structure:
       throw new Error("No response from OpenAI");
     }
 
-    console.log("Parsing OpenAI response...");
-    const parsedResponse = JSON.parse(response);
-
-    // Ensure the response has the expected structure
-    if (!parsedResponse.transformedContent || !parsedResponse.feedback) {
+    try {
+      return JSON.parse(response);
+    } catch (error) {
+      console.error("Failed to parse OpenAI response:", error);
       throw new Error("Invalid response format from OpenAI");
     }
-
-    console.log("CV transformation completed successfully");
-    return parsedResponse;
   } catch (error) {
     console.error("OpenAI API error:", error);
     throw new Error("Failed to transform CV. Please try again.");
@@ -124,24 +108,19 @@ Format your response as a JSON object with this structure:
 
 async function createWordDoc(content: string): Promise<Buffer> {
   try {
-    // Split content into paragraphs
-    const paragraphs = content.split('\n').filter(p => p.trim());
+    const paragraphs = content.split('\n').filter(p => p.trim()).map(text => 
+      new Paragraph({
+        children: [new TextRun({ text: text.trim() })]
+      })
+    );
 
-    // Create a new document
     const doc = new Document({
-      sections: [
-        {
-          properties: {},
-          children: paragraphs.map(text => 
-            new Paragraph({
-              children: [new TextRun({ text, break: true })]
-            })
-          ),
-        },
-      ],
+      sections: [{
+        properties: {},
+        children: paragraphs
+      }],
     });
 
-    // Generate buffer
     return await Packer.toBuffer(doc);
   } catch (error) {
     console.error("Error creating Word document:", error);
@@ -150,9 +129,6 @@ async function createWordDoc(content: string): Promise<Buffer> {
 }
 
 export function registerRoutes(app: Express): Server {
-  // Setup authentication routes
-  setupAuth(app);
-
   // Public CV transformation endpoint
   app.post("/api/cv/transform/public", upload.single("file"), async (req, res) => {
     try {
@@ -166,15 +142,10 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).send("Target role and job description are required");
       }
 
-      console.log("Extracting CV content...");
       const cvContent = await extractCVContent(file);
-      console.log("CV content extracted, length:", cvContent.length);
-
-      console.log("Transforming CV...");
       const transformed = await transformCV(cvContent, targetRole, jobDescription);
-      console.log("CV transformed successfully");
 
-      // For public demo, store under a demo user
+      // Store under demo user
       const [demoUser] = await db
         .select()
         .from(users)
@@ -201,7 +172,7 @@ export function registerRoutes(app: Express): Server {
         .values({
           userId,
           originalFilename: file.originalname,
-          fileContent: file.buffer.toString("base64"),
+          fileContent: cvContent,
           transformedContent: transformed.transformedContent,
           targetRole,
           jobDescription,
@@ -260,7 +231,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).send("CV not found");
       }
 
-      // Create Word document from transformed content
       const docBuffer = await createWordDoc(cv.transformedContent || "");
 
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
@@ -268,6 +238,47 @@ export function registerRoutes(app: Express): Server {
       res.send(docBuffer);
     } catch (error: any) {
       console.error("Public download CV error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Protected routes requiring authentication
+  app.post("/api/cv/transform", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const file = req.file;
+      if (!file) {
+        return res.status(400).send("No file uploaded");
+      }
+
+      const { targetRole, jobDescription } = req.body;
+      if (!targetRole || !jobDescription) {
+        return res.status(400).send("Target role and job description are required");
+      }
+
+      const cvContent = await extractCVContent(file);
+      const transformed = await transformCV(cvContent, targetRole, jobDescription);
+
+      const [cv] = await db
+        .insert(cvs)
+        .values({
+          userId: req.user.id,
+          originalFilename: file.originalname,
+          fileContent: cvContent,
+          transformedContent: transformed.transformedContent,
+          targetRole,
+          jobDescription,
+          score: 85,
+          feedback: transformed.feedback,
+        })
+        .returning();
+
+      res.json(cv);
+    } catch (error: any) {
+      console.error("Transform CV error:", error);
       res.status(500).send(error.message);
     }
   });
