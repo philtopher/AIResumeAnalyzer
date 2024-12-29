@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { useUser } from "@/hooks/use-user";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, FileText, Download, Eye } from "lucide-react";
+import { Loader2, Upload, Download, Eye } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 export default function DashboardPage() {
@@ -19,6 +19,9 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [transformedCV, setTransformedCV] = useState<any>(null);
+  const [transformedContent, setTransformedContent] = useState<string>("");
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Consider admin users as having pro access
   const hasPro = user?.role === "admin" || subscription?.status === "active";
@@ -30,8 +33,15 @@ export default function DashboardPage() {
     setIsProcessing(true);
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("targetRole", (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value);
-    formData.append("jobDescription", (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement).value);
+    formData.append(
+      "targetRole",
+      (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value
+    );
+    formData.append(
+      "jobDescription",
+      (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement)
+        .value
+    );
 
     try {
       const response = await fetch("/api/cv/transform", {
@@ -44,6 +54,16 @@ export default function DashboardPage() {
         throw new Error(await response.text());
       }
 
+      const result = await response.json();
+      setTransformedCV(result);
+
+      // Get the transformed content for display
+      const contentResponse = await fetch(`/api/cv/${result.id}/content`);
+      if (contentResponse.ok) {
+        const content = await contentResponse.text();
+        setTransformedContent(content);
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["/api/cv/history"] });
 
       toast({
@@ -53,7 +73,9 @@ export default function DashboardPage() {
 
       // Clear form
       setFile(null);
-      e.currentTarget.reset();
+      if (formRef.current) {
+        formRef.current.reset();
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -79,7 +101,7 @@ export default function DashboardPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "transformed_cv.pdf";
+      a.download = "transformed_cv.docx";
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -95,7 +117,7 @@ export default function DashboardPage() {
 
   async function handleView(cvId: number) {
     try {
-      const response = await fetch(`/api/cv/${cvId}/view`, {
+      const response = await fetch(`/api/cv/${cvId}/content`, {
         credentials: "include",
       });
 
@@ -103,10 +125,8 @@ export default function DashboardPage() {
         throw new Error(await response.text());
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      window.URL.revokeObjectURL(url);
+      const content = await response.text();
+      setTransformedContent(content);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -149,7 +169,7 @@ export default function DashboardPage() {
               <CardTitle>Transform Your CV</CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="cv">Upload CV (PDF or DOCX)</Label>
                   <div className="border rounded-md p-4">
@@ -157,7 +177,7 @@ export default function DashboardPage() {
                       id="cv"
                       type="file"
                       accept=".pdf,.docx"
-                      onChange={e => setFile(e.target.files?.[0] || null)}
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
                       className="hidden"
                     />
                     <label
@@ -214,7 +234,7 @@ export default function DashboardPage() {
                   </div>
                 ) : !cvs?.length ? (
                   <div className="text-center text-muted-foreground py-8">
-                    <FileText className="h-12 w-12 mx-auto mb-2" />
+                    <Upload className="h-12 w-12 mx-auto mb-2" />
                     <p>No recent transformations</p>
                   </div>
                 ) : (
@@ -252,6 +272,13 @@ export default function DashboardPage() {
                               </div>
                             )}
                           </div>
+                          {cv.id === transformedCV?.id && transformedContent && (
+                            <div className="bg-muted p-4 rounded-md mt-4">
+                              <pre className="whitespace-pre-wrap text-sm">
+                                {transformedContent}
+                              </pre>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
