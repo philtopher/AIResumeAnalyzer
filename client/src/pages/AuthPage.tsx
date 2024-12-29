@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { usePasswordStrength } from "@/hooks/use-password-strength";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -14,6 +16,10 @@ export default function AuthPage() {
   const { toast } = useToast();
   const { login, register } = useUser();
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const { score, feedback, color, label } = usePasswordStrength(password);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -21,16 +27,35 @@ export default function AuthPage() {
 
     const formData = new FormData(e.currentTarget);
     const username = formData.get("username") as string;
-    const password = formData.get("password") as string;
     const email = formData.get("email") as string;
+
+    if (!isLogin && password !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
 
     try {
       if (isLogin) {
-        const result = await login({ username, password });
+        const result = await login({ username, password, email });
         if (!result.ok) {
           throw new Error(result.message);
         }
       } else {
+        if (score < 2) {
+          toast({
+            title: "Weak Password",
+            description: "Please choose a stronger password",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
         const result = await register({ username, password, email });
         if (!result.ok) {
           throw new Error(result.message);
@@ -69,6 +94,7 @@ export default function AuthPage() {
                 name="username"
                 required
                 disabled={isLoading}
+                className="transition-all duration-200 focus:ring-2 focus:ring-primary"
               />
             </div>
 
@@ -81,22 +107,89 @@ export default function AuthPage() {
                   type="email"
                   required
                   disabled={isLoading}
+                  className="transition-all duration-200 focus:ring-2 focus:ring-primary"
                 />
               </div>
             )}
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  disabled={isLoading}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              {!isLogin && password && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2"
+                >
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${color} transition-all duration-300`}
+                      style={{ width: `${(score + 1) * 20}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Password strength: {label}
+                  </p>
+                  {feedback.length > 0 && (
+                    <ul className="text-sm text-muted-foreground list-disc pl-4">
+                      {feedback.map((suggestion, i) => (
+                        <li key={i}>{suggestion}</li>
+                      ))}
+                    </ul>
+                  )}
+                </motion.div>
+              )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    disabled={isLoading}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                {confirmPassword && password !== confirmPassword && (
+                  <p className="text-sm text-red-500">Passwords do not match</p>
+                )}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full transition-all duration-200 hover:scale-[1.02]"
+              disabled={isLoading}
+            >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : isLogin ? (
@@ -109,8 +202,12 @@ export default function AuthPage() {
 
           <div className="mt-4 text-center space-y-2">
             <button
-              className="text-sm text-muted-foreground hover:underline"
-              onClick={() => setIsLogin(!isLogin)}
+              className="text-sm text-muted-foreground hover:underline transition-colors"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setPassword("");
+                setConfirmPassword("");
+              }}
               type="button"
             >
               {isLogin
@@ -121,7 +218,7 @@ export default function AuthPage() {
             {isLogin && (
               <div>
                 <button
-                  className="text-sm text-muted-foreground hover:underline"
+                  className="text-sm text-muted-foreground hover:underline transition-colors"
                   onClick={() => setLocation("/reset-password")}
                   type="button"
                 >
