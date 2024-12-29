@@ -137,34 +137,39 @@ export function registerRoutes(app: Express): Server {
 
       // Transform the CV content
       const transformedContent = `
-Original Role: [Previous Role]
-Target Role: ${targetRole}
+${targetRole.toUpperCase()}
+Professional Summary
+A results-driven professional with extensive experience in implementing innovative solutions and driving operational excellence. Seeking to leverage proven ${targetRole.toLowerCase()} expertise to deliver exceptional results and contribute to organizational success.
 
-TRANSFORMED CV CONTENT:
+PROFESSIONAL EXPERIENCE
 ${latestEmployment}
 
-TAILORED FOR JOB REQUIREMENTS:
-${jobDescription}
+Key Achievements:
+- Successfully led and delivered multiple high-impact projects, resulting in significant efficiency improvements
+- Demonstrated expertise in strategic planning and execution of complex initiatives
+- Established and maintained strong relationships with stakeholders at all levels
 
-Key Responsibilities:
-1. Led cross-functional teams in developing innovative solutions
-2. Managed complex technical projects from conception to delivery
-3. Implemented best practices and improved team efficiency
-
-Achievements:
-- Reduced system downtime by 40% through implementation of automated monitoring
-- Increased team productivity by 25% through process improvements
-- Successfully delivered 15+ major projects ahead of schedule
+Core Competencies:
+- Leadership & Team Management
+- Project Planning & Execution
+- Strategic Problem-Solving
+- Cross-functional Collaboration
+- Process Optimization
+- Risk Management
 
 Technical Skills:
-- Programming Languages: Python, JavaScript, TypeScript
-- Frameworks: React, Node.js, Express
-- Tools: Git, Docker, AWS, Azure
+- Industry-standard Tools & Technologies
+- Performance Monitoring & Analytics
+- Quality Assurance & Control
+- Documentation & Reporting
+- Resource Optimization
+- Compliance & Best Practices
 
-Certifications:
-- AWS Certified Solutions Architect
-- Scrum Master Certification
-      `.trim();
+Professional Development:
+- Continuous Learning & Skill Enhancement
+- Industry Certifications & Training
+- Professional Network Building
+`.trim();
 
       // Gather company insights
       const companyInsights = await gatherOrganizationalInsights(targetRole.split(" at ")[1] || "");
@@ -344,36 +349,41 @@ Certifications:
       // Extract latest employment
       const latestEmployment = await extractLatestEmployment(textContent);
 
-      // Transform the CV content (same as public route)
+      // Transform the CV content
       const transformedContent = `
-Original Role: [Previous Role]
-Target Role: ${targetRole}
+${targetRole.toUpperCase()}
+Professional Summary
+A results-driven professional with extensive experience in implementing innovative solutions and driving operational excellence. Seeking to leverage proven ${targetRole.toLowerCase()} expertise to deliver exceptional results and contribute to organizational success.
 
-TRANSFORMED CV CONTENT:
+PROFESSIONAL EXPERIENCE
 ${latestEmployment}
 
-TAILORED FOR JOB REQUIREMENTS:
-${jobDescription}
+Key Achievements:
+- Successfully led and delivered multiple high-impact projects, resulting in significant efficiency improvements
+- Demonstrated expertise in strategic planning and execution of complex initiatives
+- Established and maintained strong relationships with stakeholders at all levels
 
-Key Responsibilities:
-1. Led cross-functional teams in developing innovative solutions
-2. Managed complex technical projects from conception to delivery
-3. Implemented best practices and improved team efficiency
-
-Achievements:
-- Reduced system downtime by 40% through implementation of automated monitoring
-- Increased team productivity by 25% through process improvements
-- Successfully delivered 15+ major projects ahead of schedule
+Core Competencies:
+- Leadership & Team Management
+- Project Planning & Execution
+- Strategic Problem-Solving
+- Cross-functional Collaboration
+- Process Optimization
+- Risk Management
 
 Technical Skills:
-- Programming Languages: Python, JavaScript, TypeScript
-- Frameworks: React, Node.js, Express
-- Tools: Git, Docker, AWS, Azure
+- Industry-standard Tools & Technologies
+- Performance Monitoring & Analytics
+- Quality Assurance & Control
+- Documentation & Reporting
+- Resource Optimization
+- Compliance & Best Practices
 
-Certifications:
-- AWS Certified Solutions Architect
-- Scrum Master Certification
-      `.trim();
+Professional Development:
+- Continuous Learning & Skill Enhancement
+- Industry Certifications & Training
+- Professional Network Building
+`.trim();
 
       // Gather company insights
       const companyInsights = await gatherOrganizationalInsights(targetRole.split(" at ")[1] || "");
