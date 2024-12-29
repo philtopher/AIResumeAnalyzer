@@ -19,11 +19,7 @@ import {
   Newspaper
 } from "lucide-react";
 
-type OrganizationalInsights = {
-  glassdoor: string[];
-  indeed: string[];
-  news: string[];
-};
+type OrganizationalInsights = string[][];
 
 type Feedback = {
   strengths: string[];
@@ -282,13 +278,14 @@ export default function PublicCVPage() {
                         <div className="space-y-4">
                           <h3 className="font-medium">Organization Insights</h3>
                           <div className="grid gap-4">
+                            {/* Glassdoor Reviews */}
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
                                 <Building className="h-5 w-5 text-blue-500" />
                                 <h4 className="font-medium">Glassdoor Reviews</h4>
                               </div>
                               <ul className="list-disc list-inside text-sm text-muted-foreground">
-                                {transformedCV.feedback.organizationalInsights.glassdoor.map(
+                                {(transformedCV.feedback.organizationalInsights[0] || []).map(
                                   (insight: string, i: number) => (
                                     <li key={i}>{insight}</li>
                                   )
@@ -296,13 +293,14 @@ export default function PublicCVPage() {
                               </ul>
                             </div>
 
+                            {/* Indeed Reviews */}
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
                                 <MessageSquare className="h-5 w-5 text-purple-500" />
                                 <h4 className="font-medium">Indeed Reviews</h4>
                               </div>
                               <ul className="list-disc list-inside text-sm text-muted-foreground">
-                                {transformedCV.feedback.organizationalInsights.indeed.map(
+                                {(transformedCV.feedback.organizationalInsights[1] || []).map(
                                   (insight: string, i: number) => (
                                     <li key={i}>{insight}</li>
                                   )
@@ -310,13 +308,14 @@ export default function PublicCVPage() {
                               </ul>
                             </div>
 
+                            {/* Latest News */}
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
                                 <Newspaper className="h-5 w-5 text-orange-500" />
                                 <h4 className="font-medium">Latest News</h4>
                               </div>
                               <ul className="list-disc list-inside text-sm text-muted-foreground">
-                                {transformedCV.feedback.organizationalInsights.news.map(
+                                {(transformedCV.feedback.organizationalInsights[2] || []).map(
                                   (insight: string, i: number) => (
                                     <li key={i}>{insight}</li>
                                   )
