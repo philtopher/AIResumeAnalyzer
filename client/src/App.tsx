@@ -11,6 +11,7 @@ import DashboardPage from "./pages/DashboardPage";
 import AdminPage from "./pages/AdminPage";
 import FeaturesPage from "./pages/FeaturesPage";
 import PublicCVPage from "./pages/PublicCVPage";
+import TutorialPage from "./pages/TutorialPage";
 import { useUser } from "./hooks/use-user";
 import {
   DropdownMenu,
@@ -38,6 +39,9 @@ function Navigation() {
         </Link>
 
         <div className="hidden md:flex items-center space-x-4">
+          <Link href="/tutorial">
+            <Button variant="ghost">How It Works</Button>
+          </Link>
           <Link href="/features">
             <Button variant="ghost">Features</Button>
           </Link>
@@ -73,6 +77,9 @@ function Navigation() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setLocation("/tutorial")}>
+                How It Works
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setLocation("/features")}>
                 Features
               </DropdownMenuItem>
@@ -123,6 +130,7 @@ function AuthenticatedApp() {
       <main className="flex-1">
         <Switch>
           <Route path="/" component={HomePage} />
+          <Route path="/tutorial" component={TutorialPage} />
           <Route path="/features" component={FeaturesPage} />
           <Route path="/auth" component={AuthPage} />
           <Route path="/reset-password" component={ResetPasswordPage} />
@@ -130,6 +138,7 @@ function AuthenticatedApp() {
           {(!user && window.location.pathname !== "/reset-password" && 
             window.location.pathname !== "/" && 
             window.location.pathname !== "/features" &&
+            window.location.pathname !== "/tutorial" &&
             window.location.pathname !== "/public-cv") ? (
             <Route component={AuthPage} />
           ) : (
