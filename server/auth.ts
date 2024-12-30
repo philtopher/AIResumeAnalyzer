@@ -28,7 +28,7 @@ const crypto = {
   },
 };
 
-// Add this function to handle admin password update
+// Update the admin password update function
 export async function updateAdminPassword() {
   try {
     const hashedPassword = await crypto.hash("password123");
@@ -44,7 +44,7 @@ export async function updateAdminPassword() {
         .update(users)
         .set({
           password: hashedPassword,
-          role: "admin",
+          role: "super_admin",
           email: "t.unamka@yahoo.co.uk"
         })
         .where(eq(users.username, "tobechukwu"));
@@ -54,7 +54,7 @@ export async function updateAdminPassword() {
         username: "tobechukwu",
         password: hashedPassword,
         email: "t.unamka@yahoo.co.uk",
-        role: "admin"
+        role: "super_admin"
       });
     }
     console.log("Admin user created/updated successfully");

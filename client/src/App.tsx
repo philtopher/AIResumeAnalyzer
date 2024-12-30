@@ -28,6 +28,8 @@ function Navigation() {
     setLocation("/");
   };
 
+  const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
+
   return (
     <nav className="border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -47,7 +49,7 @@ function Navigation() {
               <Link href="/dashboard">
                 <Button variant="ghost">Dashboard</Button>
               </Link>
-              {user.role === "admin" && (
+              {isAdmin && (
                 <Link href="/admin">
                   <Button variant="ghost">Admin</Button>
                 </Link>
@@ -82,7 +84,7 @@ function Navigation() {
                   <DropdownMenuItem onClick={() => setLocation("/dashboard")}>
                     Dashboard
                   </DropdownMenuItem>
-                  {user.role === "admin" && (
+                  {isAdmin && (
                     <DropdownMenuItem onClick={() => setLocation("/admin")}>
                       Admin
                     </DropdownMenuItem>
@@ -133,7 +135,7 @@ function AuthenticatedApp() {
           ) : (
             <>
               <Route path="/dashboard" component={DashboardPage} />
-              {user?.role === "admin" && (
+              {(user?.role === "super_admin" || user?.role === "sub_admin") && (
                 <Route path="/admin" component={AdminPage} />
               )}
             </>
