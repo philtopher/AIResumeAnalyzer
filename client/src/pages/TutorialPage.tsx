@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, Upload, Download, Star, Zap, CheckCircle } from "lucide-react";
+import { Link } from "wouter";
 
 export default function TutorialPage() {
   const features = [
@@ -34,7 +35,7 @@ export default function TutorialPage() {
     {
       icon: <Download className="w-6 h-6" />,
       title: "Download & Apply",
-      description: "Get your transformed CV ready for submission.",
+      description: "Get your transformed CV ready for submission in DOCX format.",
     },
     {
       icon: <CheckCircle className="w-6 h-6" />,
@@ -103,9 +104,11 @@ export default function TutorialPage() {
         className="text-center"
       >
         <h2 className="text-2xl font-bold mb-6">Ready to Transform Your CV?</h2>
-        <Button size="lg" className="animate-pulse">
-          Try Demo Now
-        </Button>
+        <Link href="/public-cv">
+          <Button size="lg" className="animate-pulse">
+            Try Demo Now
+          </Button>
+        </Link>
       </motion.div>
 
       <div className="mt-16 bg-muted rounded-lg p-8">
@@ -144,7 +147,8 @@ export default function TutorialPage() {
               <h3 className="font-semibold mb-2">Review and Customize</h3>
               <p className="text-muted-foreground">
                 After transformation, review the changes and make any necessary adjustments. While our
-                AI is powerful, your personal touch can make the CV even more impactful.
+                AI is powerful, your personal touch can make the CV even more impactful. Remember to
+                verify all information before submitting.
               </p>
             </div>
           </div>
