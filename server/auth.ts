@@ -31,7 +31,7 @@ const crypto = {
 // Update the admin password update function
 export async function updateAdminPassword() {
   try {
-    const hashedPassword = await crypto.hash("password123");
+    const hashedPassword = await crypto.hash("apqMcH]#qL83");
     const [existingAdmin] = await db
       .select()
       .from(users)
