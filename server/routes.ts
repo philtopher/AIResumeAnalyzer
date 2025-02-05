@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
+import { sendEmail } from "./email";
 import { users, cvs, activityLogs, subscriptions } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema } from "@db/schema";
