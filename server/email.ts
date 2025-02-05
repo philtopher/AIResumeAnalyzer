@@ -14,14 +14,28 @@ const transporter = nodemailer.createTransport({
 
 export async function sendEmail(options: Mail) {
   try {
+    console.log("Attempting to send email with config:", {
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: process.env.SMTP_SECURE === "true",
+      user: process.env.SMTP_USER,
+      hasPassword: !!process.env.SMTP_PASSWORD
+    });
+
     const info = await transporter.sendMail({
       from: `"CV Transformer" <${process.env.SMTP_USER}>`,
       ...options,
     });
-    console.log("Email sent:", info.messageId);
+    console.log("Email sent successfully:", info.messageId);
     return true;
-  } catch (error) {
-    console.error("Failed to send email:", error);
+  } catch (error: any) {
+    console.error("Failed to send email. Details:", {
+      error: error.message,
+      code: error.code,
+      command: error.command,
+      responseCode: error.responseCode,
+      response: error.response
+    });
     return false;
   }
 }
