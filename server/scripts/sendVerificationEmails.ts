@@ -1,7 +1,7 @@
 
 import { db } from "@db";
 import { users } from "@db/schema";
-import { desc, isNull } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { sendEmailVerification } from "../email";
 
@@ -11,7 +11,7 @@ async function sendVerificationEmails() {
     const unverifiedUsers = await db
       .select()
       .from(users)
-      .where(isNull(users.emailVerified))
+      .where(eq(users.emailVerified, false))
       .orderBy(desc(users.createdAt))
       .limit(2);
 
@@ -23,8 +23,8 @@ async function sendVerificationEmails() {
       await db
         .update(users)
         .set({
-          verificationToken,
-          verificationTokenExpiry: verificationExpiry,
+          emailVerificationToken: verificationToken,
+          emailVerificationExpiry: verificationExpiry,
         })
         .where(eq(users.id, user.id));
 
