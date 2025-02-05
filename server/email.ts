@@ -3,24 +3,45 @@ import { type Mail } from "nodemailer/lib/mailer";
 import { randomBytes } from "crypto";
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: process.env.SMTP_SECURE === "true",
+  tls: {
+    // Do not fail on invalid certificates
+    rejectUnauthorized: false,
+    ciphers: 'SSLv3'
+  },
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASSWORD,
   },
+  debug: true,
+  logger: true
 });
 
 // Verify connection configuration at startup
 async function verifyEmailConfig() {
   try {
+    console.log("Verifying SMTP configuration with:", {
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: process.env.SMTP_SECURE === "true",
+      user: process.env.SMTP_USER,
+      hasPassword: !!process.env.SMTP_PASSWORD
+    });
+
     await transporter.verify();
     console.log("SMTP connection verified successfully");
     return true;
   } catch (error) {
     console.error("SMTP connection verification failed:", error);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
     return false;
   }
 }
@@ -57,28 +78,28 @@ export async function sendEmail(options: Mail) {
 }
 
 export async function sendEmailVerification(email: string, verificationToken: string) {
+  const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verificationToken}`;
   return sendEmail({
     to: email,
     subject: "Verify Your CV Transformer Email",
     html: `
       <h1>Email Verification</h1>
       <p>Thank you for registering. Please verify your email by clicking the link below:</p>
-      <p><a href="${process.env.APP_URL}/verify-email?token=${verificationToken}">Verify Email</a></p>
+      <p><a href="${verifyUrl}">Verify Email</a></p>
       <p>This link will expire in 24 hours.</p>
     `,
   });
 }
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
-  const resetLink = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
-
+  const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
   return sendEmail({
     to: email,
     subject: "Reset Your CV Transformer Password",
     html: `
       <h1>Password Reset Request</h1>
       <p>You requested to reset your password. Click the link below to reset it:</p>
-      <p><a href="${resetLink}">Reset Password</a></p>
+      <p><a href="${resetUrl}">Reset Password</a></p>
       <p>This link will expire in 1 hour.</p>
       <p>If you didn't request this, please ignore this email.</p>
     `,
