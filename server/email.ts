@@ -1,30 +1,21 @@
-
 import nodemailer from "nodemailer";
 import { type Mail } from "nodemailer/lib/mailer";
 import { randomBytes } from "crypto";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true",
+  service: 'gmail',
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
   },
 });
 
 export async function sendEmail(options: Mail) {
   try {
-    console.log("Attempting to send email with config:", {
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: process.env.SMTP_SECURE === "true",
-      user: process.env.SMTP_USER,
-      hasPassword: !!process.env.SMTP_PASSWORD
-    });
+    console.log("Attempting to send email with Gmail SMTP");
 
     const info = await transporter.sendMail({
-      from: `"CV Transformer" <${process.env.SMTP_USER}>`,
+      from: `"CV Transformer" <${process.env.GMAIL_USER}>`,
       ...options,
     });
     console.log("Email sent successfully:", info.messageId);
@@ -56,7 +47,7 @@ export async function sendEmailVerification(email: string, verificationToken: st
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
   const resetLink = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
-  
+
   return sendEmail({
     to: email,
     subject: "Reset Your CV Transformer Password",
