@@ -3,9 +3,10 @@ import { type Mail } from "nodemailer/lib/mailer";
 import { randomBytes } from "crypto";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'localhost',
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true",
+  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASSWORD,
