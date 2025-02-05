@@ -40,21 +40,6 @@ export async function sendEmail(options: Mail) {
   }
 }
 
-export async function sendVerificationEmail(email: string, verificationToken: string) {
-  const verificationLink = `${process.env.APP_URL}/verify-email?token=${verificationToken}`;
-  
-  return sendEmail({
-    to: email,
-    subject: "Verify Your CV Transformer Email",
-    html: `
-      <h1>Email Verification</h1>
-      <p>Thank you for registering. Please click the link below to verify your email:</p>
-      <p><a href="${verificationLink}">Verify Email</a></p>
-      <p>This link will expire in 24 hours.</p>
-    `,
-  });
-}
-
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
   const resetLink = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
   
