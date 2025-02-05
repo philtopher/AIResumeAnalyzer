@@ -11,6 +11,9 @@ export const users = pgTable("users", {
   role: text("role", { enum: ['user', 'sub_admin', 'super_admin'] }).default("user").notNull(),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  emailVerificationToken: text("email_verification_token"),
+  emailVerificationExpiry: timestamp("email_verification_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

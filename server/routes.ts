@@ -826,7 +826,7 @@ Professional Development
           <p>If you received this, your email configuration is working correctly!</p>
         `
       });
-      
+
       if (result) {
         res.json({ message: "Test email sent successfully" });
       } else {
@@ -888,6 +888,55 @@ Professional Development
       res.json(subscription || null);
     } catch (error: any) {
       console.error("Subscription error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.get("/api/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query;
+      if (!token) {
+        return res.status(400).send("Verification token is required");
+      }
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.emailVerificationToken, token as string))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).send("Invalid verification token");
+      }
+
+      if (!user.emailVerificationExpiry || user.emailVerificationExpiry < new Date()) {
+        return res.status(400).send("Verification token has expired");
+      }
+
+      await db
+        .update(users)
+        .set({
+          emailVerified: true,
+          emailVerificationToken: null,
+          emailVerificationExpiry: null,
+        })
+        .where(eq(users.id, user.id));
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error: any) {
+      console.error("Email verification error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.get("/api/user", (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("Authentication required");
+      }
+      res.json(req.user);
+    } catch (error: any) {
+      console.error("Get user error:", error);
       res.status(500).send(error.message);
     }
   });

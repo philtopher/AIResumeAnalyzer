@@ -170,6 +170,9 @@ export function setupAuth(app: Express) {
       const hashedPassword = await crypto.hash(password);
 
       // Create the new user
+      const verificationToken = randomBytes(32).toString("hex");
+      const verificationExpiry = new Date(Date.now() + 86400000); // 24 hours
+
       const [newUser] = await db
         .insert(users)
         .values({
@@ -177,8 +180,13 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           email,
           role: "user",
+          emailVerificationToken: verificationToken,
+          emailVerificationExpiry: verificationExpiry,
         })
         .returning();
+
+      // Send verification email
+      await sendVerificationEmail(email, verificationToken);
 
       // Log the user in after registration
       req.login(newUser, (err) => {
