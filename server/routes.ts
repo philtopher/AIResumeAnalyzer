@@ -813,6 +813,30 @@ Professional Development
     }
   });
 
+  // Test email route
+  app.post("/api/test-email", async (req, res) => {
+    try {
+      const result = await sendEmail({
+        to: process.env.SMTP_USER!, // Send to self for testing
+        subject: "Test Email from CV Transformer",
+        html: `
+          <h1>Test Email</h1>
+          <p>This is a test email from CV Transformer.</p>
+          <p>If you received this, your email configuration is working correctly!</p>
+        `
+      });
+      
+      if (result) {
+        res.json({ message: "Test email sent successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to send test email" });
+      }
+    } catch (error: any) {
+      console.error("Test email error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Public view transformed CV
   app.get("/api/cv/:id/view/public", async (req, res) => {
     try {
