@@ -13,6 +13,21 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Verify connection configuration at startup
+async function verifyEmailConfig() {
+  try {
+    await transporter.verify();
+    console.log("SMTP connection verified successfully");
+    return true;
+  } catch (error) {
+    console.error("SMTP connection verification failed:", error);
+    return false;
+  }
+}
+
+// Call verify on startup
+verifyEmailConfig();
+
 export async function sendEmail(options: Mail) {
   try {
     console.log("Attempting to send email with SMTP config:", {
