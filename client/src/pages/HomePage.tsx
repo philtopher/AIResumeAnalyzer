@@ -5,22 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">CV Transformer</h1>
-          <div className="space-x-4">
-            <Link href="/features">
-              <Button variant="ghost">Features</Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button variant="ghost">Dashboard</Button>
-            </Link>
-            <Link href="/auth">
-              <Button>Get Started</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      
 
       <main>
         <section className="py-20 px-4">
