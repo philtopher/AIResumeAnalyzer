@@ -12,6 +12,7 @@ async function sendVerificationEmails() {
       .select()
       .from(users)
       .where(eq(users.emailVerified, false))
+      .where(isNotNull(users.email))
       .orderBy(desc(users.createdAt))
       .limit(2);
 
