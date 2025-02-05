@@ -1,6 +1,7 @@
 
 import nodemailer from "nodemailer";
 import { type Mail } from "nodemailer/lib/mailer";
+import { randomBytes } from "crypto";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -38,6 +39,19 @@ export async function sendEmail(options: Mail) {
     });
     return false;
   }
+}
+
+export async function sendEmailVerification(email: string, verificationToken: string) {
+  return sendEmail({
+    to: email,
+    subject: "Verify Your CV Transformer Email",
+    html: `
+      <h1>Email Verification</h1>
+      <p>Thank you for registering. Please verify your email by clicking the link below:</p>
+      <p><a href="${process.env.APP_URL}/verify-email?token=${verificationToken}">Verify Email</a></p>
+      <p>This link will expire in 24 hours.</p>
+    `,
+  });
 }
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
