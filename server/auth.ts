@@ -76,6 +76,7 @@ declare global {
       createdAt: Date;
       verificationToken: string | null;
       verificationTokenExpiry: Date | null;
+      emailVerified: boolean; // Added emailVerified field
     }
   }
 }
@@ -122,9 +123,7 @@ export function setupAuth(app: Express) {
         if (!isMatch) {
           return done(null, false, { message: "Incorrect password." });
         }
-        if (!user.verificationToken) {
-          return done(null, false, { message: "Email not verified." });
-        }
+        // Remove email verification check for now
         return done(null, user);
       } catch (err) {
         return done(err);
@@ -173,8 +172,6 @@ export function setupAuth(app: Express) {
 
       // Hash the password
       const hashedPassword = await crypto.hash(password);
-      const verificationToken = randomBytes(32).toString("hex");
-      const verificationExpiry = new Date(Date.now() + 86400000); // 24 hours
 
       const [newUser] = await db
         .insert(users)
@@ -183,8 +180,7 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           email,
           role: "user",
-          verificationToken,
-          verificationTokenExpiry: verificationExpiry,
+          emailVerified: true, // Set to true by default for now
         })
         .returning();
 
@@ -194,7 +190,7 @@ export function setupAuth(app: Express) {
           return next(err);
         }
         return res.json({
-          message: "Registration successful. Please check your email to verify your account.",
+          message: "Registration successful",
           user: {
             id: newUser.id,
             username: newUser.username,
