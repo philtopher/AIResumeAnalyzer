@@ -184,18 +184,16 @@ function evaluateCV(cv: string, jobDescription: string): {
     strengths: string[];
     weaknesses: string[];
     suggestions: string[];
-    organizationalInsights: {
-      glassdoor: string[];
-      indeed: string[];
-      news: string[];
-    };
+    organizationalInsights: string[][];
   };
 } {
   // Extract keywords from job description
   const keywords = jobDescription.toLowerCase().split(/\s+/);
   const skillsFound = cv.toLowerCase().split(/\s+/).filter((word) => keywords.includes(word)).length;
 
-  // Create the feedback object with the correct structure
+  const companyInsights = gatherOrganizationalInsights(jobDescription.split(" at ")[1] || "");
+
+
   return {
     score: skillsFound > 10 ? 85 : 70,
     feedback: {
@@ -215,41 +213,10 @@ function evaluateCV(cv: string, jobDescription: string): {
         "Highlight leadership experience",
         "Add recent certifications",
       ],
-      organizationalInsights: {
-        glassdoor: [
-          "Strong emphasis on innovation and technological advancement",
-          "Competitive benefits package and career growth opportunities",
-          "Fast-paced environment with focus on continuous learning",
-        ],
-        indeed: [
-          "Collaborative work culture with emphasis on teamwork",
-          "Opportunities for professional development and skill enhancement",
-          "Work-life balance initiatives and flexible scheduling options",
-        ],
-        news: [
-          "Recent expansion into emerging markets",
-          "Investment in artificial intelligence and machine learning",
-          "Focus on sustainable business practices and environmental initiatives",
-        ],
-      },
+      organizationalInsights: [companyInsights.glassdoor, companyInsights.indeed, companyInsights.news],
     },
   };
 }
-
-// Helper function to adapt skills for target role
-function adaptSkills(originalSkills: string[], jobDescription: string): string[] {
-  // Extract skills from job description
-  const jobSkills = jobDescription.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-
-  // Keep some original skills and add new skills from job description
-  const keepOriginalCount = Math.min(3, originalSkills.length);
-  const originalSkillsToKeep = originalSkills.slice(0, keepOriginalCount);
-
-  const newSkills = Array.from(new Set([...originalSkillsToKeep, ...jobSkills.slice(0, 5).map((skill) => skill.replace(/\b(?:proficient|experience|knowledge|skill)\w*\s+/g, "").trim())]));
-
-  return newSkills;
-}
-
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -259,7 +226,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/admin/users", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -372,7 +339,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/admin/logs", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -393,7 +360,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/admin/cvs/pending", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -414,7 +381,7 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/admin/cvs/:id/approve", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -532,7 +499,7 @@ Professional Development
           username: "demo",
           password: "demo",
           email: "demo@example.com",
-          role: "demo" as const,
+          role: "demo",
         }).returning();
         userId = newDemoUser.id;
       }
@@ -546,7 +513,6 @@ Professional Development
         jobDescription,
         score: evaluation.score,
         feedback: evaluation.feedback,
-        needsApproval: false,
       }).returning();
 
       res.json(cv);
@@ -852,7 +818,7 @@ Professional Development
   app.post("/api/test-email", async (req, res) => {
     try {
       const result = await sendEmail({
-        to: "t.unamka@yahoo.co.uk", // Send to the specified email
+        to: process.env.SMTP_USER!, // Send to self for testing
         subject: "Test Email from CV Transformer",
         html: `
           <h1>Test Email</h1>
@@ -860,7 +826,7 @@ Professional Development
           <p>If you received this, your email configuration is working correctly!</p>
         `
       });
-
+      
       if (result) {
         res.json({ message: "Test email sent successfully" });
       } else {

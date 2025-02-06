@@ -57,32 +57,10 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    // Try different ports if 5000 is in use
-    const tryPort = async (port: number): Promise<number> => {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          server.listen(port, () => {
-            resolve();
-          }).on('error', (err: any) => {
-            if (err.code === 'EADDRINUSE') {
-              console.log(`Port ${port} is in use, trying ${port + 1}`);
-              resolve(tryPort(port + 1) as any);
-            } else {
-              reject(err);
-            }
-          });
-        });
-        return port;
-      } catch (error) {
-        if (port >= 5010) { // Max 10 retries
-          throw new Error("Could not find an available port");
-        }
-        return tryPort(port + 1);
-      }
-    };
-
-    const PORT = await tryPort(5000);
-    log(`serving on port ${PORT}`);
+    const PORT = 5000;
+    server.listen(PORT, "0.0.0.0", () => {
+      log(`serving on port ${PORT}`);
+    });
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
