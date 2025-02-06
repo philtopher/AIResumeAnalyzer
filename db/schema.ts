@@ -8,7 +8,7 @@ export const users = pgTable("users", {
   username: text("username").unique().notNull(),
   password: text("password").notNull(),
   email: text("email").unique().notNull(),
-  role: text("role", { enum: ['user', 'sub_admin', 'super_admin'] }).default("user").notNull(),
+  role: text("role", { enum: ['user', 'sub_admin', 'super_admin', 'demo'] }).default("user").notNull(),
   emailVerified: boolean("email_verified").default(false),
   emailVerificationToken: text("email_verification_token"),
   emailVerificationExpiry: timestamp("email_verification_expiry"),
@@ -140,7 +140,7 @@ export const addUserSchema = z.object({
 
 export const updateUserRoleSchema = z.object({
   userId: z.number(),
-  role: z.enum(["user", "sub_admin"]),
+  role: z.enum(["user", "sub_admin", "demo"]),
 });
 
 export const cvApprovalSchema = z.object({
