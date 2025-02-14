@@ -204,15 +204,25 @@ export function setupAuth(app: Express) {
 
       const { username, password, email } = result.data;
 
-      // Check if user already exists
+      // Check if user or email already exists
       const [existingUser] = await db
         .select()
         .from(users)
         .where(eq(users.username, username))
         .limit(1);
 
+      const [existingEmail] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
       if (existingUser) {
         return res.status(400).send("Username already exists");
+      }
+
+      if (existingEmail) {
+        return res.status(400).send("Email address is already registered");
       }
 
       // Hash the password
@@ -245,7 +255,8 @@ export function setupAuth(app: Express) {
         });
       });
     } catch (error) {
-      next(error);
+      console.error("Registration error:", error);
+      res.status(500).send("An unexpected error occurred during registration. Please try again.");
     }
   });
 
