@@ -23,7 +23,6 @@ export async function sendEmail(options: {
   subject: string;
   html: string;
   retryCount?: number;
-  category?: string;
 }): Promise<boolean> {
   const retryCount = options.retryCount || 0;
 
@@ -48,12 +47,6 @@ export async function sendEmail(options: {
       mailSettings: {
         sandboxMode: {
           enable: false
-        },
-        bypassListManagement: {
-          enable: true
-        },
-        bypassSpamManagement: {
-          enable: true
         }
       },
       trackingSettings: {
@@ -62,30 +55,20 @@ export async function sendEmail(options: {
         },
         openTracking: {
           enable: true
-        },
-        subscriptionTracking: {
-          enable: false
         }
       },
       headers: {
         'X-Priority': '1',
         'Importance': 'high',
-        'X-Auto-Response-Suppress': 'OOF, AutoReply',
-        'List-Unsubscribe': '<mailto:unsubscribe@cvtransformer.com>',
-        'Feedback-ID': 'CVTransformer:account-notifications'
+        'X-Auto-Response-Suppress': 'OOF, AutoReply'
       },
-      categories: [options.category || 'account-notification'],
-      asm: {
-        groupId: 0, // Disable unsubscribe groups
-      },
-      ipPoolName: "transactional_emails"
+      categories: ['password-reset']
     };
 
     console.log("Sending email with message:", {
       to: msg.to,
       from: msg.from.email,
-      subject: msg.subject,
-      category: options.category
+      subject: msg.subject
     });
 
     const [response] = await sgMail.send(msg);
@@ -131,7 +114,6 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
   return sendEmail({
     to: email,
     subject: "Reset Your CV Transformer Password",
-    category: 'password-reset',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h1 style="color: #2563eb; margin-bottom: 20px;">Password Reset Request</h1>
