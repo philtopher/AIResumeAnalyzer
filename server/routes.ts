@@ -902,7 +902,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       // Gather companyinsights
       const companyInsights = await gatherOrganizationalInsights(targetRole.split(" at ")[1] || "");
 
-      // Evaluate the CV
+      //// Evaluate the CV
       const evaluation = evaluateCV(transformedContent, jobDescription);
 
       // For public demo, store under a demo user
