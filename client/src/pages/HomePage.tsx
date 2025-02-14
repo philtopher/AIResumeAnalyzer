@@ -83,8 +83,43 @@ export default function HomePage() {
       </main>
 
       <footer className="border-t py-12">
-        <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>&copy; 2024 CV Transformer. All rights reserved.</p>
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <h3 className="font-semibold mb-4">CV Transformer</h3>
+              <p className="text-sm text-muted-foreground">
+                Transform your CV with AI-powered optimization
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Quick Links</h3>
+              <div className="space-y-2">
+                <Link href="/features">
+                  <Button variant="link" className="text-muted-foreground">Features</Button>
+                </Link>
+                <Link href="/tutorial">
+                  <Button variant="link" className="text-muted-foreground">How It Works</Button>
+                </Link>
+                <Link href="/contact">
+                  <Button variant="link" className="text-muted-foreground">Contact</Button>
+                </Link>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Legal</h3>
+              <div className="space-y-2">
+                <Link href="/privacy-policy">
+                  <Button variant="link" className="text-muted-foreground">Privacy Policy</Button>
+                </Link>
+                <Link href="/terms-of-service">
+                  <Button variant="link" className="text-muted-foreground">Terms of Service</Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+          <div className="mt-8 text-center text-sm text-muted-foreground">
+            <p>&copy; 2024 CV Transformer. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>

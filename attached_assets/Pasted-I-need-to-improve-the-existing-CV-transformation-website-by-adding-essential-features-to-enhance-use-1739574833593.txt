@@ -1,0 +1,53 @@
+I need to improve the existing CV transformation website by adding essential features to enhance user trust, transparency, and compliance with best practices. The core CV transformation logic should not be altered, but the following features need to be added:
+
+1. Privacy Policy & Terms of Service Pages
+Create a Privacy Policy page explaining:
+
+What data is collected (e.g., uploaded CVs, user email, payment details)
+How long data is retained (if at all)
+Whether data is shared or sold (it should explicitly state that user data is not sold or stored permanently)
+Security measures in place to protect user information
+Contact details for data removal requests
+Create a Terms of Service page outlining:
+
+How users can use the service
+Refund policy (if applicable)
+Limitations of liability and disclaimers
+How disputes will be handled
+Both pages should be linked in the website footer and accessible from the homepage.
+
+2. Secure File Handling & Auto-Deletion of CVs
+Modify the file upload logic to process CVs in real-time and auto-delete them after processing (if this isn’t already happening).
+Ensure that no CVs are stored permanently on the server or logs unless explicitly necessary for a session.
+Add a warning message to users before uploading, informing them that their CVs will not be stored after processing.
+3. Clear Explanation of How the AI Works
+Create an "About Our AI" page that explains:
+The AI transformation process (e.g., NLP techniques, job description matching, keyword optimization)
+The benefits of the transformation (e.g., better alignment with job descriptions, increased ATS compatibility)
+That the AI does not generate fake experience but optimizes wording based on existing content
+This should be accessible via a link on the homepage (e.g., "How It Works" button).
+
+4. Example of a Transformed CV
+Add a "See an Example" button on the homepage, which will:
+Show an example before-and-after CV transformation so users understand what changes the service makes.
+Use a fictional CV (not real user data) to demonstrate improvements.
+5. Improve Website Design for Credibility
+If possible, upgrade hosting to a more professional domain (not free hosting).
+Add basic branding elements such as:
+A logo
+A more structured landing page with testimonials (if available)
+A simple FAQ section to address common concerns
+6. Adjust Pricing & Claims for Transparency
+Modify the pricing page to justify the £5/month fee, clearly stating:
+What the subscription covers (e.g., unlimited transformations, premium formatting, ongoing improvements)
+A disclaimer that this service does not guarantee interviews but improves CV alignment with job descriptions
+Remove or modify claims like "Thousands of professionals" if they are not yet accurate.
+7. Contact & Support Section
+Add a Contact Us page with:
+An email address for support inquiries
+A simple contact form for feedback/issues
+A short FAQ for quick answers
+Implementation Notes:
+Do not modify the core CV transformation logic unless needed for privacy improvements.
+Keep all new pages lightweight and fast to avoid slowing down the website.
+Ensure all new elements match the current website’s design so nothing looks out of place.

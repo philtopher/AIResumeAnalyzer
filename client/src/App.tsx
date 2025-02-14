@@ -20,6 +20,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import TermsOfServicePage from "./pages/TermsOfServicePage";
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -155,12 +157,16 @@ function AuthenticatedApp() {
           <Route path="/reset-password" component={ResetPasswordPage} />
           <Route path="/public-cv" component={PublicCVPage} />
           <Route path="/contact" component={ContactPage} />
-          {(!user && window.location.pathname !== "/reset-password" && 
-            window.location.pathname !== "/" && 
+          <Route path="/privacy-policy" component={PrivacyPolicyPage} />
+          <Route path="/terms-of-service" component={TermsOfServicePage} />
+          {(!user && window.location.pathname !== "/reset-password" &&
+            window.location.pathname !== "/" &&
             window.location.pathname !== "/features" &&
             window.location.pathname !== "/tutorial" &&
             window.location.pathname !== "/public-cv" &&
-            window.location.pathname !== "/contact") ? (
+            window.location.pathname !== "/contact" &&
+            window.location.pathname !== "/privacy-policy" &&
+            window.location.pathname !== "/terms-of-service") ? (
             <Route component={AuthPage} />
           ) : (
             <>
