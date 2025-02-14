@@ -68,13 +68,15 @@ async function extractTextContent(file: Express.Multer.File): Promise<string> {
 // Helper function to extract employments
 async function extractEmployments(content: string): Promise<{ latest: string; previous: string[] }> {
   try {
-    // Split content into sections based on line breaks
+    // Split content into sections based on line breaks and employment markers
     const sections = content.split(/\n{2,}/);
 
     // Find employment sections by looking for dates and job titles
+    // Enhanced regex to better identify employment sections
     const employmentSections = sections.filter((section) =>
       /\b(19|20)\d{2}\b/.test(section) && // Has year
-      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(section) // Has month
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(section) && // Has month
+      /\b(at|@|with|for)\b/i.test(section) // Has company indicator
     );
 
     if (employmentSections.length === 0) {
@@ -84,6 +86,7 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
       };
     }
 
+    // Keep original formatting for previous roles
     return {
       latest: employmentSections[0],
       previous: employmentSections.slice(1),
@@ -100,42 +103,53 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
 // Helper function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract key requirements from job description
-    const requirements = jobDescription.toLowerCase()
-      .split(/[.,;]/)
-      .map((req) => req.trim())
-      .filter((req) => req.length > 10);
-
     // Extract dates and company from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
-    const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
+    const companyMatch = originalEmployment.match(/(?:at|@|with|for)\s+([A-Z][A-Za-z\s&.]+(?:Inc\.|LLC|Ltd\.)?)/);
 
     const dateRange = dateMatch ? dateMatch[0] : "Present";
-    const company = companyMatch ? companyMatch[1] : "";
+    const company = companyMatch ? companyMatch[1].trim() : "";
 
-    // Generate role-specific duties based on job description
-    const roleSpecificDuties = [
-      `Led ${targetRole} initiatives focused on organizational objectives and growth`,
-      `Developed and implemented comprehensive solutions aligned with industry best practices`,
-      `Collaborated with cross-functional teams to deliver high-impact results`,
-      // Add job-specific duties based on requirements
-      ...requirements.slice(0, 3).map((req) =>
-        `Successfully ${req.startsWith("must") ? req.replace("must", "demonstrated ability to") : req}`
-      ),
+    // Extract key requirements from job description
+    const requirements = jobDescription.toLowerCase()
+      .split(/[.;]/)
+      .map(req => req.trim())
+      .filter(req => req.length > 10 && !req.includes("years") && !req.includes("experience"))
+      .map(req => {
+        // Convert requirement to an achievement
+        return req
+          .replace(/must have|should have|required to|needs to/g, "demonstrated ability to")
+          .replace(/^(responsible for|duties include)/g, "")
+          .trim();
+      });
+
+    // Extract existing achievements from original employment
+    const originalAchievements = originalEmployment
+      .split(/[.;\n]/)
+      .map(line => line.trim())
+      .filter(line => 
+        line.length > 10 && 
+        (line.includes("led") || 
+         line.includes("developed") || 
+         line.includes("implemented") || 
+         line.includes("managed") || 
+         line.includes("created"))
+      );
+
+    // Combine job requirements with existing achievements
+    const achievements = [
+      ...requirements.slice(0, Math.floor(requirements.length * 0.8)), // 80% from target role
+      ...originalAchievements.slice(0, Math.ceil(originalAchievements.length * 0.2)) // 20% from original
     ];
 
     // Format the transformed employment section
-    return `
-${targetRole}${company ? ` at ${company}` : ""} (${dateRange})
+    return `${targetRole}${company ? ` at ${company}` : ""} (${dateRange})
 
-Key Responsibilities:
-${roleSpecificDuties.map((duty) => `• ${duty}`).join("\n")}
+Key Achievements:
+${achievements.map(achievement => 
+  `• ${achievement.charAt(0).toUpperCase() + achievement.slice(1)}`
+).join("\n")}`.trim();
 
-Notable Achievements:
-• Improved operational efficiency by implementing innovative solutions
-• Reduced process bottlenecks through strategic planning and execution
-• Enhanced team performance through effective leadership and mentoring
-`.trim();
   } catch (error) {
     console.error("Error transforming employment:", error);
     return originalEmployment;
@@ -145,15 +159,38 @@ Notable Achievements:
 // Helper function to adapt skills for target role
 function adaptSkills(originalSkills: string[], jobDescription: string): string[] {
   // Extract skills from job description
-  const jobSkills = jobDescription.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
+  const jobSkills = jobDescription.toLowerCase()
+    .match(/\b(?:proficient|experience|knowledge|skill|expertise)\w*\s+(?:in|with)?\s+[a-zA-Z0-9+#]+(?:\s+[a-zA-Z0-9+#]+){0,2}\b/g)
+    ?.map(skill => {
+      return skill
+        .replace(/\b(?:proficient|experience|knowledge|skill|expertise)\w*\s+(?:in|with)?\s+/g, "")
+        .trim();
+    }) || [];
 
-  // Keep some original skills and add new skills from job description
-  const keepOriginalCount = Math.min(3, originalSkills.length);
-  const originalSkillsToKeep = originalSkills.slice(0, keepOriginalCount);
+  // Extract skills from original CV
+  const existingSkills = originalSkills.map(skill => skill.toLowerCase());
 
-  const newSkills = Array.from(new Set([...originalSkillsToKeep, ...jobSkills.slice(0, 5).map((skill) => skill.replace(/\b(?:proficient|experience|knowledge|skill)\w*\s+/g, "").trim())]));
+  // Find matching skills (intersection)
+  const matchingSkills = jobSkills.filter(skill => 
+    existingSkills.some(existing => 
+      existing.includes(skill) || skill.includes(existing)
+    )
+  );
 
-  return newSkills;
+  // Calculate how many skills we need from each source to maintain 80/20 ratio
+  const totalSkillsNeeded = Math.min(10, jobSkills.length);
+  const targetSkillsCount = Math.ceil(totalSkillsNeeded * 0.8);
+  const originalSkillsCount = Math.floor(totalSkillsNeeded * 0.2);
+
+  // Prioritize matching skills, then fill with additional skills to maintain ratio
+  const selectedSkills = [
+    ...matchingSkills,
+    ...jobSkills.filter(skill => !matchingSkills.includes(skill)).slice(0, targetSkillsCount - matchingSkills.length),
+    ...existingSkills.filter(skill => !matchingSkills.includes(skill)).slice(0, originalSkillsCount)
+  ];
+
+  return Array.from(new Set(selectedSkills))
+    .map(skill => skill.charAt(0).toUpperCase() + skill.slice(1));
 }
 
 // Helper function to gather organizational insights
