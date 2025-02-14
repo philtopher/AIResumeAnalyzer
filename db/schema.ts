@@ -63,6 +63,17 @@ export const activityLogs = pgTable("activity_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const contacts = pgTable("contacts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  status: text("status", { enum: ['new', 'read', 'responded'] }).default("new").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   subscriptions: many(subscriptions),
@@ -95,6 +106,8 @@ export const activityLogRelations = relations(activityLogs, ({ one }) => ({
   }),
 }));
 
+export const contactsRelations = relations(contacts, ({}) => ({}));
+
 // Zod schemas for input validation
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -105,6 +118,9 @@ export const selectCvSchema = createSelectSchema(cvs);
 export const insertActivityLogSchema = createInsertSchema(activityLogs);
 export const selectActivityLogSchema = createSelectSchema(activityLogs);
 
+export const insertContactSchema = createInsertSchema(contacts);
+export const selectContactSchema = createSelectSchema(contacts);
+
 // Types for TypeScript
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -114,6 +130,8 @@ export type CV = typeof cvs.$inferSelect;
 export type InsertCV = typeof cvs.$inferInsert;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
+export type Contact = typeof contacts.$inferSelect;
+export type InsertContact = typeof contacts.$inferInsert;
 
 // Authentication schemas
 export const loginSchema = z.object({

@@ -1,77 +1,25 @@
-import nodemailer from "nodemailer";
-import { type Mail } from "nodemailer/lib/mailer";
-import { randomBytes } from "crypto";
+import sgMail from '@sendgrid/mail';
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true",
-  tls: {
-    // Do not fail on invalid certificates
-    rejectUnauthorized: false,
-    ciphers: 'SSLv3'
-  },
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-  debug: true,
-  logger: true
-});
-
-// Verify connection configuration at startup
-async function verifyEmailConfig() {
-  try {
-    console.log("Verifying SMTP configuration with:", {
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: process.env.SMTP_SECURE === "true",
-      user: process.env.SMTP_USER,
-      hasPassword: !!process.env.SMTP_PASSWORD
-    });
-
-    await transporter.verify();
-    console.log("SMTP connection verified successfully");
-    return true;
-  } catch (error) {
-    console.error("SMTP connection verification failed:", error);
-    if (error instanceof Error) {
-      console.error("Error details:", {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
-    }
-    return false;
-  }
+if (!process.env.SENDGRID_API_KEY) {
+  throw new Error("SENDGRID_API_KEY environment variable must be set");
 }
 
-// Call verify on startup
-verifyEmailConfig();
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-export async function sendEmail(options: Mail) {
+export async function sendEmail(options: sgMail.MailDataRequired) {
   try {
-    console.log("Attempting to send email with SMTP config:", {
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: process.env.SMTP_SECURE === "true",
-      user: process.env.SMTP_USER,
-      hasPassword: !!process.env.SMTP_PASSWORD
-    });
-
-    const info = await transporter.sendMail({
-      from: `"CV Transformer" <${process.env.SMTP_USER}>`,
+    console.log("Attempting to send email with SendGrid");
+    const msg = {
+      from: 'CV Transformer <noreply@cvtransformer.com>',
       ...options,
-    });
-    console.log("Email sent successfully:", info.messageId);
+    };
+    await sgMail.send(msg);
+    console.log("Email sent successfully");
     return true;
   } catch (error: any) {
     console.error("Failed to send email. Details:", {
       error: error.message,
-      code: error.code,
-      command: error.command,
-      responseCode: error.responseCode,
-      response: error.response
+      response: error.response?.body
     });
     return false;
   }
@@ -102,6 +50,26 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
       <p><a href="${resetUrl}">Reset Password</a></p>
       <p>This link will expire in 1 hour.</p>
       <p>If you didn't request this, please ignore this email.</p>
+    `,
+  });
+}
+
+export async function sendContactFormNotification(contactData: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}) {
+  // Send notification to admin
+  return sendEmail({
+    to: process.env.ADMIN_EMAIL || 'admin@cvtransformer.com',
+    subject: `New Contact Form Submission: ${contactData.subject}`,
+    html: `
+      <h1>New Contact Form Submission</h1>
+      <p><strong>From:</strong> ${contactData.name} (${contactData.email})</p>
+      <p><strong>Subject:</strong> ${contactData.subject}</p>
+      <p><strong>Message:</strong></p>
+      <p>${contactData.message}</p>
     `,
   });
 }

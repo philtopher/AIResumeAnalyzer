@@ -9,30 +9,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Shield, Activity, FileText } from "lucide-react";
+import { Loader2, UserPlus, Shield, Activity, FileText, Mail } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { User, ActivityLog, CV } from "@db/schema";
+import type { User, ActivityLog, CV, Contact } from "@db/schema";
 
-type TabType = "users" | "cvs" | "logs";
+type TabType = "users" | "cvs" | "logs" | "contacts";
 
 export default function AdminPage() {
   const { user } = useUser();
@@ -44,25 +27,26 @@ export default function AdminPage() {
 
   const isSuperAdmin = user?.role === "super_admin";
 
-  // Fetch users
   const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
     enabled: isSuperAdmin || activeTab === "users",
   });
 
-  // Fetch activity logs
   const { data: logs = [], isLoading: isLoadingLogs } = useQuery<ActivityLog[]>({
     queryKey: ["/api/admin/logs"],
     enabled: activeTab === "logs",
   });
 
-  // Fetch CVs needing approval
   const { data: pendingCVs = [], isLoading: isLoadingCVs } = useQuery<CV[]>({
     queryKey: ["/api/admin/cvs/pending"],
     enabled: activeTab === "cvs",
   });
 
-  // Add user mutation
+  const { data: contacts = [], isLoading: isLoadingContacts } = useQuery<Contact[]>({
+    queryKey: ["/api/admin/contacts"],
+    enabled: activeTab === "contacts",
+  });
+
   const addUserMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       const response = await fetch("/api/admin/users", {
@@ -95,7 +79,6 @@ export default function AdminPage() {
     },
   });
 
-  // Update user role mutation
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
       const response = await fetch(`/api/admin/users/${userId}/role`, {
@@ -127,7 +110,6 @@ export default function AdminPage() {
     },
   });
 
-  // CV approval mutation
   const approveCVMutation = useMutation({
     mutationFn: async ({
       cvId,
@@ -156,6 +138,37 @@ export default function AdminPage() {
       toast({
         title: "Success",
         description: "CV status updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateContactStatusMutation = useMutation({
+    mutationFn: async ({ contactId, status }: { contactId: number; status: string }) => {
+      const response = await fetch(`/api/admin/contacts/${contactId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/contacts"] });
+      toast({
+        title: "Success",
+        description: "Contact status updated successfully",
       });
     },
     onError: (error: Error) => {
@@ -220,6 +233,13 @@ export default function AdminPage() {
                 >
                   <Activity className="h-4 w-4 mr-2" />
                   Activity Logs
+                </Button>
+                <Button
+                  variant={activeTab === "contacts" ? "default" : "outline"}
+                  onClick={() => setActiveTab("contacts")}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Contacts
                 </Button>
               </div>
             </div>
@@ -436,6 +456,72 @@ export default function AdminPage() {
                           <TableCell>{log.action}</TableCell>
                           <TableCell>
                             {log.details ? JSON.stringify(log.details) : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            )}
+
+            {activeTab === "contacts" && (
+              <div className="space-y-6">
+                {isLoadingContacts ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {contacts.map((contact) => (
+                        <TableRow key={contact.id}>
+                          <TableCell>
+                            {new Date(contact.createdAt).toLocaleString()}
+                          </TableCell>
+                          <TableCell>{contact.name}</TableCell>
+                          <TableCell>{contact.email}</TableCell>
+                          <TableCell>{contact.subject}</TableCell>
+                          <TableCell className="capitalize">{contact.status}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              {contact.status === "new" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    updateContactStatusMutation.mutate({
+                                      contactId: contact.id,
+                                      status: "read",
+                                    })
+                                  }
+                                >
+                                  Mark as Read
+                                </Button>
+                              )}
+                              {contact.status === "read" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    updateContactStatusMutation.mutate({
+                                      contactId: contact.id,
+                                      status: "responded",
+                                    })
+                                  }
+                                >
+                                  Mark as Responded
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

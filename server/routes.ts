@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { sendEmail } from "./email";
-import { users, cvs, activityLogs, subscriptions } from "@db/schema";
+import { sendEmail, sendContactFormNotification } from "./email";
+import { users, cvs, activityLogs, subscriptions, contacts } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema } from "@db/schema";
 import multer from "multer";
@@ -219,16 +219,113 @@ function evaluateCV(cv: string, jobDescription: string): {
   };
 }
 
+// Define feedback schema
 const feedbackSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   phone: z.string().regex(/^\+?[\d\s-()]{10,}$/),
   message: z.string().min(10),
+  subject: z.string().min(1),
 });
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
+
+  // Contact form routes
+  app.post("/api/admin/contacts/:id/status", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user ||
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        return res.status(403).send("Access denied");
+      }
+
+      const contactId = parseInt(req.params.id);
+      const { status } = req.body;
+
+      if (!["new", "read", "responded"].includes(status)) {
+        return res.status(400).send("Invalid status");
+      }
+
+      const [contact] = await db
+        .update(contacts)
+        .set({ status })
+        .where(eq(contacts.id, contactId))
+        .returning();
+
+      // Log activity
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "update_contact_status",
+        details: { contactId, status },
+      });
+
+      res.json(contact);
+    } catch (error: any) {
+      console.error("Update contact status error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.get("/api/admin/contacts", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user ||
+          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        return res.status(403).send("Access denied");
+      }
+
+      const allContacts = await db
+        .select()
+        .from(contacts)
+        .orderBy(desc(contacts.createdAt));
+
+      res.json(allContacts);
+    } catch (error: any) {
+      console.error("Get contacts error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const result = feedbackSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(result.error.message);
+      }
+
+      const { name, email, phone, message, subject } = result.data;
+
+      // Store in database
+      const [contact] = await db.insert(contacts).values({
+        name,
+        email,
+        phone,
+        subject,
+        message,
+        status: "new"
+      }).returning();
+
+      // Send email notification using SendGrid
+      await sendContactFormNotification({
+        name,
+        email,
+        subject,
+        message
+      });
+
+      // Log activity
+      await db.insert(activityLogs).values({
+        userId: req.user?.id || 0,
+        action: "contact_form_submission",
+        details: { contactId: contact.id },
+      });
+
+      res.json({ success: true, contact });
+    } catch (error: any) {
+      console.error("Feedback submission error:", error);
+      res.status(500).send(error.message);
+    }
+  });
 
   // Admin routes
   app.get("/api/admin/users", async (req, res) => {
@@ -829,8 +926,7 @@ Professional Development
         to: process.env.SMTP_USER!, // Send to self for testing
         subject: "Test Email from CV Transformer",
         html: `
-          <h1>Test Email</h1>
-          <p>This is a test email from CV Transformer.</p>
+          <h1>Test Email<p>This is a test email from CV Transformer.</p>
           <p>If you received this, your email configuration is working correctly!</p>
         `
       });
@@ -896,36 +992,6 @@ Professional Development
       res.json(subscription || null);
     } catch (error: any) {
       console.error("Subscription error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.post("/api/feedback", async (req, res) => {
-    try {
-      const result = feedbackSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(result.error.message);
-      }
-
-      const { name, email, phone, message } = result.data;
-
-      // Send notification email to admin
-      await sendEmail({
-        to: process.env.SMTP_USER!,
-        subject: "New Feedback Received",
-        html: `
-          <h1>New Feedback Submission</h1>
-          <p><strong>From:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <p><strong>Phone:</strong> ${phone}</p>
-          <p><strong>Message:</strong></p>
-          <p>${message}</p>
-        `,
-      });
-
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Feedback submission error:", error);
       res.status(500).send(error.message);
     }
   });
