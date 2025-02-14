@@ -14,6 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 const contactFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -49,7 +50,8 @@ export default function ContactPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to submit form");
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to submit form");
       }
 
       toast({
@@ -58,10 +60,10 @@ export default function ContactPage() {
       });
 
       form.reset();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to send message. Please try again later.",
+        description: error.message || "Failed to send message. Please try again later.",
         variant: "destructive",
       });
     }
@@ -151,8 +153,19 @@ export default function ContactPage() {
                   )}
                 />
 
-                <Button type="submit" className="w-full">
-                  Send Message
+                <Button 
+                  type="submit" 
+                  className="w-full"
+                  disabled={form.formState.isSubmitting}
+                >
+                  {form.formState.isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Sending...
+                    </>
+                  ) : (
+                    "Send Message"
+                  )}
                 </Button>
               </form>
             </Form>
