@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import * as z from 'zod';
@@ -63,6 +63,32 @@ export const activityLogs = pgTable("activity_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// New table for system metrics and analytics
+export const siteAnalytics = pgTable("site_analytics", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  ipAddress: text("ip_address").notNull(),
+  locationCountry: text("location_country"),
+  locationCity: text("location_city"),
+  userAgent: text("user_agent"),
+  pageVisited: text("page_visited").notNull(),
+  visitTimestamp: timestamp("visit_timestamp").defaultNow().notNull(),
+  sessionDuration: integer("session_duration"),
+  isSuspicious: boolean("is_suspicious").default(false),
+  suspiciousReason: text("suspicious_reason"),
+});
+
+export const systemMetrics = pgTable("system_metrics", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  cpuUsage: doublePrecision("cpu_usage").notNull(),
+  memoryUsage: doublePrecision("memory_usage").notNull(),
+  storageUsage: doublePrecision("storage_usage").notNull(),
+  activeConnections: integer("active_connections").notNull(),
+  responseTime: integer("response_time").notNull(),
+  errorCount: integer("error_count").default(0),
+});
+
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -118,6 +144,12 @@ export const selectActivityLogSchema = createSelectSchema(activityLogs);
 export const insertContactSchema = createInsertSchema(contacts);
 export const selectContactSchema = createSelectSchema(contacts);
 
+// Create Zod schemas for new tables
+export const insertSiteAnalyticsSchema = createInsertSchema(siteAnalytics);
+export const selectSiteAnalyticsSchema = createSelectSchema(siteAnalytics);
+export const insertSystemMetricsSchema = createInsertSchema(systemMetrics);
+export const selectSystemMetricsSchema = createSelectSchema(systemMetrics);
+
 // Export types
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -129,6 +161,12 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = typeof contacts.$inferInsert;
+
+// Export types for new tables
+export type SiteAnalytics = typeof siteAnalytics.$inferSelect;
+export type InsertSiteAnalytics = typeof siteAnalytics.$inferInsert;
+export type SystemMetrics = typeof systemMetrics.$inferSelect;
+export type InsertSystemMetrics = typeof systemMetrics.$inferInsert;
 
 // Authentication schemas
 export const loginSchema = z.object({

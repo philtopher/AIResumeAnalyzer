@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
 import { sendEmail, sendContactFormNotification } from "./email";
-import { users, cvs, activityLogs, subscriptions, contacts } from "@db/schema";
+import { users, cvs, activityLogs, subscriptions, contacts, siteAnalytics, systemMetrics } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema } from "@db/schema";
 import multer from "multer";
@@ -21,6 +21,9 @@ import {
 } from "docx";
 import { z } from "zod";
 import { sql } from 'drizzle-orm';
+import os from 'os-utils';
+import geoip from 'geoip-lite';
+import { UAParser } from 'ua-parser-js';
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -481,6 +484,41 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Middleware to track site analytics
+  app.use(async (req, res, next) => {
+    try {
+      const ip = req.ip || req.connection.remoteAddress;
+      const geo = geoip.lookup(ip as string);
+      const ua = new UAParser(req.headers['user-agent']);
+      const parsed = ua.getResult();
+
+      // Don't track certain paths
+      if (req.path.startsWith('/static') || req.path.startsWith('/api')) {
+        return next();
+      }
+
+      // Check for suspicious activity
+      const isSuspicious = false; // You would implement your security checks here
+      const suspiciousReason = null;
+
+      await db.insert(siteAnalytics).values({
+        userId: req.user?.id,
+        ipAddress: ip as string,
+        locationCountry: geo?.country || 'Unknown',
+        locationCity: geo?.city || 'Unknown',
+        userAgent: parsed.ua,
+        pageVisited: req.path,
+        isSuspicious,
+        suspiciousReason,
+      });
+
+      next();
+    } catch (error) {
+      console.error("Analytics tracking error:", error);
+      next(); // Continue even if tracking fails
+    }
+  });
+
   // Get admin analytics
   app.get("/api/admin/analytics", async (req, res) => {
     try {
@@ -502,14 +540,20 @@ export function registerRoutes(app: Express): Server {
 
       const anonymousUsers = totalUsers - registeredUsers;
 
-      // Get active users (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      // Get premium users count
+      const [{ count: premiumUsers }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(subscriptions)
+        .where(sql`status = 'active'`);
+
+      // Get active users (last 24 hours)
+      const twentyFourHoursAgo = new Date();
+      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
       const [{ count: activeUsers }] = await db
         .select({ count: sql<number>`count(distinct user_id)` })
-        .from(site_analytics)
-        .where(sql`visit_timestamp > ${thirtyDaysAgo}`);
+        .from(siteAnalytics)
+        .where(sql`visit_timestamp > ${twentyFourHoursAgo}`);
 
       // Get conversion metrics
       const [{ count: totalConversions }] = await db
@@ -519,52 +563,74 @@ export function registerRoutes(app: Express): Server {
       const [{ count: registeredConversions }] = await db
         .select({ count: sql<number>`count(*)` })
         .from(cvs)
-        .where(sql`conversion_type = 'registered'`);
+        .where(sql`user_id IN (SELECT id FROM users WHERE role != 'demo')`);
 
       const anonymousConversions = totalConversions - registeredConversions;
       const conversionRate = totalUsers > 0
         ? ((totalConversions / totalUsers) * 100).toFixed(1)
         : 0;
 
-      // Get conversions by country
-      const conversionsByCountry = await db
+      // Get system metrics
+      const cpuUsage = await new Promise<number>((resolve) => {
+        os.cpuUsage((value) => resolve(value * 100));
+      });
+
+      const memoryUsage = (1 - os.freememPercentage()) * 100;
+      const totalStorage = os.totalmem();
+      const freeStorage = os.freemem();
+      const storageUsage = ((totalStorage - freeStorage) / totalStorage) * 100;
+
+      // Get active connections
+      const [{ count: activeConnections }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(siteAnalytics)
+        .where(sql`visit_timestamp > ${new Date(Date.now() - 5 * 60 * 1000)}`);
+
+      // Get system metrics history
+      const systemMetricsHistory = await db
         .select({
-          country: sql<string>`location_country`,
-          count: sql<number>`count(*)`
+          timestamp: sql<string>`to_char(timestamp, 'HH24:MI')`,
+          cpuUsage: systemMetrics.cpuUsage,
+          memoryUsage: systemMetrics.memoryUsage,
+          storageUsage: systemMetrics.storageUsage,
         })
-        .from(cvs)
-        .whereNotNull('location_country')
-        .groupBy(sql`location_country`)
-        .orderBy(sql`count(*) desc`)
+        .from(systemMetrics)
+        .where(sql`timestamp > ${new Date(Date.now() - 60 * 60 * 1000)}`)
+        .orderBy(sql`timestamp`);
+
+      // Get suspicious activities
+      const suspiciousActivities = await db
+        .select({
+          ipAddress: siteAnalytics.ipAddress,
+          location: sql<string>`CONCAT(location_country, ', ', location_city)`,
+          reason: siteAnalytics.suspiciousReason,
+          timestamp: sql<string>`to_char(visit_timestamp, 'YYYY-MM-DD HH24:MI:SS')`,
+        })
+        .from(siteAnalytics)
+        .where(sql`is_suspicious = true`)
+        .orderBy(sql`visit_timestamp DESC`)
         .limit(10);
 
-      // Get conversions by date (last 30 days)
-      const conversionsByDate = await db
+      // Get geographical distribution
+      const usersByLocation = await db
         .select({
-          date: sql<string>`date_trunc('day', created_at)::date::text`,
-          count: sql<number>`count(*)`
+          location: sql<string>`CONCAT(location_country, ', ', location_city)`,
+          count: sql<number>`count(DISTINCT user_id)`,
         })
-        .from(cvs)
-        .where(sql`created_at > ${thirtyDaysAgo}`)
-        .groupBy(sql`date_trunc('day', created_at)`)
-        .orderBy(sql`date_trunc('day', created_at)`);
+        .from(siteAnalytics)
+        .groupBy(sql`location_country, location_city`)
+        .orderBy(sql`count DESC`)
+        .limit(10);
 
-      // Get visitors by date (last 30 days)
-      const visitorsByDate = await db
-        .select({
-          date: sql<string>`date_trunc('day', visit_timestamp)::date::text`,
-          count: sql<number>`count(distinct ip_address)`
-        })
-        .from(site_analytics)
-        .where(sql`visit_timestamp > ${thirtyDaysAgo}`)
-        .groupBy(sql`date_trunc('day', visit_timestamp)`)
-        .orderBy(sql`date_trunc('day', visit_timestamp)`);
-
-      // User segmentation data
-      const userSegmentation = [
-        { name: "Registered", value: registeredUsers },
-        { name: "Anonymous", value: anonymousUsers },
-      ];
+      // Store current system metrics
+      await db.insert(systemMetrics).values({
+        cpuUsage,
+        memoryUsage,
+        storageUsage,
+        activeConnections,
+        responseTime: 0, // You would calculate this based on your needs
+        errorCount: 0, // You would increment this based on error logging
+      });
 
       // Compile all analytics data
       const analyticsData = {
@@ -572,14 +638,18 @@ export function registerRoutes(app: Express): Server {
         activeUsers,
         registeredUsers,
         anonymousUsers,
+        premiumUsers,
         totalConversions,
         registeredConversions,
         anonymousConversions,
         conversionRate,
-        conversionsByCountry,
-        conversionsByDate,
-        visitorsByDate,
-        userSegmentation,
+        cpuUsage,
+        memoryUsage,
+        storageUsage,
+        activeConnections,
+        systemMetricsHistory,
+        suspiciousActivities,
+        usersByLocation,
       };
 
       res.json(analyticsData);
