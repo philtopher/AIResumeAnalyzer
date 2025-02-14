@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,14 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRequestSent, setIsRequestSent] = useState(false);
   const [token, setToken] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("token");
+    if (urlToken) {
+      setToken(urlToken);
+    }
+  }, []);
 
   async function handleRequestReset(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -82,15 +90,6 @@ export default function ResetPasswordPage() {
       setIsLoading(false);
     }
   }
-
-  // Extract token from URL if present
-  useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get("token");
-    if (urlToken) {
-      setToken(urlToken);
-    }
-  });
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
