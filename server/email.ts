@@ -33,22 +33,8 @@ export async function sendEmail(options: {
   }
 }
 
-export async function sendEmailVerification(email: string, verificationToken: string) {
-  const verifyUrl = `${process.env.APP_URL}/verify-email?token=${verificationToken}`;
-  return sendEmail({
-    to: email,
-    subject: "Verify Your CV Transformer Email",
-    html: `
-      <h1>Email Verification</h1>
-      <p>Thank you for registering. Please verify your email by clicking the link below:</p>
-      <p><a href="${verifyUrl}">Verify Email</a></p>
-      <p>This link will expire in 24 hours.</p>
-    `,
-  });
-}
-
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
-  const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
+  const resetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
   return sendEmail({
     to: email,
     subject: "Reset Your CV Transformer Password",
@@ -62,6 +48,20 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
   });
 }
 
+export async function sendEmailVerification(email: string, verificationToken: string) {
+  const verifyUrl = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
+  return sendEmail({
+    to: email,
+    subject: "Verify Your CV Transformer Email",
+    html: `
+      <h1>Email Verification</h1>
+      <p>Thank you for registering. Please verify your email by clicking the link below:</p>
+      <p><a href="${verifyUrl}">Verify Email</a></p>
+      <p>This link will expire in 24 hours.</p>
+    `,
+  });
+}
+
 export async function sendContactFormNotification(contactData: {
   name: string;
   email: string;
@@ -69,7 +69,7 @@ export async function sendContactFormNotification(contactData: {
   message: string;
 }) {
   return sendEmail({
-    to: process.env.ADMIN_EMAIL || 'admin@cvtransformer.com',
+    to: process.env.ADMIN_EMAIL || 't.unamka@yahoo.co.uk',
     subject: `New Contact Form Submission: ${contactData.subject}`,
     html: `
       <h1>New Contact Form Submission</h1>

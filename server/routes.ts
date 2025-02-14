@@ -233,6 +233,34 @@ export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   // Contact form routes
+  app.post("/api/contact", async (req, res) => {
+    try {
+      const result = feedbackSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(result.error.message);
+      }
+
+      const { name, email, phone, message, subject } = result.data;
+
+      // Send email notification using SendGrid
+      const success = await sendContactFormNotification({
+        name,
+        email,
+        subject,
+        message
+      });
+
+      if (!success) {
+        throw new Error("Failed to send contact form email");
+      }
+
+      res.json({ success: true, message: "Contact form submitted successfully" });
+    } catch (error: any) {
+      console.error("Contact form submission error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
   app.post("/api/admin/contacts/:id/status", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
@@ -286,46 +314,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/feedback", async (req, res) => {
-    try {
-      const result = feedbackSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(result.error.message);
-      }
-
-      const { name, email, phone, message, subject } = result.data;
-
-      // Store in database
-      const [contact] = await db.insert(contacts).values({
-        name,
-        email,
-        phone,
-        subject,
-        message,
-        status: "new"
-      }).returning();
-
-      // Send email notification using SendGrid
-      await sendContactFormNotification({
-        name,
-        email,
-        subject,
-        message
-      });
-
-      // Log activity
-      await db.insert(activityLogs).values({
-        userId: req.user?.id || 0,
-        action: "contact_form_submission",
-        details: { contactId: contact.id },
-      });
-
-      res.json({ success: true, contact });
-    } catch (error: any) {
-      console.error("Feedback submission error:", error);
-      res.status(500).send(error.message);
-    }
-  });
 
   // Admin routes
   app.get("/api/admin/users", async (req, res) => {

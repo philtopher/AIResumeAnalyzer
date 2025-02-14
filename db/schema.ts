@@ -3,6 +3,7 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import * as z from 'zod';
 
+// User table definition
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
@@ -10,6 +11,8 @@ export const users = pgTable("users", {
   email: text("email").unique().notNull(),
   role: text("role", { enum: ['user', 'sub_admin', 'super_admin'] }).default("user").notNull(),
   emailVerified: boolean("email_verified").default(false),
+  verificationToken: text("verification_token"), // Added to match Express.User interface
+  verificationTokenExpiry: timestamp("verification_token_expiry"), // Added to match Express.User interface
   emailVerificationToken: text("email_verification_token"),
   emailVerificationExpiry: timestamp("email_verification_expiry"),
   resetToken: text("reset_token"),
@@ -17,6 +20,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Rest of the schema remains the same
 export const subscriptions = pgTable("subscriptions", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
@@ -40,11 +44,7 @@ export const cvs = pgTable("cvs", {
     strengths: string[];
     weaknesses: string[];
     suggestions: string[];
-    organizationalInsights: {
-      glassdoor: string[];
-      indeed: string[];
-      news: string[];
-    };
+    organizationalInsights: string[][];
   }>(),
   isFullyRegenerated: boolean("is_fully_regenerated").default(false),
   needsApproval: boolean("needs_approval").default(false),
@@ -106,9 +106,7 @@ export const activityLogRelations = relations(activityLogs, ({ one }) => ({
   }),
 }));
 
-export const contactsRelations = relations(contacts, ({}) => ({}));
-
-// Zod schemas for input validation
+// Create Zod schemas
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export const insertSubscriptionSchema = createInsertSchema(subscriptions);
@@ -117,11 +115,10 @@ export const insertCvSchema = createInsertSchema(cvs);
 export const selectCvSchema = createSelectSchema(cvs);
 export const insertActivityLogSchema = createInsertSchema(activityLogs);
 export const selectActivityLogSchema = createSelectSchema(activityLogs);
-
 export const insertContactSchema = createInsertSchema(contacts);
 export const selectContactSchema = createSelectSchema(contacts);
 
-// Types for TypeScript
+// Export types
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Subscription = typeof subscriptions.$inferSelect;
