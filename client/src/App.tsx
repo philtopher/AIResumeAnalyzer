@@ -155,20 +155,18 @@ function AuthenticatedApp() {
           <Route path="/reset-password" component={ResetPasswordPage} />
           <Route path="/public-cv" component={PublicCVPage} />
           <Route path="/contact" component={ContactPage} />
-          {(!user && window.location.pathname !== "/reset-password" && 
-            window.location.pathname !== "/" && 
-            window.location.pathname !== "/features" &&
-            window.location.pathname !== "/tutorial" &&
-            window.location.pathname !== "/public-cv" &&
-            window.location.pathname !== "/contact") ? (
-            <Route component={AuthPage} />
-          ) : (
+          {user ? (
             <>
               <Route path="/dashboard" component={DashboardPage} />
               {(user?.role === "super_admin" || user?.role === "sub_admin") && (
                 <Route path="/admin" component={AdminPage} />
               )}
             </>
+          ) : (
+            <Route
+              path="*"
+              component={() => <AuthPage />}
+            />
           )}
           <Route component={NotFound} />
         </Switch>
