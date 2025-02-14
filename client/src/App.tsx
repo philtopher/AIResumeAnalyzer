@@ -32,6 +32,18 @@ function Navigation() {
 
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
 
+  const menuItems = [
+    { label: "How It Works", path: "/tutorial" },
+    { label: "Features", path: "/features" },
+    { label: "Try Demo", path: "/public-cv" },
+    { label: "Contact", path: "/contact" },
+  ];
+
+  const authenticatedItems = [
+    { label: "Dashboard", path: "/dashboard" },
+    ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
+  ];
+
   return (
     <nav className="border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -40,28 +52,18 @@ function Navigation() {
         </Link>
 
         <div className="hidden md:flex items-center space-x-4">
-          <Link href="/tutorial">
-            <Button variant="ghost">How It Works</Button>
-          </Link>
-          <Link href="/features">
-            <Button variant="ghost">Features</Button>
-          </Link>
-          <Link href="/public-cv">
-            <Button variant="ghost">Try Demo</Button>
-          </Link>
-          <Link href="/contact">
-            <Button variant="ghost">Contact</Button>
-          </Link>
+          {menuItems.map((item) => (
+            <Link key={item.path} href={item.path}>
+              <Button variant="ghost">{item.label}</Button>
+            </Link>
+          ))}
           {user ? (
             <>
-              <Link href="/dashboard">
-                <Button variant="ghost">Dashboard</Button>
-              </Link>
-              {isAdmin && (
-                <Link href="/admin">
-                  <Button variant="ghost">Admin</Button>
+              {authenticatedItems.map((item) => (
+                <Link key={item.path} href={item.path}>
+                  <Button variant="ghost">{item.label}</Button>
                 </Link>
-              )}
+              ))}
               <Button onClick={handleLogout} variant="ghost">
                 Logout ({user.username})
               </Button>
@@ -81,28 +83,24 @@ function Navigation() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setLocation("/tutorial")}>
-                How It Works
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLocation("/features")}>
-                Features
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLocation("/public-cv")}>
-                Try Demo
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLocation("/contact")}>
-                Contact
-              </DropdownMenuItem>
+              {menuItems.map((item) => (
+                <DropdownMenuItem
+                  key={item.path}
+                  onClick={() => setLocation(item.path)}
+                >
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
               {user ? (
                 <>
-                  <DropdownMenuItem onClick={() => setLocation("/dashboard")}>
-                    Dashboard
-                  </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem onClick={() => setLocation("/admin")}>
-                      Admin
+                  {authenticatedItems.map((item) => (
+                    <DropdownMenuItem
+                      key={item.path}
+                      onClick={() => setLocation(item.path)}
+                    >
+                      {item.label}
                     </DropdownMenuItem>
-                  )}
+                  ))}
                   <DropdownMenuItem onClick={handleLogout}>
                     Logout ({user.username})
                   </DropdownMenuItem>
