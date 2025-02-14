@@ -40,7 +40,7 @@ export async function sendEmail(options: {
       to: options.to,
       from: {
         email: FROM_EMAIL,
-        name: "CV Transformer"  // Adding a friendly sender name
+        name: "CV Transformer"
       },
       subject: options.subject,
       html: options.html,
@@ -56,13 +56,7 @@ export async function sendEmail(options: {
         openTracking: {
           enable: true
         }
-      },
-      headers: {
-        'X-Priority': '1',
-        'Importance': 'high',
-        'X-Auto-Response-Suppress': 'OOF, AutoReply'
-      },
-      categories: ['password-reset']
+      }
     };
 
     console.log("Sending email with message:", {
@@ -171,7 +165,6 @@ export async function sendContactFormNotification(contactData: {
   name: string;
   email: string;
   phone?: string;
-  subject: string;
   message: string;
 }) {
   console.log("Starting contact form notification process to:", FROM_EMAIL, {
@@ -182,11 +175,10 @@ export async function sendContactFormNotification(contactData: {
   try {
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h1 style="color: #2563eb; margin-bottom: 20px;">New Contact Form Submission</h1>
+        <h1 style="color: #2563eb; margin-bottom: 20px;">New Feedback Submission</h1>
         <div style="background-color: #f8fafc; padding: 20px; border-radius: 5px;">
           <p><strong>From:</strong> ${contactData.name} (${contactData.email})</p>
           ${contactData.phone ? `<p><strong>Phone:</strong> ${contactData.phone}</p>` : ''}
-          <p><strong>Subject:</strong> ${contactData.subject}</p>
           <p><strong>Message:</strong></p>
           <p style="white-space: pre-wrap;">${contactData.message}</p>
         </div>
@@ -200,21 +192,21 @@ export async function sendContactFormNotification(contactData: {
 
     const success = await sendEmail({
       to: FROM_EMAIL,
-      subject: `New Contact Form Submission: ${contactData.subject}`,
+      subject: `New Feedback Submission from ${contactData.name}`,
       html: emailContent,
     });
 
     if (!success) {
-      console.error("Failed to send contact form email notification", {
+      console.error("Failed to send feedback email notification", {
         to: FROM_EMAIL,
-        subject: contactData.subject
+        name: contactData.name
       });
-      throw new Error("Failed to send contact form email");
+      throw new Error("Failed to send feedback email");
     }
 
     return success;
   } catch (error: any) {
-    console.error("Contact form notification error:", {
+    console.error("Feedback notification error:", {
       error: error.message,
       stack: error.stack,
       sendGridError: error.response?.body

@@ -417,6 +417,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Update the feedback endpoint to use email notification
   app.post("/api/feedback", async (req, res) => {
     try {
       const result = feedbackSchema.safeParse(req.body);
@@ -439,15 +440,31 @@ export function registerRoutes(app: Express): Server {
           subject: "Feedback from Demo Page",
           status: "new",
         });
-      } catch (dbError) {
-        console.error("Database error:", dbError);
-        throw dbError;
-      }
 
-      res.json({
-        success: true,
-        message: "Feedback submitted successfully"
-      });
+        // Send email notification
+        await sendContactFormNotification({
+          name,
+          email,
+          phone,
+          message
+        });
+
+        res.json({
+          success: true,
+          message: "Feedback submitted successfully"
+        });
+      } catch (error: any) {
+        console.error("Feedback submission error:", error);
+        // If it's a database error, handle it separately
+        if (error.code) {
+          throw error;
+        }
+        // For email errors, still return success but log the error
+        res.json({
+          success: true,
+          message: "Feedback submitted successfully"
+        });
+      }
     } catch (error: any) {
       console.error("Feedback submission error:", error);
       res.status(500).json({
