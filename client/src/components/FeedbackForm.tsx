@@ -27,7 +27,7 @@ type FeedbackFormValues = z.infer<typeof feedbackFormSchema>;
 
 export default function FeedbackForm() {
   const { toast } = useToast();
-  
+
   const form = useForm<FeedbackFormValues>({
     resolver: zodResolver(feedbackFormSchema),
     defaultValues: {
@@ -47,12 +47,14 @@ export default function FeedbackForm() {
         },
         body: JSON.stringify(values),
       });
-      
+
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(await response.text());
+        throw new Error(data.message || "Failed to submit feedback");
       }
-      
-      return response.json();
+
+      return data;
     },
     onSuccess: () => {
       toast({
@@ -90,7 +92,7 @@ export default function FeedbackForm() {
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="email"
@@ -104,7 +106,7 @@ export default function FeedbackForm() {
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="phone"
@@ -118,7 +120,7 @@ export default function FeedbackForm() {
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="message"

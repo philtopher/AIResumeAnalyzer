@@ -351,7 +351,6 @@ const feedbackSchema = z.object({
   email: z.string().email(),
   phone: z.string().optional(), // Make phone optional and remove regex validation
   message: z.string().min(10),
-  subject: z.string().min(1),
 });
 
 export function registerRoutes(app: Express): Server {
@@ -411,6 +410,46 @@ export function registerRoutes(app: Express): Server {
       });
     } catch (error: any) {
       console.error("Contact form submission error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to process your request. Please try again later."
+      });
+    }
+  });
+
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const result = feedbackSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          success: false,
+          message: result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const { name, email, phone, message } = result.data;
+
+      try {
+        // Store the feedback submission in the database
+        await db.insert(contacts).values({
+          name,
+          email,
+          phone,
+          message,
+          subject: "Feedback from Demo Page",
+          status: "new",
+        });
+      } catch (dbError) {
+        console.error("Database error:", dbError);
+        throw dbError;
+      }
+
+      res.json({
+        success: true,
+        message: "Feedback submitted successfully"
+      });
+    } catch (error: any) {
+      console.error("Feedback submission error:", error);
       res.status(500).json({
         success: false,
         message: "Failed to process your request. Please try again later."
