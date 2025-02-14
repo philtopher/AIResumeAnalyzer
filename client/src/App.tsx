@@ -3,7 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
-import { Loader2, Menu } from "lucide-react";
+import { Loader2, Menu, FileText } from "lucide-react";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -49,8 +49,13 @@ function Navigation() {
   return (
     <nav className="border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-        <Link href="/" className="text-2xl font-bold">
-          CV Transformer
+        <Link href="/" className="flex items-center gap-2 text-2xl font-bold">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <FileText className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            CV Transformer
+          </span>
         </Link>
 
         {/* Desktop Navigation */}
