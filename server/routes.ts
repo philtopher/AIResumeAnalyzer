@@ -227,7 +227,7 @@ function evaluateCV(cv: string, jobDescription: string): {
 const feedbackSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  phone: z.string().regex(/^\+?[\d\s-()]{10,}$/),
+  phone: z.string().optional(), // Make phone optional and remove regex validation
   message: z.string().min(10),
   subject: z.string().min(1),
 });

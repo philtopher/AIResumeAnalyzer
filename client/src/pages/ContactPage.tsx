@@ -19,7 +19,7 @@ import { Loader2 } from "lucide-react";
 const contactFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email address"),
-  phone: z.string().optional(),
+  phone: z.string().optional(), // Make phone optional with no regex validation
   subject: z.string().min(5, "Subject must be at least 5 characters"),
   message: z.string().min(10, "Message must be at least 10 characters"),
 });
@@ -142,7 +142,7 @@ export default function ContactPage() {
                     <FormItem>
                       <FormLabel>Message *</FormLabel>
                       <FormControl>
-                        <Textarea 
+                        <Textarea
                           placeholder="Your message"
                           className="min-h-[150px]"
                           {...field}
@@ -153,8 +153,8 @@ export default function ContactPage() {
                   )}
                 />
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full"
                   disabled={form.formState.isSubmitting}
                 >

@@ -313,40 +313,50 @@ export function setupAuth(app: Express) {
     try {
       const result = resetPasswordRequestSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).send("Invalid email address");
+        return res.status(400).send("Please provide a valid email address");
       }
 
       const { email } = result.data;
+
+      // Find user silently - don't expose whether user exists
       const [user] = await db
         .select()
         .from(users)
         .where(eq(users.email, email))
         .limit(1);
 
-      if (!user) {
-        return res.status(404).send("User not found");
+      // If user exists, send reset email
+      if (user) {
+        // Generate reset token
+        const resetToken = randomBytes(32).toString("hex");
+        const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+
+        // Update user with reset token
+        await db
+          .update(users)
+          .set({
+            resetToken,
+            resetTokenExpiry,
+          })
+          .where(eq(users.id, user.id));
+
+        // Send reset email
+        try {
+          await sendPasswordResetEmail(email, resetToken);
+        } catch (emailError) {
+          console.error("Failed to send password reset email:", emailError);
+          // Don't expose email sending failures to client
+        }
       }
 
-      // Generate reset token
-      const resetToken = randomBytes(32).toString("hex");
-      const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
-
-      // Update user with reset token
-      await db
-        .update(users)
-        .set({
-          resetToken,
-          resetTokenExpiry,
-        })
-        .where(eq(users.id, user.id));
-
-      // Send reset email
-      await sendPasswordResetEmail(email, resetToken);
-
-      res.json({ message: "Password reset email sent" });
+      // Always return the same response whether user exists or not
+      res.json({
+        message: "If an account exists with this email address, you will receive password reset instructions shortly."
+      });
     } catch (error: any) {
       console.error("Reset password request error:", error);
-      res.status(500).send(error.message);
+      // Generic error message to avoid information disclosure
+      res.status(500).send("An error occurred while processing your request. Please try again later.");
     }
   });
 
