@@ -68,13 +68,16 @@ async function extractTextContent(file: Express.Multer.File): Promise<string> {
 // Helper function to extract employments
 async function extractEmployments(content: string): Promise<{ latest: string; previous: string[] }> {
   try {
-    // Split content into sections based on line breaks
+    // Split content into sections based on line breaks and employment markers
     const sections = content.split(/\n{2,}/);
 
-    // Find employment sections by looking for dates and job titles
+    // Enhanced employment section detection
     const employmentSections = sections.filter((section) =>
       /\b(19|20)\d{2}\b/.test(section) && // Has year
-      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(section) // Has month
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(section) && // Has month
+      /\b(at|with|for)\b/i.test(section) && // Employment prepositions
+      (/\b(senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)\b/i.test(section) || // Job titles
+       /\b(responsible|managed|led|developed|implemented|designed|created)\b/i.test(section)) // Action verbs
     );
 
     if (employmentSections.length === 0) {
@@ -84,9 +87,18 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
       };
     }
 
+    // Sort sections by date to ensure latest is first
+    const sortedSections = employmentSections.sort((a, b) => {
+      const getLatestDate = (text: string) => {
+        const dateMatch = text.match(/\b(19|20)\d{2}\b/g);
+        return dateMatch ? Math.max(...dateMatch.map(Number)) : 0;
+      };
+      return getLatestDate(b) - getLatestDate(a);
+    });
+
     return {
-      latest: employmentSections[0],
-      previous: employmentSections.slice(1),
+      latest: sortedSections[0],
+      previous: sortedSections.slice(1),
     };
   } catch (error) {
     console.error("Error extracting employments:", error);
@@ -100,41 +112,65 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
 // Helper function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract key requirements from job description
+    // Extract key requirements and technologies from job description
     const requirements = jobDescription.toLowerCase()
       .split(/[.,;]/)
       .map((req) => req.trim())
-      .filter((req) => req.length > 10);
+      .filter((req) => req.length > 10)
+      .map(req => ({
+        text: req,
+        category: 
+          /\b(developed|built|created|implemented|designed|architected)\b/.test(req) ? 'technical' :
+          /\b(led|managed|coordinated|supervised)\b/.test(req) ? 'leadership' :
+          /\b(analyzed|evaluated|assessed|researched)\b/.test(req) ? 'analytical' :
+          'general'
+      }));
 
-    // Extract dates and company from original employment
+    // Extract dates, company, and role from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
     const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
+    const currentRoleMatch = originalEmployment.match(/\b(senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)(?:\s+[a-z]+){0,3}\b/i);
 
     const dateRange = dateMatch ? dateMatch[0] : "Present";
-    const company = companyMatch ? companyMatch[1] : "";
+    const company = companyMatch ? companyMatch[1].trim() : "";
+    const currentRole = currentRoleMatch ? currentRoleMatch[0] : "";
 
-    // Generate role-specific duties based on job description
-    const roleSpecificDuties = [
-      `Led ${targetRole} initiatives focused on organizational objectives and growth`,
-      `Developed and implemented comprehensive solutions aligned with industry best practices`,
-      `Collaborated with cross-functional teams to deliver high-impact results`,
-      // Add job-specific duties based on requirements
-      ...requirements.slice(0, 3).map((req) =>
-        `Successfully ${req.startsWith("must") ? req.replace("must", "demonstrated ability to") : req}`
-      ),
-    ];
+    // Extract existing achievements from original employment
+    const achievements = originalEmployment
+      .split('\n')
+      .filter(line => /^[•-]/.test(line.trim()) || /\b(achieved|improved|increased|reduced|developed|implemented)\b/i.test(line))
+      .map(achievement => achievement.replace(/^[•-]\s*/, '').trim());
+
+    // Generate role-specific responsibilities based on job requirements
+    const technicalDuties = requirements
+      .filter(req => req.category === 'technical')
+      .slice(0, 2)
+      .map(req => `Developed and implemented ${req.text.replace(/must have|should have|required|preferred/, '')}`);
+
+    const leadershipDuties = requirements
+      .filter(req => req.category === 'leadership')
+      .slice(0, 2)
+      .map(req => `Led and managed ${req.text.replace(/must have|should have|required|preferred/, '')}`);
+
+    const analyticalDuties = requirements
+      .filter(req => req.category === 'analytical')
+      .slice(0, 2)
+      .map(req => `Analyzed and optimized ${req.text.replace(/must have|should have|required|preferred/, '')}`);
+
+    // Combine existing achievements with new responsibilities
+    const combinedResponsibilities = [
+      ...technicalDuties,
+      ...leadershipDuties,
+      ...analyticalDuties,
+      ...achievements.slice(0, 2) // Keep some original achievements
+    ].filter(Boolean);
 
     // Format the transformed employment section
     return `
 ${targetRole}${company ? ` at ${company}` : ""} (${dateRange})
 
-Key Responsibilities:
-${roleSpecificDuties.map((duty) => `• ${duty}`).join("\n")}
-
-Notable Achievements:
-• Improved operational efficiency by implementing innovative solutions
-• Reduced process bottlenecks through strategic planning and execution
-• Enhanced team performance through effective leadership and mentoring
+Key Responsibilities & Achievements:
+${combinedResponsibilities.map((duty) => `• ${duty}`).join("\n")}
 `.trim();
   } catch (error) {
     console.error("Error transforming employment:", error);
@@ -144,16 +180,38 @@ Notable Achievements:
 
 // Helper function to adapt skills for target role
 function adaptSkills(originalSkills: string[], jobDescription: string): string[] {
-  // Extract skills from job description
-  const jobSkills = jobDescription.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
+  try {
+    // Extract required skills from job description
+    const requiredSkills = jobDescription.toLowerCase()
+      .match(/\b(?:proficient|experience|knowledge|skill|expertise)\w*\s+(?:in|with)?\s+([a-z0-9+#/.]+(?:\s+[a-z0-9+#/.]+){0,2})/gi)
+      ?.map(skill => skill.replace(/\b(?:proficient|experience|knowledge|skill|expertise)\w*\s+(?:in|with)?\s+/i, '').trim())
+      || [];
 
-  // Keep some original skills and add new skills from job description
-  const keepOriginalCount = Math.min(3, originalSkills.length);
-  const originalSkillsToKeep = originalSkills.slice(0, keepOriginalCount);
+    // Extract technologies and tools from job description
+    const techStack = jobDescription.toLowerCase()
+      .match(/\b(?:using|with)\s+([a-z0-9+#/.]+(?:\s+[a-z0-9+#/.]+){0,2})/gi)
+      ?.map(tech => tech.replace(/\b(?:using|with)\s+/i, '').trim())
+      || [];
 
-  const newSkills = Array.from(new Set([...originalSkillsToKeep, ...jobSkills.slice(0, 5).map((skill) => skill.replace(/\b(?:proficient|experience|knowledge|skill)\w*\s+/g, "").trim())]));
+    // Combine all skills and remove duplicates
+    const allSkills = [...new Set([
+      ...originalSkills.slice(0, Math.min(5, originalSkills.length)), // Keep top 5 original skills
+      ...requiredSkills,
+      ...techStack
+    ])];
 
-  return newSkills;
+    // Sort skills by relevance (mentioned in job description)
+    return allSkills.sort((a, b) => {
+      const aInJobDesc = jobDescription.toLowerCase().includes(a.toLowerCase());
+      const bInJobDesc = jobDescription.toLowerCase().includes(b.toLowerCase());
+      if (aInJobDesc && !bInJobDesc) return -1;
+      if (!aInJobDesc && bInJobDesc) return 1;
+      return 0;
+    });
+  } catch (error) {
+    console.error("Error adapting skills:", error);
+    return originalSkills;
+  }
 }
 
 // Helper function to gather organizational insights
@@ -916,7 +974,7 @@ Professional Development
       }).returning();
 
       res.json(cv);
-    }catch (error: any) {
+    } catch (error: any) {
       console.error("Transform CV error:", error);
       res.status(500).send(error.message);
     }
