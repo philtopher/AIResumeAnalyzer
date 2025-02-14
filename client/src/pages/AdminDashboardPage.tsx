@@ -114,8 +114,8 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const storageAlert = analytics?.storageUsage > 80;
-  const memoryAlert = analytics?.memoryUsage > 90;
+  const storageAlert = (analytics?.storageUsage ?? 0) > 80;
+  const memoryAlert = (analytics?.memoryUsage ?? 0) > 90;
 
   return (
     <div className="p-6 space-y-6">

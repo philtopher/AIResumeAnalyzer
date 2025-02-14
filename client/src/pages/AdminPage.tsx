@@ -10,17 +10,35 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UserPlus, Shield, Activity, FileText, Mail } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { User, ActivityLog, CV, Contact } from "@db/schema";
+import AdminDashboardPage from "./AdminDashboardPage";
 
-type TabType = "users" | "cvs" | "logs" | "contacts";
+type TabType = "dashboard" | "users" | "cvs" | "logs" | "contacts";
 
 export default function AdminPage() {
   const { user } = useUser();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabType>("users");
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [isAddingUser, setIsAddingUser] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const queryClient = useQueryClient();
@@ -214,6 +232,13 @@ export default function AdminPage() {
               <CardTitle>Administration</CardTitle>
               <div className="space-x-2">
                 <Button
+                  variant={activeTab === "dashboard" ? "default" : "outline"}
+                  onClick={() => setActiveTab("dashboard")}
+                >
+                  <Activity className="h-4 w-4 mr-2" />
+                  Dashboard
+                </Button>
+                <Button
                   variant={activeTab === "users" ? "default" : "outline"}
                   onClick={() => setActiveTab("users")}
                 >
@@ -228,13 +253,6 @@ export default function AdminPage() {
                   Pending CVs
                 </Button>
                 <Button
-                  variant={activeTab === "logs" ? "default" : "outline"}
-                  onClick={() => setActiveTab("logs")}
-                >
-                  <Activity className="h-4 w-4 mr-2" />
-                  Activity Logs
-                </Button>
-                <Button
                   variant={activeTab === "contacts" ? "default" : "outline"}
                   onClick={() => setActiveTab("contacts")}
                 >
@@ -245,6 +263,7 @@ export default function AdminPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {activeTab === "dashboard" && <AdminDashboardPage />}
             {activeTab === "users" && (
               <div className="space-y-6">
                 {isSuperAdmin && (
