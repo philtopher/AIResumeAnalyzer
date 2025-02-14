@@ -888,32 +888,18 @@ ${targetRole.toUpperCase()}
 
 ${transformedSummary}
 
-Professional Experience
+CORE SKILLS & TECHNOLOGIES
+${adaptedSkills.map((skill) => `• ${skill}`).join("\n")}
+
+WORK EXPERIENCE
 ${transformedEmployment}
 
-${previousEmployments.length > 0 ? `
-Previous Employment History
-${previousEmployments.join("\n\n")}
-` : ""}
+${previousEmployments.length > 0 ? previousEmployments.join("\n\n") : ""}
 
-Technical Proficiencies
-${adaptedSkills.map((skill) => `• ${skill.charAt(0).toUpperCase() + skill.slice(1)}`).join("\n")}
-
-Additional Skills
-• Strategic Planning & Analysis
-• Team Leadership & Collaboration
-• Project Management
-• Stakeholder Communication
-• Problem-Solving & Innovation
-• Process Optimization
-
-Professional Development
-• Continuous Learning & Skill Enhancement
-• Industry Certifications & Training
-• Professional Network Building
+${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(section)) || ""}
 `.trim();
 
-      // Gather company insights
+      // Gather companyinsights
       const companyInsights = await gatherOrganizationalInsights(targetRole.split(" at ")[1] || "");
 
       // Evaluate the CV
@@ -991,29 +977,15 @@ ${targetRole.toUpperCase()}
 
 ${transformedSummary}
 
-Professional Experience
+CORE SKILLS & TECHNOLOGIES
+${adaptedSkills.map((skill) => `• ${skill}`).join("\n")}
+
+WORK EXPERIENCE
 ${transformedEmployment}
 
-${previousEmployments.length > 0 ? `
-Previous Employment History
-${previousEmployments.join("\n\n")}
-` : ""}
+${previousEmployments.length > 0 ? previousEmployments.join("\n\n") : ""}
 
-Technical Proficiencies
-${adaptedSkills.map((skill) => `• ${skill.charAt(0).toUpperCase() + skill.slice(1)}`).join("\n")}
-
-Additional Skills
-• Strategic Planning & Analysis
-• Team Leadership & Collaboration
-• Project Management
-• Stakeholder Communication
-• Problem-Solving & Innovation
-• Process Optimization
-
-Professional Development
-• Continuous Learning & Skill Enhancement
-• Industry Certifications & Training
-• Professional Network Building
+${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(section)) || ""}
 `.trim();
 
       // Gather company insights
