@@ -6,7 +6,7 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Changed from email to use a verified address
+// The sender email must be verified in SendGrid
 const FROM_EMAIL = 't.unamka@yahoo.co.uk';
 
 export async function sendEmail(options: {
@@ -18,17 +18,24 @@ export async function sendEmail(options: {
     console.log("Attempting to send email with SendGrid");
     const msg = {
       to: options.to,
-      from: FROM_EMAIL,
+      from: FROM_EMAIL, // Must be verified in SendGrid
       subject: options.subject,
       html: options.html,
     };
-    await sgMail.send(msg);
-    console.log("Email sent successfully");
+
+    const response = await sgMail.send(msg);
+    console.log("Email sent successfully", {
+      statusCode: response[0]?.statusCode,
+      headers: response[0]?.headers,
+    });
     return true;
   } catch (error: any) {
-    console.error("Failed to send email. Details:", {
-      error: error.message,
-      response: error.response?.body
+    console.error("Failed to send email. Full error details:", {
+      message: error.message,
+      code: error.code,
+      response: error.response?.body,
+      statusCode: error.code,
+      headers: error.response?.headers,
     });
     return false;
   }
@@ -70,7 +77,7 @@ export async function sendContactFormNotification(contactData: {
   message: string;
 }) {
   return sendEmail({
-    to: FROM_EMAIL,
+    to: FROM_EMAIL, // Send notifications to the admin email
     subject: `New Contact Form Submission: ${contactData.subject}`,
     html: `
       <h1>New Contact Form Submission</h1>
