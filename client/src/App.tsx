@@ -35,7 +35,7 @@ function Navigation() {
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
 
   const menuItems = [
-    { label: "About AI", path: "/tutorial" },
+    { label: "About CV Transformer", path: "/tutorial" },
     { label: "Features", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
