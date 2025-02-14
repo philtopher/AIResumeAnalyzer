@@ -137,32 +137,6 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
   });
 }
 
-export async function sendEmailVerification(email: string, verificationToken: string) {
-  const verifyUrl = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
-  return sendEmail({
-    to: email,
-    subject: "Verify Your CV Transformer Email",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h1 style="color: #2563eb; margin-bottom: 20px;">Email Verification</h1>
-        <p>Thank you for registering with CV Transformer. Please verify your email by clicking the button below:</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${verifyUrl}" 
-             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-            Verify Email
-          </a>
-        </div>
-        <p style="margin-bottom: 20px;">This link will expire in 24 hours for security reasons.</p>
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px;">
-            This is an automated message from CV Transformer. Please do not reply to this email.
-          </p>
-        </div>
-      </div>
-    `,
-  });
-}
-
 export async function sendContactFormNotification(contactData: {
   name: string;
   email: string;
