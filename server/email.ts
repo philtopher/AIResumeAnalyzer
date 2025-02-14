@@ -6,7 +6,8 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const FROM_EMAIL = 'CV Transformer <noreply@cvtransformer.com>';
+// Changed from email to use a verified address
+const FROM_EMAIL = 't.unamka@yahoo.co.uk';
 
 export async function sendEmail(options: {
   to: string;
@@ -69,7 +70,7 @@ export async function sendContactFormNotification(contactData: {
   message: string;
 }) {
   return sendEmail({
-    to: process.env.ADMIN_EMAIL || 't.unamka@yahoo.co.uk',
+    to: FROM_EMAIL,
     subject: `New Contact Form Submission: ${contactData.subject}`,
     html: `
       <h1>New Contact Form Submission</h1>
