@@ -137,6 +137,36 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
   });
 }
 
+export async function sendVerificationEmail(email: string, verificationToken: string) {
+  const verificationUrl = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
+  const currentTime = new Date().toLocaleString();
+
+  return sendEmail({
+    to: email,
+    subject: "Verify Your CV Transformer Account",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #2563eb; margin-bottom: 20px;">Welcome to CV Transformer!</h1>
+        <p>Thank you for registering on ${currentTime}. Please verify your email address by clicking the button below:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verificationUrl}" 
+             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            Verify Email Address
+          </a>
+        </div>
+        <p style="margin-bottom: 20px;">This link will expire in 24 hours for security reasons.</p>
+        <p style="color: #666;">If you didn't create an account with CV Transformer, please ignore this email.</p>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 12px;">
+            This is an automated message from CV Transformer. Please do not reply to this email.<br>
+            For security reasons, this verification link can only be used once.
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendContactFormNotification(contactData: {
   name: string;
   email: string;

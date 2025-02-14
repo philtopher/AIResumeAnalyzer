@@ -3,12 +3,12 @@ import { IVerifyOptions, Strategy as LocalStrategy } from "passport-local";
 import { type Express } from "express";
 import session from "express-session";
 import createMemoryStore from "memorystore";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { scrypt, randomBytes, timingSafeEqual, randomUUID } from "crypto";
 import { promisify } from "util";
 import { users, insertUserSchema, loginSchema, resetPasswordRequestSchema, resetPasswordSchema } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
-import { sendPasswordResetEmail } from "./email";
+import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -168,7 +168,9 @@ export function setupAuth(app: Express) {
         if (!isMatch) {
           return done(null, false, { message: "Incorrect password." });
         }
-        // Remove email verification check for now
+        if (!user.emailVerified) {
+          return done(null, false, { message: "Please verify your email address." });
+        }
         return done(null, user);
       } catch (err) {
         return done(err);
@@ -228,6 +230,10 @@ export function setupAuth(app: Express) {
       // Hash the password
       const hashedPassword = await crypto.hash(password);
 
+      // Generate verification token
+      const verificationToken = randomUUID();
+      const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
       const [newUser] = await db
         .insert(users)
         .values({
@@ -235,9 +241,19 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           email,
           role: "user",
-          emailVerified: true, // Set to true by default for now
+          emailVerified: false,
+          verificationToken,
+          verificationTokenExpiry,
         })
         .returning();
+
+      // Send verification email
+      try {
+        await sendVerificationEmail(email, verificationToken);
+      } catch (emailError) {
+        console.error("Failed to send verification email:", emailError);
+        // Continue with registration even if email fails
+      }
 
       // Log the user in after registration
       req.login(newUser, (err) => {
@@ -245,12 +261,13 @@ export function setupAuth(app: Express) {
           return next(err);
         }
         return res.json({
-          message: "Registration successful",
+          message: "Registration successful. Please check your email to verify your account.",
           user: {
             id: newUser.id,
             username: newUser.username,
             email: newUser.email,
             role: newUser.role,
+            emailVerified: false,
           },
         });
       });
@@ -412,6 +429,41 @@ export function setupAuth(app: Express) {
       res.status(500).send(error.message);
     }
   });
+  // Add email verification endpoint
+  app.get("/api/verify-email/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.verificationToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).send("Invalid verification token");
+      }
+
+      if (!user.verificationTokenExpiry || user.verificationTokenExpiry < new Date()) {
+        return res.status(400).send("Verification token has expired");
+      }
+
+      await db
+        .update(users)
+        .set({
+          emailVerified: true,
+          verificationToken: null,
+          verificationTokenExpiry: null,
+        })
+        .where(eq(users.id, user.id));
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).send("An error occurred during email verification");
+    }
+  });
+
   // Call createOrUpdateAdmin when setting up auth
   createOrUpdateAdmin().catch(console.error);
 }
