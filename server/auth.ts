@@ -18,15 +18,60 @@ const crypto = {
     return `${buf.toString("hex")}.${salt}`;
   },
   compare: async (supplied: string, stored: string) => {
-    const [hash, salt] = stored.split(".");
-    if (!hash || !salt) return false;
+    try {
+      const [hashedPassword, salt] = stored.split(".");
+      if (!hashedPassword || !salt) return false;
 
-    const hashBuffer = Buffer.from(hash, "hex");
-    const suppliedBuffer = (await scryptAsync(supplied, salt, 64)) as Buffer;
+      const hashBuffer = Buffer.from(hashedPassword, "hex");
+      const suppliedHash = (await scryptAsync(supplied, salt, 64)) as Buffer;
 
-    return timingSafeEqual(hashBuffer, suppliedBuffer);
+      return timingSafeEqual(hashBuffer, suppliedHash);
+    } catch (error) {
+      console.error("Password comparison error:", error);
+      return false;
+    }
   },
 };
+
+// Create an async function to set up the admin user
+async function createOrUpdateAdmin() {
+  try {
+    const adminPassword = "Admin123!";
+    const hashedPassword = await crypto.hash(adminPassword);
+
+    // Check if admin exists
+    const [existingAdmin] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, "admin"))
+      .limit(1);
+
+    if (existingAdmin) {
+      await db
+        .update(users)
+        .set({
+          password: hashedPassword,
+          email: "admin@cvtransformer.com",
+          role: "super_admin",
+          emailVerified: true,
+        })
+        .where(eq(users.username, "admin"));
+    } else {
+      await db.insert(users).values({
+        username: "admin",
+        password: hashedPassword,
+        email: "admin@cvtransformer.com",
+        role: "super_admin",
+        emailVerified: true,
+      });
+    }
+    console.log("Admin user created/updated successfully");
+    return true;
+  } catch (error) {
+    console.error("Failed to create/update admin:", error);
+    return false;
+  }
+}
 
 // Update the admin password update function
 export async function updateAdminPassword() {
@@ -346,4 +391,6 @@ export function setupAuth(app: Express) {
       res.status(500).send(error.message);
     }
   });
+  // Call createOrUpdateAdmin when setting up auth
+  createOrUpdateAdmin().catch(console.error);
 }
