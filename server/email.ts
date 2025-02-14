@@ -1,5 +1,6 @@
 import sgMail from '@sendgrid/mail';
 
+// Ensure SendGrid API key is set
 if (!process.env.SENDGRID_API_KEY) {
   throw new Error("SENDGRID_API_KEY environment variable must be set");
 }
@@ -15,19 +16,30 @@ export async function sendEmail(options: {
   html: string;
 }) {
   try {
-    console.log("Attempting to send email with SendGrid");
+    console.log("Attempting to send email with SendGrid", {
+      to: options.to,
+      from: FROM_EMAIL,
+      subject: options.subject
+    });
+
     const msg = {
       to: options.to,
-      from: FROM_EMAIL, // Must be verified in SendGrid
+      from: FROM_EMAIL,
       subject: options.subject,
       html: options.html,
     };
 
-    const response = await sgMail.send(msg);
+    const [response] = await sgMail.send(msg);
+
+    if (response.statusCode !== 202) {
+      throw new Error(`SendGrid returned status code ${response.statusCode}`);
+    }
+
     console.log("Email sent successfully", {
-      statusCode: response[0]?.statusCode,
-      headers: response[0]?.headers,
+      statusCode: response.statusCode,
+      headers: response.headers,
     });
+
     return true;
   } catch (error: any) {
     console.error("Failed to send email. Full error details:", {
@@ -76,15 +88,25 @@ export async function sendContactFormNotification(contactData: {
   subject: string;
   message: string;
 }) {
-  return sendEmail({
-    to: FROM_EMAIL, // Send notifications to the admin email
+  console.log("Sending contact form notification to:", FROM_EMAIL);
+
+  const emailContent = `
+    <h1>New Contact Form Submission</h1>
+    <p><strong>From:</strong> ${contactData.name} (${contactData.email})</p>
+    <p><strong>Subject:</strong> ${contactData.subject}</p>
+    <p><strong>Message:</strong></p>
+    <p>${contactData.message}</p>
+  `;
+
+  const success = await sendEmail({
+    to: FROM_EMAIL,
     subject: `New Contact Form Submission: ${contactData.subject}`,
-    html: `
-      <h1>New Contact Form Submission</h1>
-      <p><strong>From:</strong> ${contactData.name} (${contactData.email})</p>
-      <p><strong>Subject:</strong> ${contactData.subject}</p>
-      <p><strong>Message:</strong></p>
-      <p>${contactData.message}</p>
-    `,
+    html: emailContent,
   });
+
+  if (!success) {
+    throw new Error("Failed to send contact form email");
+  }
+
+  return success;
 }
