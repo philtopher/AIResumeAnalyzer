@@ -20,6 +20,7 @@ import {
   Packer,
 } from "docx";
 import { z } from "zod";
+import { sql } from 'drizzle-orm';
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -271,23 +272,23 @@ export function registerRoutes(app: Express): Server {
         console.error("Database error:", dbError);
         // If email was sent, we still want to notify the user
         if (emailSent) {
-          return res.json({ 
-            success: true, 
-            message: "Message sent successfully, but there was an issue saving your contact information." 
+          return res.json({
+            success: true,
+            message: "Message sent successfully, but there was an issue saving your contact information."
           });
         }
         throw dbError;
       }
 
-      res.json({ 
-        success: true, 
-        message: "Contact form submitted successfully" 
+      res.json({
+        success: true,
+        message: "Contact form submitted successfully"
       });
     } catch (error: any) {
       console.error("Contact form submission error:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Failed to process your request. Please try again later." 
+      res.status(500).json({
+        success: false,
+        message: "Failed to process your request. Please try again later."
       });
     }
   });
@@ -295,7 +296,7 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/admin/contacts/:id/status", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -329,7 +330,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/admin/contacts", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -350,7 +351,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/admin/users", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -463,7 +464,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/admin/logs", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -480,11 +481,119 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get admin analytics
+  app.get("/api/admin/analytics", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user ||
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        return res.status(403).send("Access denied");
+      }
+
+      // Get total users count
+      const [{ count: totalUsers }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(users);
+
+      // Get registered vs anonymous users
+      const [{ count: registeredUsers }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(users)
+        .where(sql`role != 'demo'`);
+
+      const anonymousUsers = totalUsers - registeredUsers;
+
+      // Get active users (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const [{ count: activeUsers }] = await db
+        .select({ count: sql<number>`count(distinct user_id)` })
+        .from(site_analytics)
+        .where(sql`visit_timestamp > ${thirtyDaysAgo}`);
+
+      // Get conversion metrics
+      const [{ count: totalConversions }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(cvs);
+
+      const [{ count: registeredConversions }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(cvs)
+        .where(sql`conversion_type = 'registered'`);
+
+      const anonymousConversions = totalConversions - registeredConversions;
+      const conversionRate = totalUsers > 0
+        ? ((totalConversions / totalUsers) * 100).toFixed(1)
+        : 0;
+
+      // Get conversions by country
+      const conversionsByCountry = await db
+        .select({
+          country: sql<string>`location_country`,
+          count: sql<number>`count(*)`
+        })
+        .from(cvs)
+        .whereNotNull('location_country')
+        .groupBy(sql`location_country`)
+        .orderBy(sql`count(*) desc`)
+        .limit(10);
+
+      // Get conversions by date (last 30 days)
+      const conversionsByDate = await db
+        .select({
+          date: sql<string>`date_trunc('day', created_at)::date::text`,
+          count: sql<number>`count(*)`
+        })
+        .from(cvs)
+        .where(sql`created_at > ${thirtyDaysAgo}`)
+        .groupBy(sql`date_trunc('day', created_at)`)
+        .orderBy(sql`date_trunc('day', created_at)`);
+
+      // Get visitors by date (last 30 days)
+      const visitorsByDate = await db
+        .select({
+          date: sql<string>`date_trunc('day', visit_timestamp)::date::text`,
+          count: sql<number>`count(distinct ip_address)`
+        })
+        .from(site_analytics)
+        .where(sql`visit_timestamp > ${thirtyDaysAgo}`)
+        .groupBy(sql`date_trunc('day', visit_timestamp)`)
+        .orderBy(sql`date_trunc('day', visit_timestamp)`);
+
+      // User segmentation data
+      const userSegmentation = [
+        { name: "Registered", value: registeredUsers },
+        { name: "Anonymous", value: anonymousUsers },
+      ];
+
+      // Compile all analytics data
+      const analyticsData = {
+        totalUsers,
+        activeUsers,
+        registeredUsers,
+        anonymousUsers,
+        totalConversions,
+        registeredConversions,
+        anonymousConversions,
+        conversionRate,
+        conversionsByCountry,
+        conversionsByDate,
+        visitorsByDate,
+        userSegmentation,
+      };
+
+      res.json(analyticsData);
+    } catch (error: any) {
+      console.error("Admin analytics error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
   // Get pending CVs (admin only)
   app.get("/api/admin/cvs/pending", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -505,7 +614,7 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/admin/cvs/:id/approve", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
-          (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
         return res.status(403).send("Access denied");
       }
 
@@ -932,7 +1041,7 @@ Professional Development
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
       res.setHeader("Content-Disposition", `attachment; filename="transformed_cv.docx"`);
       res.send(buffer);
-        } catch (error: any) {
+    } catch (error: any) {
       console.error("Public download CV error:", error);
       res.status(500).send(error.message);
     }
