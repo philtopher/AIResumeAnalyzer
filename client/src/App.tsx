@@ -51,6 +51,7 @@ function Navigation() {
           CV Transformer
         </Link>
 
+        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-4">
           {menuItems.map((item) => (
             <Link key={item.path} href={item.path}>
@@ -75,38 +76,51 @@ function Navigation() {
           )}
         </div>
 
+        {/* Mobile Navigation */}
         <div className="md:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
+              <Button variant="outline" size="icon" className="h-10 w-10">
+                <Menu className="h-6 w-6" />
+                <span className="sr-only">Open menu</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-56 mt-2">
+              {user && (
+                <DropdownMenuItem disabled className="font-medium">
+                  {user.username}
+                </DropdownMenuItem>
+              )}
+              {user && authenticatedItems.map((item) => (
+                <DropdownMenuItem
+                  key={item.path}
+                  onClick={() => setLocation(item.path)}
+                  className="cursor-pointer"
+                >
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
               {menuItems.map((item) => (
                 <DropdownMenuItem
                   key={item.path}
                   onClick={() => setLocation(item.path)}
+                  className="cursor-pointer"
                 >
                   {item.label}
                 </DropdownMenuItem>
               ))}
               {user ? (
-                <>
-                  {authenticatedItems.map((item) => (
-                    <DropdownMenuItem
-                      key={item.path}
-                      onClick={() => setLocation(item.path)}
-                    >
-                      {item.label}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuItem onClick={handleLogout}>
-                    Logout ({user.username})
-                  </DropdownMenuItem>
-                </>
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="cursor-pointer text-red-500 hover:text-red-600"
+                >
+                  Logout
+                </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onClick={() => setLocation("/auth")}>
+                <DropdownMenuItem
+                  onClick={() => setLocation("/auth")}
+                  className="cursor-pointer font-medium"
+                >
                   Get Started
                 </DropdownMenuItem>
               )}
