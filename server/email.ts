@@ -8,8 +8,12 @@ if (!process.env.SENDGRID_API_KEY) {
 // Set SendGrid API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Get sender email from environment variable or use default
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 't.unamka@yahoo.co.uk';
+// Get sender email from environment variable
+if (!process.env.SENDGRID_FROM_EMAIL) {
+  throw new Error("SENDGRID_FROM_EMAIL environment variable must be set");
+}
+
+const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
 
 // Maximum retry attempts for failed emails
 const MAX_RETRY_ATTEMPTS = 3;

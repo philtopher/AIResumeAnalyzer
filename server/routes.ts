@@ -246,13 +246,25 @@ export function registerRoutes(app: Express): Server {
       const success = await sendContactFormNotification({
         name,
         email,
+        phone, // Add phone to the notification
         subject,
-        message
+        message,
       });
 
       if (!success) {
+        console.error("Failed to send contact form email notification");
         throw new Error("Failed to send contact form email");
       }
+
+      // Store the contact form submission in the database
+      const [contact] = await db.insert(contacts).values({
+        name,
+        email,
+        phone,
+        subject,
+        message,
+        status: "new",
+      }).returning();
 
       res.json({ success: true, message: "Contact form submitted successfully" });
     } catch (error: any) {
@@ -915,8 +927,7 @@ Professional Development
         subject: "Test Email from CV Transformer",
         html: `
           <h1>Test Email</h1>
-          <p>This is a test email from CVTransformer.</p>
-          <p>If you received this, your email configuration is working correctly!</p>
+          <p>This is a test email from CVTransformer.</p>If you received this, your email configuration is working correctly!</p>
         `,
       });
 
