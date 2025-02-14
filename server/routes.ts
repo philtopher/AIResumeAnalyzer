@@ -241,35 +241,54 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { name, email, phone, message, subject } = result.data;
+      let emailSent = false;
 
-      // Send email notification using SendGrid
-      const success = await sendContactFormNotification({
-        name,
-        email,
-        phone, // Add phone to the notification
-        subject,
-        message,
-      });
-
-      if (!success) {
-        console.error("Failed to send contact form email notification");
-        throw new Error("Failed to send contact form email");
+      try {
+        // Send email notification using SendGrid
+        emailSent = await sendContactFormNotification({
+          name,
+          email,
+          phone,
+          subject,
+          message,
+        });
+      } catch (emailError) {
+        console.error("Email sending error:", emailError);
+        // Continue with database operation even if email fails
       }
 
-      // Store the contact form submission in the database
-      const [contact] = await db.insert(contacts).values({
-        name,
-        email,
-        phone,
-        subject,
-        message,
-        status: "new",
-      }).returning();
+      try {
+        // Store the contact form submission in the database
+        await db.insert(contacts).values({
+          name,
+          email,
+          phone,
+          subject,
+          message,
+          status: "new",
+        }).returning();
+      } catch (dbError) {
+        console.error("Database error:", dbError);
+        // If email was sent, we still want to notify the user
+        if (emailSent) {
+          return res.json({ 
+            success: true, 
+            message: "Message sent successfully, but there was an issue saving your contact information." 
+          });
+        }
+        throw dbError;
+      }
 
-      res.json({ success: true, message: "Contact form submitted successfully" });
+      res.json({ 
+        success: true, 
+        message: "Contact form submitted successfully" 
+      });
     } catch (error: any) {
       console.error("Contact form submission error:", error);
-      res.status(500).send(error.message);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to process your request. Please try again later." 
+      });
     }
   });
 
@@ -913,7 +932,7 @@ Professional Development
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
       res.setHeader("Content-Disposition", `attachment; filename="transformed_cv.docx"`);
       res.send(buffer);
-    } catch (error: any) {
+        } catch (error: any) {
       console.error("Public download CV error:", error);
       res.status(500).send(error.message);
     }
