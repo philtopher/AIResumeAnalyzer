@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const formRef = useRef<HTMLFormElement>(null);
 
   // Consider admin users as having pro access
-  const hasPro = user?.role === "admin" || subscription?.status === "active";
+  const hasPro = user?.role === "super_admin" || user?.role === "sub_admin" || subscription?.status === "active";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -153,7 +153,7 @@ export default function DashboardPage() {
             <span className="text-sm text-muted-foreground">
               Welcome, {user?.username}
             </span>
-            {!hasPro && user?.role !== "admin" && (
+            {!hasPro && user?.role !== "super_admin" && user?.role !== "sub_admin" && (
               <Link href="/features">
                 <Button variant="secondary">Upgrade to Pro</Button>
               </Link>
