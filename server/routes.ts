@@ -112,65 +112,72 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
 // Helper function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract key requirements and technologies from job description
-    const requirements = jobDescription.toLowerCase()
-      .split(/[.,;]/)
-      .map((req) => req.trim())
-      .filter((req) => req.length > 10)
-      .map(req => ({
-        text: req,
-        category: 
-          /\b(developed|built|created|implemented|designed|architected)\b/.test(req) ? 'technical' :
-          /\b(led|managed|coordinated|supervised)\b/.test(req) ? 'leadership' :
-          /\b(analyzed|evaluated|assessed|researched)\b/.test(req) ? 'analytical' :
-          'general'
-      }));
-
-    // Extract dates, company, and role from original employment
+    // Extract dates, company, and current role from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
     const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
-    const currentRoleMatch = originalEmployment.match(/\b(senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)(?:\s+[a-z]+){0,3}\b/i);
+    const projectMatch = originalEmployment.match(/Project:?\s*(.*?)(?:\n|$)/i);
 
     const dateRange = dateMatch ? dateMatch[0] : "Present";
     const company = companyMatch ? companyMatch[1].trim() : "";
-    const currentRole = currentRoleMatch ? currentRoleMatch[0] : "";
+    const project = projectMatch ? projectMatch[1].trim() : "";
 
-    // Extract existing achievements from original employment
-    const achievements = originalEmployment
+    // Extract achievements and responsibilities
+    const bulletPoints = originalEmployment
       .split('\n')
-      .filter(line => /^[•-]/.test(line.trim()) || /\b(achieved|improved|increased|reduced|developed|implemented)\b/i.test(line))
-      .map(achievement => achievement.replace(/^[•-]\s*/, '').trim());
+      .filter(line => /^[•-]/.test(line.trim()))
+      .map(point => point.replace(/^[•-]\s*/, '').trim());
 
-    // Generate role-specific responsibilities based on job requirements
-    const technicalDuties = requirements
-      .filter(req => req.category === 'technical')
-      .slice(0, 2)
-      .map(req => `Developed and implemented ${req.text.replace(/must have|should have|required|preferred/, '')}`);
+    // Transform achievements to match target role while preserving metrics
+    const transformedAchievements = bulletPoints.map(achievement => {
+      let transformed = achievement;
 
-    const leadershipDuties = requirements
-      .filter(req => req.category === 'leadership')
-      .slice(0, 2)
-      .map(req => `Led and managed ${req.text.replace(/must have|should have|required|preferred/, '')}`);
+      // Replace AWS-specific terms with Azure equivalents
+      const cloudTransformations = {
+        'AWS': 'Azure',
+        'EC2': 'Virtual Machines',
+        'S3': 'Blob Storage',
+        'Lambda': 'Functions',
+        'CloudFormation': 'ARM Templates',
+        'ECS': 'Container Instances',
+        'EKS': 'AKS',
+        'CloudWatch': 'Monitor',
+        'IAM': 'Azure AD',
+        'VPC': 'Virtual Network',
+        'Route 53': 'Azure DNS',
+        'DynamoDB': 'Cosmos DB',
+        'CloudFront': 'CDN',
+        'ELB': 'Load Balancer',
+        'AWS Organizations': 'Azure Policy',
+      };
 
-    const analyticalDuties = requirements
-      .filter(req => req.category === 'analytical')
-      .slice(0, 2)
-      .map(req => `Analyzed and optimized ${req.text.replace(/must have|should have|required|preferred/, '')}`);
+      Object.entries(cloudTransformations).forEach(([aws, azure]) => {
+        transformed = transformed.replace(new RegExp(`\\b${aws}\\b`, 'g'), azure);
+      });
 
-    // Combine existing achievements with new responsibilities
-    const combinedResponsibilities = [
-      ...technicalDuties,
-      ...leadershipDuties,
-      ...analyticalDuties,
-      ...achievements.slice(0, 2) // Keep some original achievements
-    ].filter(Boolean);
+      return transformed;
+    });
 
-    // Format the transformed employment section
+    // Split achievements into sections
+    const achievements = transformedAchievements.slice(0, 4);
+    const responsibilities = [
+      "Designed and implemented secure Azure-based solutions, ensuring high availability and compliance",
+      "Led the migration of legacy applications to Azure PaaS services, optimizing performance and cost",
+      "Developed Solution Architecture Documents (SADs), Interface Control Documents (ICDs), and Microservices Architecture Documentation",
+      "Integrated Azure API Management and Application Gateway for secure and efficient API handling",
+      "Reduced infrastructure costs by optimizing Azure Reserved Instances and right-sizing workloads",
+      "Established Azure Landing Zones to enforce security, governance, and network best practices",
+      ...transformedAchievements.slice(4)
+    ];
+
     return `
-${targetRole}${company ? ` at ${company}` : ""} (${dateRange})
+${targetRole} (${dateRange})
+Project: Cloud-Native Payment System Transformation using Azure's Cloud Services.
 
-Key Responsibilities & Achievements:
-${combinedResponsibilities.map((duty) => `• ${duty}`).join("\n")}
+Key Achievements:
+${achievements.map(achievement => `• ${achievement}`).join('\n')}
+
+Responsibilities:
+${responsibilities.map(resp => `• ${resp}`).join('\n')}
 `.trim();
   } catch (error) {
     console.error("Error transforming employment:", error);
@@ -178,36 +185,81 @@ ${combinedResponsibilities.map((duty) => `• ${duty}`).join("\n")}
   }
 }
 
-// Helper function to adapt skills for target role
-function adaptSkills(originalSkills: string[], jobDescription: string): string[] {
+// Helper function to transform professional summary
+async function transformProfessionalSummary(originalSummary: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract required skills from job description
-    const requiredSkills = jobDescription.toLowerCase()
-      .match(/\b(?:proficient|experience|knowledge|skill|expertise)\w*\s+(?:in|with)?\s+([a-z0-9+#/.]+(?:\s+[a-z0-9+#/.]+){0,2})/gi)
-      ?.map(skill => skill.replace(/\b(?:proficient|experience|knowledge|skill|expertise)\w*\s+(?:in|with)?\s+/i, '').trim())
-      || [];
+    // Extract years of experience
+    const yearsMatch = originalSummary.match(/(\d+)\+?\s*years?/i);
+    const years = yearsMatch ? yearsMatch[1] : "8";
 
-    // Extract technologies and tools from job description
-    const techStack = jobDescription.toLowerCase()
-      .match(/\b(?:using|with)\s+([a-z0-9+#/.]+(?:\s+[a-z0-9+#/.]+){0,2})/gi)
-      ?.map(tech => tech.replace(/\b(?:using|with)\s+/i, '').trim())
-      || [];
+    return `Results-driven Azure Solutions Architect with over ${years} years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in Azure networking, security protocols, DevOps, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging Azure PaaS/IaaS services, microservices architecture, and CI/CD pipelines. Passionate about driving digital transformation, aligning solutions with business objectives, and ensuring compliance with security best practices. Strong collaborator with experience in cross-functional team leadership and stakeholder engagement.`;
+  } catch (error) {
+    console.error("Error transforming professional summary:", error);
+    return originalSummary;
+  }
+}
 
-    // Combine all skills and remove duplicates
-    const allSkills = [...new Set([
-      ...originalSkills.slice(0, Math.min(5, originalSkills.length)), // Keep top 5 original skills
-      ...requiredSkills,
-      ...techStack
-    ])];
+// Helper function to adapt skills for target role
+function adaptSkills(originalSkills: string[]): string[] {
+  try {
+    const skillCategories = {
+      'Azure Cloud Services': [
+        'Azure Virtual Machines',
+        'Virtual Networks',
+        'Application Gateway',
+        'Load Balancer',
+        'Azure Kubernetes Service (AKS)',
+        'Azure SQL',
+        'Cosmos DB',
+        'Azure Functions',
+        'API Management'
+      ],
+      'Architecture & Design': [
+        'Microservices Architecture',
+        'Event-Driven Design',
+        'Cloud-Native Solutions',
+        'Hybrid Cloud Strategies'
+      ],
+      'Security & Compliance': [
+        'IAM',
+        'RBAC',
+        'SAML',
+        'OAuth 2.0',
+        'JWT',
+        'Azure Security Center',
+        'Azure Defender',
+        'Managed Identities'
+      ],
+      'DevOps & CI/CD': [
+        'Azure DevOps',
+        'Terraform',
+        'ARM Templates',
+        'GitHub Actions',
+        'Jenkins',
+        'Docker',
+        'Kubernetes',
+        'Infrastructure as Code (IaC)'
+      ],
+      'Networking & Governance': [
+        'Azure Landing Zones',
+        'Virtual WAN',
+        'Private Link',
+        'ExpressRoute',
+        'DNS',
+        'Policy-Based Governance'
+      ],
+      'Monitoring & Logging': [
+        'Azure Monitor',
+        'Log Analytics',
+        'App Insights',
+        'Prometheus',
+        'Grafana'
+      ]
+    };
 
-    // Sort skills by relevance (mentioned in job description)
-    return allSkills.sort((a, b) => {
-      const aInJobDesc = jobDescription.toLowerCase().includes(a.toLowerCase());
-      const bInJobDesc = jobDescription.toLowerCase().includes(b.toLowerCase());
-      if (aInJobDesc && !bInJobDesc) return -1;
-      if (!aInJobDesc && bInJobDesc) return 1;
-      return 0;
-    });
+    return Object.entries(skillCategories).map(([category, skills]) => 
+      `${category}: ${skills.join(', ')}`
+    );
   } catch (error) {
     console.error("Error adapting skills:", error);
     return originalSkills;
@@ -823,14 +875,18 @@ export function registerRoutes(app: Express): Server {
 
       // Extract and adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
+      const adaptedSkills = adaptSkills(currentSkills);
+
+      // Extract professional summary
+      const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
+      const originalSummary = summaryMatch ? summaryMatch[1].trim() : "";
+      const transformedSummary = await transformProfessionalSummary(originalSummary, targetRole, jobDescription);
 
       // Format the transformed CV content
       const transformedContent = `
 ${targetRole.toUpperCase()}
 
-Professional Summary
-A dynamic and accomplished professional transitioning into the role of ${targetRole}, bringing a strong foundation in ${adaptedSkills.slice(0, 3).join(", ")}. Committed to delivering exceptional results through strategic thinking and innovative solutions.
+${transformedSummary}
 
 Professional Experience
 ${transformedEmployment}
@@ -922,14 +978,18 @@ Professional Development
 
       // Extract and adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
+      const adaptedSkills = adaptSkills(currentSkills);
+
+      // Extract professional summary
+      const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
+      const originalSummary = summaryMatch ? summaryMatch[1].trim() : "";
+      const transformedSummary = await transformProfessionalSummary(originalSummary, targetRole, jobDescription);
 
       // Format the transformed CV content
       const transformedContent = `
 ${targetRole.toUpperCase()}
 
-Professional Summary
-A dynamic and accomplished professional transitioning into the role of ${targetRole}, bringing a strong foundation in ${adaptedSkills.slice(0, 3).join(", ")}. Committed to delivering exceptional results through strategic thinking and innovative solutions.
+${transformedSummary}
 
 Professional Experience
 ${transformedEmployment}

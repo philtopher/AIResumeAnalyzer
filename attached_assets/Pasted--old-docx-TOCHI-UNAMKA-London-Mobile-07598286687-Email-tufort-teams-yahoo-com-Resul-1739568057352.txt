@@ -1,0 +1,94 @@
+(old.docx)
+
+TOCHI UNAMKA | London  | Mobile: 07598286687 | Email: tufort-teams@yahoo.com
+ 
+Results-driven AWS DevOps Engineer with over 8 years of experience in designing, automating, and optimizing mission-critical deployments in the cloud and on-premises environments. Certified in AWS, Terraform, and Kubernetes, demonstrating expertise in DevOps methodologies, CI/CD pipelines, and Infrastructure as Code (IaC). Proven ability to lead cross-functional teams, drive automation, and deliver scalable, secure, and cost-efficient solutions. Skilled in problem-solving, collaboration, and strategic thinking, with a strong commitment to innovation and continuous learning.
+
+ 
+	AWS Cloud Services: EC2, VPC, ASG, ELB, S3, EBS, CloudFront, Route 53, RDS, DynamoDB, Lambda, AWS Control Tower, AWS Organization, CloudWatch, CloudTrail, SHEILD, SQS, SNS.
+	Cloud Platforms: AWS, Azure, Google Cloud
+	CI/CD Pipelines & DevOps Tools: CI/CD Pipeline, Jenkins, Docker, VCS - (Git,GitLab/BitBucket), ECS, EKS (K8s), ECR, GitOps, Packer.
+	IAAC: CloudFormation/Terraform (HashiCorp Vault).
+	Programming & Scripting: Linux, Bash, PHP, C#, Python, PowerShell, YAML
+	Security & Compliance: IAM, AWS WAF, AWS Inspector, Security Hub, AWS Detective, AWS Config, AWS Macie, AWS KMS, Firewall Manager, AWS Secrets Manager, Parameter Store, GuardDuty, CIS Benchmarks, Encryption (KMS)
+	Monitoring & Logging: CloudWatch, Grafana & Prometheus. 
+	AWS Framework: Security, Cost, Reliability, Operational Excellence, Performance Efficiency and Sustainability.
+	AWS Core Values: Cloud Adoption Framework (CAF), AWS Migration Strategies (7 R’s)
+	Collaboration Tools: Slack, Confluence, Jira, Microsoft 365 (Excel, Ms word, Teams, SharePoint). 
+	IT Support Tools: TeamViewer, Webex, RemoteHelp, Patch management. 
+	Cost Optimization & Management: Resource right-sizing, Reserved Instances, AWS Budgets, Tagging for cost allocation
+	Other Skills: Strategic planning, project management, cost optimization, cross functional collaboration, technical writing.
+
+
+WORK EXPERIENCE
+
+AWS DevOps Engineer (Contractor)                    Lloyds Bank                               11/22 – Present
+
+Clients Project Brief: Modernizing Payment System Interfaces Using AWS's Cloud-Native Payment Solutions.
+
+Achievements: 
+	Savings of $18,842 per year through purchase of 108 Reserved Instances with no upfront cost. 
+	Achieved a 30% reduction in monthly AWS costs by identifying underutilized resources, right-sizing instances, and optimizing reserved instance purchases.
+ 
+Responsibilities:
+•	Designed and deployed secure EKS clusters integrated with ECR for seamless container orchestration and Postgres for data store.
+•	Automated infrastructure provisioning using Terraform, ensuring scalability and resilience.
+•	Implemented robust CI/CD pipelines with Jenkins and SonarQube for automated builds, tests, and deployments.
+•	Configured AWS services such as CloudWatch for monitoring, Secrets Manager for credential management, and API Gateway for serverless APIs.
+•	Integrated LLM-based knowledgebases using Amazon Bedrock for intelligent application features.
+•	Developed custom CloudWatch dashboards to monitor application performance and resource utilization. 
+•	Collaborated with globally distributed teams to standardize tools and patterns for CI/CD, observability, and security, improving operational efficiency.
+AWS DevOps Engineer   (Contractor)                        Global Payment UK                                            12/20 – 10/22
+
+Clients Project Brief: 
+# Using AWS Services To Transform A Legacy Stateful Application Into A Stateless Application. 
+
+Responsibilities:
+•	Transitioned legacy stateful applications into stateless architectures using modern AWS services.
+•	Integrated CIS Benchmarks into IaC templates, enhancing security compliance.
+•	Automated end-to-end CI/CD pipelines leveraging Terraform, AWS CodePipeline, and Jenkins.
+•	Conducted vulnerability scanning of code and containers, incorporating security checks into CI/CD workflows.
+•	Monitored application performance and resolved incidents using CloudWatch and Prometheus.
+•	Collaborated with development teams to optimize application deployment strategies, improving time-to-market.
+
+AWS Cloud Engineer   (Contractor)                        Capgemini  UK                                      01/19 – 11/20
+
+Clients Project Brief: 
+# Location Services With Real-Time ML Forecasting. 
+# Developed Bioinformatics Workflows On AWS With DevOps.
+# Leveraging AWS Services Such As S3 For Digital Imaging And Communications In Medicine (DICOM) Images Storage. 
+Responsibilities:
+•	Designed and implemented cloud solutions for real-time ML forecasting and bioinformatics workflows.
+•	Automated deployments using Terraform and CloudFormation, reducing manual effort and errors.
+•	Managed cloud infrastructure, including EC2, S3, Lambda, and RDS, ensuring high availability.
+•	Streamlined DevOps processes by integrating GitLab for version control and Jenkins for CI/CD.
+•	Enhanced team collaboration through documentation and knowledge-sharing sessions.
+
+Infrastructure Engineer                                     Data Link UK                                                            05/16 – 12/18
+
+Responsibilities:
+•	Developed and maintained cloud infrastructure on AWS, including EC2, S3, and RDS.
+•	Integrated third-party APIs to improve application functionality and performance.
+•	Optimized database queries, enhancing application response times by 25%.
+•	Provided technical support and troubleshooting for cloud-based systems.
+
+Linux System Administrator                        Tour Ryde Group                                                           10/12 – 04/16
+
+Responsibilities:
+•	Managed and monitored Linux systems, ensuring uptime and reliability.
+•	Automated backup processes, safeguarding critical data.
+•	Implemented security measures, including firewalls and intrusion detection systems.
+•	Performed system performance tuning, improving operational efficiency.
+
+
+EDUCATION & CERTIFICATIONS
+
+	HashiCorp Certified: Terraform (Associate).
+	AWS Certified DevOps Engineer (Professional).
+	AWS Certified Solutions Architect (Associate).
+	AWS Certified Cloud Practitioner (Foundation).
+	Microsoft Certified: Azure Administrator Associate (AZ-900) .
+	CompTIA A+ & Microsoft 365 Fundamentals - (MS-900).
+	University of Port Harcourt | Electrical Electronics Engineering | 2000 – 2005 
+
+¬¬¬¬¬ REFERENCES: Available upon request.

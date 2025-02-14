@@ -1,0 +1,60 @@
+(new.docx)
+
+TOCHI UNAMKA | London | Mobile: 07598286687 | Email: tufort-teams@yahoo.com
+PROFESSIONAL SUMMARY Results-driven Azure Solutions Architect with over 8 years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in Azure networking, security protocols, DevOps, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging Azure PaaS/IaaS services, microservices architecture, and CI/CD pipelines. Passionate about driving digital transformation, aligning solutions with business objectives, and ensuring compliance with security best practices. Strong collaborator with experience in cross-functional team leadership and stakeholder engagement.
+CORE SKILLS & TECHNOLOGIES
+•	Azure Cloud Services: Azure Virtual Machines, Virtual Networks, Application Gateway, Load Balancer, Azure Kubernetes Service (AKS), Azure SQL, Cosmos DB, Azure Functions, API Management
+•	Architecture & Design: Microservices Architecture, Event-Driven Design, Cloud-Native Solutions, Hybrid Cloud Strategies
+•	Security & Compliance: IAM, RBAC, SAML, OAuth 2.0, JWT, Azure Security Center, Azure Defender, Managed Identities
+•	DevOps & CI/CD: Azure DevOps, Terraform, ARM Templates, GitHub Actions, Jenkins, Docker, Kubernetes, Infrastructure as Code (IaC)
+•	Networking & Governance: Azure Landing Zones, Virtual WAN, Private Link, ExpressRoute, DNS, Policy-Based Governance
+•	Monitoring & Logging: Azure Monitor, Log Analytics, App Insights, Prometheus, Grafana
+•	Collaboration & Agile Tools: Jira, Confluence, Slack, Microsoft 365, Agile & Scrum Methodologies
+WORK EXPERIENCE
+Azure Solutions Architect (Contractor) | Lloyds Bank | 11/22 – Present
+Project: Cloud-Native Payment System Transformation using Azure’s Cloud Services.
+Key Achievements:
+•	Designed and implemented secure and scalable Azure-based solutions, ensuring high availability and compliance.
+•	Led the migration of legacy applications to Azure PaaS services, optimizing performance and cost.
+•	Developed Solution Architecture Documents (SADs), Interface Control Documents (ICDs), and Microservices Architecture Documentation.
+•	Integrated Azure API Management and Application Gateway for secure and efficient API handling.
+•	Reduced infrastructure costs by 30% by optimizing Azure Reserved Instances and right-sizing workloads.
+•	Established Azure Landing Zones to enforce security, governance, and network best practices.
+Responsibilities:
+•	Architected and deployed Azure Virtual Networks, Application Gateways, and Load Balancers for high-performance applications.
+•	Designed API strategies integrating REST and SOAP services with Azure API Management.
+•	Enforced Azure Security Center policies, ensuring compliance with industry security standards.
+•	Defined RBAC, Managed Identities, OAuth 2.0, and SAML authentication models for enhanced security.
+•	Established CI/CD pipelines using Azure DevOps and Terraform, automating infrastructure provisioning.
+•	Worked closely with TDA and security teams to align cloud solutions with business and compliance requirements.
+AWS DevOps Engineer (Contractor) | Global Payment UK | 12/20 – 10/22
+Project: Migrating Legacy Monolithic Systems to Microservices & Cloud-Native Applications on AWS.
+•	Designed containerized microservices architecture leveraging Kubernetes and Docker.
+•	Automated CI/CD pipelines using AWS CodePipeline, Jenkins, and Terraform.
+•	Integrated CIS Benchmarks and security policies into cloud deployments.
+•	Conducted security audits and vulnerability scans to ensure compliance.
+AWS Cloud Engineer (Contractor) | Capgemini UK | 01/19 – 11/20
+Projects:
+•	Real-Time ML Forecasting using AWS Cloud Services.
+•	Bioinformatics Workflows on AWS.
+•	Built high-availability cloud solutions with multi-region redundancy.
+•	Automated infrastructure using Terraform and CloudFormation.
+•	Led security and performance tuning for AWS-based solutions.
+Infrastructure Engineer | Data Link UK | 05/16 – 12/18
+•	Designed and deployed cloud infrastructure for business applications.
+•	Implemented APIs for system integration, improving application performance.
+•	Managed AWS networking and security configurations.
+Linux System Administrator | Tour Ryde Group | 10/12 – 04/16
+•	Managed Linux-based servers ensuring 99.9% uptime.
+•	Automated backup processes and disaster recovery planning.
+•	Implemented firewalls and intrusion detection for security enhancement.
+EDUCATION & CERTIFICATIONS
+•	Microsoft Certified: Azure Solutions Architect Expert
+•	Microsoft Certified: Azure Administrator Associate (AZ-104)
+•	AWS Certified DevOps Engineer (Professional)
+•	AWS Certified Solutions Architect (Associate)
+•	HashiCorp Certified: Terraform Associate
+•	CompTIA A+ & Microsoft 365 Fundamentals (MS-900)
+•	University of Port Harcourt | Electrical Electronics Engineering | 2000 – 2005
+REFERENCES: Available upon request.
+
