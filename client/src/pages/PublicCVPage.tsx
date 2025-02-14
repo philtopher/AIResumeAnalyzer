@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Newspaper
 } from "lucide-react";
+import FeedbackForm from "@/components/FeedbackForm";
 
 type OrganizationalInsights = string[][];
 
@@ -329,6 +330,15 @@ export default function PublicCVPage() {
                   )}
                 </div>
               )}
+              {/* Add feedback form section */}
+              <div className="mt-12 pt-8 border-t">
+                <h2 className="text-2xl font-semibold mb-6">Send Us Your Feedback</h2>
+                <Card>
+                  <CardContent className="pt-6">
+                    <FeedbackForm />
+                  </CardContent>
+                </Card>
+              </div>
             </CardContent>
           </Card>
         </div>

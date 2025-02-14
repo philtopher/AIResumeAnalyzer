@@ -19,6 +19,7 @@ import {
   SectionType,
   Packer,
 } from "docx";
+import { z } from "zod";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -217,6 +218,13 @@ function evaluateCV(cv: string, jobDescription: string): {
     },
   };
 }
+
+const feedbackSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().regex(/^\+?[\d\s-()]{10,}$/),
+  message: z.string().min(10),
+});
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -826,7 +834,7 @@ Professional Development
           <p>If you received this, your email configuration is working correctly!</p>
         `
       });
-      
+
       if (result) {
         res.json({ message: "Test email sent successfully" });
       } else {
@@ -888,6 +896,36 @@ Professional Development
       res.json(subscription || null);
     } catch (error: any) {
       console.error("Subscription error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const result = feedbackSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(result.error.message);
+      }
+
+      const { name, email, phone, message } = result.data;
+
+      // Send notification email to admin
+      await sendEmail({
+        to: process.env.SMTP_USER!,
+        subject: "New Feedback Received",
+        html: `
+          <h1>New Feedback Submission</h1>
+          <p><strong>From:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Phone:</strong> ${phone}</p>
+          <p><strong>Message:</strong></p>
+          <p>${message}</p>
+        `,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Feedback submission error:", error);
       res.status(500).send(error.message);
     }
   });
