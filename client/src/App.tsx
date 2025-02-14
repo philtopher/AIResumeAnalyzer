@@ -12,6 +12,7 @@ import AdminPage from "./pages/AdminPage";
 import FeaturesPage from "./pages/FeaturesPage";
 import PublicCVPage from "./pages/PublicCVPage";
 import TutorialPage from "./pages/TutorialPage";
+import ContactPage from "./pages/ContactPage";
 import { useUser } from "./hooks/use-user";
 import {
   DropdownMenu,
@@ -47,6 +48,9 @@ function Navigation() {
           </Link>
           <Link href="/public-cv">
             <Button variant="ghost">Try Demo</Button>
+          </Link>
+          <Link href="/contact">
+            <Button variant="ghost">Contact</Button>
           </Link>
           {user ? (
             <>
@@ -85,6 +89,9 @@ function Navigation() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setLocation("/public-cv")}>
                 Try Demo
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLocation("/contact")}>
+                Contact
               </DropdownMenuItem>
               {user ? (
                 <>
@@ -135,11 +142,13 @@ function AuthenticatedApp() {
           <Route path="/auth" component={AuthPage} />
           <Route path="/reset-password" component={ResetPasswordPage} />
           <Route path="/public-cv" component={PublicCVPage} />
+          <Route path="/contact" component={ContactPage} />
           {(!user && window.location.pathname !== "/reset-password" && 
             window.location.pathname !== "/" && 
             window.location.pathname !== "/features" &&
             window.location.pathname !== "/tutorial" &&
-            window.location.pathname !== "/public-cv") ? (
+            window.location.pathname !== "/public-cv" &&
+            window.location.pathname !== "/contact") ? (
             <Route component={AuthPage} />
           ) : (
             <>
