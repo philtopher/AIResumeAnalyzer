@@ -172,38 +172,10 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid username or password." });
         }
 
-        // Convert nullable boolean to boolean
-        const emailVerified = user.emailVerified ?? false;
-
-        if (!emailVerified) {
-          // If email isn't verified, send a new verification email
-          const verificationToken = randomUUID();
-          const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-          await db
-            .update(users)
-            .set({
-              verificationToken,
-              verificationTokenExpiry,
-            })
-            .where(eq(users.id, user.id));
-
-          try {
-            await sendVerificationEmail(user.email, verificationToken);
-          } catch (emailError) {
-            console.error("Failed to send verification email:", emailError);
-          }
-
-          return done(null, false, { 
-            message: "Please verify your email address. A new verification email has been sent.",
-            unverified: true 
-          });
-        }
-
         // Convert user to match Express.User interface
         const userForAuth = {
           ...user,
-          emailVerified: emailVerified,
+          emailVerified: true, // Force email verified to true
         };
 
         return done(null, userForAuth);
@@ -276,10 +248,6 @@ export function setupAuth(app: Express) {
       // Hash the password
       const hashedPassword = await crypto.hash(password);
 
-      // Generate verification token
-      const verificationToken = randomUUID();
-      const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
       const [newUser] = await db
         .insert(users)
         .values({
@@ -287,19 +255,11 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           email,
           role: "user",
-          emailVerified: false,
-          verificationToken,
-          verificationTokenExpiry,
+          emailVerified: true, // Set email verified to true by default
+          verificationToken: null,
+          verificationTokenExpiry: null,
         })
         .returning();
-
-      // Send verification email
-      try {
-        await sendVerificationEmail(email, verificationToken);
-      } catch (emailError) {
-        console.error("Failed to send verification email:", emailError);
-        // Continue with registration even if email fails
-      }
 
       // Log the user in after registration
       req.login(newUser, (err) => {
@@ -307,13 +267,13 @@ export function setupAuth(app: Express) {
           return next(err);
         }
         return res.json({
-          message: "Registration successful. Please check your email to verify your account.",
+          message: "Registration successful!",
           user: {
             id: newUser.id,
             username: newUser.username,
             email: newUser.email,
             role: newUser.role,
-            emailVerified: false,
+            emailVerified: true,
           },
         });
       });
