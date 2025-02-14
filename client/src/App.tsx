@@ -35,7 +35,7 @@ function Navigation() {
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
 
   const menuItems = [
-    { label: "How It Works", path: "/tutorial" },
+    { label: "About AI", path: "/tutorial" },
     { label: "Features", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
@@ -93,7 +93,7 @@ function Navigation() {
                   {user.username}
                 </DropdownMenuItem>
               )}
-              {user && authenticatedItems.map((item) => (
+              {menuItems.map((item) => (
                 <DropdownMenuItem
                   key={item.path}
                   onClick={() => setLocation(item.path)}
@@ -102,7 +102,7 @@ function Navigation() {
                   {item.label}
                 </DropdownMenuItem>
               ))}
-              {menuItems.map((item) => (
+              {user && authenticatedItems.map((item) => (
                 <DropdownMenuItem
                   key={item.path}
                   onClick={() => setLocation(item.path)}
