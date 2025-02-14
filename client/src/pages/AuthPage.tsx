@@ -19,6 +19,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [resendEmailSent, setResendEmailSent] = useState(false);
   const { score, feedback, color, label } = usePasswordStrength(password);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -43,7 +44,18 @@ export default function AuthPage() {
       if (isLogin) {
         const result = await login({ username, password, email });
         if (!result.ok) {
-          throw new Error(result.message);
+          // Check if the error is due to unverified email
+          if (result.message.includes("verify your email")) {
+            toast({
+              title: "Email Not Verified",
+              description: "Please check your email for the verification link. A new verification email has been sent.",
+              duration: 6000,
+            });
+            setResendEmailSent(true);
+          } else {
+            throw new Error(result.message);
+          }
+          return;
         }
       } else {
         if (score < 2) {
@@ -60,6 +72,13 @@ export default function AuthPage() {
         if (!result.ok) {
           throw new Error(result.message);
         }
+
+        toast({
+          title: "Registration successful",
+          description: "Please check your email to verify your account.",
+          duration: 6000,
+        });
+        return;
       }
 
       toast({
@@ -182,6 +201,12 @@ export default function AuthPage() {
                 {confirmPassword && password !== confirmPassword && (
                   <p className="text-sm text-red-500">Passwords do not match</p>
                 )}
+              </div>
+            )}
+
+            {resendEmailSent && (
+              <div className="text-sm text-muted-foreground text-center">
+                A new verification email has been sent. Please check your inbox.
               </div>
             )}
 

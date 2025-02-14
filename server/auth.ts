@@ -121,7 +121,9 @@ declare global {
       createdAt: Date;
       verificationToken: string | null;
       verificationTokenExpiry: Date | null;
-      emailVerified: boolean; // Added emailVerified field
+      emailVerified: boolean; // This expects a boolean
+      resetToken?: string | null;
+      resetTokenExpiry?: Date | null;
     }
   }
 }
@@ -162,16 +164,49 @@ export function setupAuth(app: Express) {
           .limit(1);
 
         if (!user) {
-          return done(null, false, { message: "Incorrect username." });
+          return done(null, false, { message: "Invalid username or password." });
         }
+
         const isMatch = await crypto.compare(password, user.password);
         if (!isMatch) {
-          return done(null, false, { message: "Incorrect password." });
+          return done(null, false, { message: "Invalid username or password." });
         }
-        if (!user.emailVerified) {
-          return done(null, false, { message: "Please verify your email address." });
+
+        // Convert nullable boolean to boolean
+        const emailVerified = user.emailVerified ?? false;
+
+        if (!emailVerified) {
+          // If email isn't verified, send a new verification email
+          const verificationToken = randomUUID();
+          const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+          await db
+            .update(users)
+            .set({
+              verificationToken,
+              verificationTokenExpiry,
+            })
+            .where(eq(users.id, user.id));
+
+          try {
+            await sendVerificationEmail(user.email, verificationToken);
+          } catch (emailError) {
+            console.error("Failed to send verification email:", emailError);
+          }
+
+          return done(null, false, { 
+            message: "Please verify your email address. A new verification email has been sent.",
+            unverified: true 
+          });
         }
-        return done(null, user);
+
+        // Convert user to match Express.User interface
+        const userForAuth = {
+          ...user,
+          emailVerified: emailVerified,
+        };
+
+        return done(null, userForAuth);
       } catch (err) {
         return done(err);
       }
@@ -189,7 +224,18 @@ export function setupAuth(app: Express) {
         .from(users)
         .where(eq(users.id, id))
         .limit(1);
-      done(null, user);
+
+      if (!user) {
+        return done(null, false);
+      }
+
+      // Convert nullable boolean to boolean for consistency
+      const userForAuth = {
+        ...user,
+        emailVerified: user.emailVerified ?? false,
+      };
+
+      done(null, userForAuth);
     } catch (err) {
       done(err);
     }
