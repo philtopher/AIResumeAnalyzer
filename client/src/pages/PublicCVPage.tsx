@@ -144,6 +144,7 @@ export default function PublicCVPage() {
           <Card>
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* File upload section with warning message */}
                 <div className="space-y-2">
                   <Label htmlFor="cv">Upload CV (PDF or DOCX)</Label>
                   <div className="border rounded-md p-4">
@@ -164,6 +165,9 @@ export default function PublicCVPage() {
                       </span>
                     </label>
                   </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    <span className="font-medium text-yellow-600">Note:</span> Your CV will be processed in real-time and automatically deleted after transformation. We do not store your CV permanently.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
