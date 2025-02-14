@@ -20,7 +20,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import AdminDashboardPage from "./pages/AdminDashboardPage";
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -135,7 +134,6 @@ function Navigation() {
 
 function AuthenticatedApp() {
   const { user, isLoading } = useUser();
-  const [, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -144,8 +142,6 @@ function AuthenticatedApp() {
       </div>
     );
   }
-
-  const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -159,20 +155,20 @@ function AuthenticatedApp() {
           <Route path="/reset-password" component={ResetPasswordPage} />
           <Route path="/public-cv" component={PublicCVPage} />
           <Route path="/contact" component={ContactPage} />
-          {user ? (
+          {(!user && window.location.pathname !== "/reset-password" && 
+            window.location.pathname !== "/" && 
+            window.location.pathname !== "/features" &&
+            window.location.pathname !== "/tutorial" &&
+            window.location.pathname !== "/public-cv" &&
+            window.location.pathname !== "/contact") ? (
+            <Route component={AuthPage} />
+          ) : (
             <>
               <Route path="/dashboard" component={DashboardPage} />
-              {isAdmin && (
-                <Route path="/admin" component={AdminDashboardPage} />
+              {(user?.role === "super_admin" || user?.role === "sub_admin") && (
+                <Route path="/admin" component={AdminPage} />
               )}
             </>
-          ) : (
-            <Route>
-              {() => {
-                setLocation("/auth");
-                return null;
-              }}
-            </Route>
           )}
           <Route component={NotFound} />
         </Switch>
