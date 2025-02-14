@@ -923,12 +923,13 @@ Professional Development
   app.post("/api/test-email", async (req, res) => {
     try {
       const result = await sendEmail({
-        to: process.env.SMTP_USER!, // Send to self for testing
+        to: "t.unamka@yahoo.co.uk",
         subject: "Test Email from CV Transformer",
         html: `
-          <h1>Test Email<p>This is a test email from CV Transformer.</p>
+          <h1>Test Email</h1>
+          <p>This is a test email from CVTransformer.</p>
           <p>If you received this, your email configuration is working correctly!</p>
-        `
+        `,
       });
 
       if (result) {

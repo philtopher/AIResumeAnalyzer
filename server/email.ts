@@ -6,12 +6,20 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-export async function sendEmail(options: sgMail.MailDataRequired) {
+const FROM_EMAIL = 'CV Transformer <noreply@cvtransformer.com>';
+
+export async function sendEmail(options: {
+  to: string;
+  subject: string;
+  html: string;
+}) {
   try {
     console.log("Attempting to send email with SendGrid");
     const msg = {
-      from: 'CV Transformer <noreply@cvtransformer.com>',
-      ...options,
+      to: options.to,
+      from: FROM_EMAIL,
+      subject: options.subject,
+      html: options.html,
     };
     await sgMail.send(msg);
     console.log("Email sent successfully");
@@ -60,7 +68,6 @@ export async function sendContactFormNotification(contactData: {
   subject: string;
   message: string;
 }) {
-  // Send notification to admin
   return sendEmail({
     to: process.env.ADMIN_EMAIL || 'admin@cvtransformer.com',
     subject: `New Contact Form Submission: ${contactData.subject}`,
