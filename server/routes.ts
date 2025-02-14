@@ -519,7 +519,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get admin analytics
   app.get("/api/admin/analytics", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user ||
@@ -622,6 +621,18 @@ export function registerRoutes(app: Express): Server {
         .orderBy(sql`count DESC`)
         .limit(10);
 
+      // Get conversions by location
+      const conversionsByLocation = await db
+        .select({
+          location: sql<string>`CONCAT(sa.location_country, ', ', sa.location_city)`,
+          count: sql<number>`count(DISTINCT c.id)`,
+        })
+        .from(siteAnalytics.as('sa'))
+        .innerJoin(cvs.as('c'), eq(siteAnalytics.userId, cvs.userId))
+        .groupBy(sql`sa.location_country, sa.location_city`)
+        .orderBy(sql`count DESC`)
+        .limit(10);
+
       // Store current system metrics
       await db.insert(systemMetrics).values({
         cpuUsage,
@@ -650,6 +661,7 @@ export function registerRoutes(app: Express): Server {
         systemMetricsHistory,
         suspiciousActivities,
         usersByLocation,
+        conversionsByLocation,
       };
 
       res.json(analyticsData);
@@ -904,7 +916,7 @@ Professional Development
       }).returning();
 
       res.json(cv);
-    } catch (error: any) {
+    }catch (error: any) {
       console.error("Transform CV error:", error);
       res.status(500).send(error.message);
     }
