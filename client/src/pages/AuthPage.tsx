@@ -45,6 +45,12 @@ export default function AuthPage() {
         if (!result.ok) {
           throw new Error(result.message);
         }
+        // Check if user is admin and redirect accordingly
+        if (result.data?.role === "super_admin" || result.data?.role === "sub_admin") {
+          setLocation("/admin");
+        } else {
+          setLocation("/dashboard");
+        }
       } else {
         if (score < 2) {
           toast({
@@ -60,14 +66,13 @@ export default function AuthPage() {
         if (!result.ok) {
           throw new Error(result.message);
         }
+        setLocation("/dashboard");
       }
 
       toast({
         title: isLogin ? "Login successful" : "Registration successful",
         description: "Welcome to CV Transformer!",
       });
-
-      setLocation("/dashboard");
     } catch (error: any) {
       toast({
         title: "Error",
