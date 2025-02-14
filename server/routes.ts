@@ -71,14 +71,15 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
     // Split content into sections based on line breaks and employment markers
     const sections = content.split(/\n{2,}/);
 
-    // Enhanced employment section detection
-    const employmentSections = sections.filter((section) =>
-      /\b(19|20)\d{2}\b/.test(section) && // Has year
-      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(section) && // Has month
-      /\b(at|with|for)\b/i.test(section) && // Employment prepositions
-      (/\b(senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)\b/i.test(section) || // Job titles
-       /\b(responsible|managed|led|developed|implemented|designed|created)\b/i.test(section)) // Action verbs
-    );
+    // Find the sections that contain employment information
+    const employmentSections = sections.filter((section) => {
+      // Check for standard employment section markers
+      return /\b(19|20)\d{2}\b/.test(section) && // Has year
+        /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(section) && // Has month
+        (/\b(at|with|for)\b/i.test(section) || /\|/.test(section)) && // Employment prepositions or separator
+        (/\b(senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)\b/i.test(section) || // Job titles
+         /\b(responsible|managed|led|developed|implemented|designed|created)\b/i.test(section)); // Action verbs
+    });
 
     if (employmentSections.length === 0) {
       return {
@@ -96,9 +97,20 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
       return getLatestDate(b) - getLatestDate(a);
     });
 
+    // Extract the complete sections as they appear in the original CV
+    const completeEmploymentSections = sortedSections.map(section => {
+      // Include any bullet points or additional information that follows
+      const sectionStart = content.indexOf(section);
+      const nextSectionStart = sortedSections.find(s => content.indexOf(s) > sectionStart + section.length);
+      if (nextSectionStart) {
+        return content.slice(sectionStart, content.indexOf(nextSectionStart)).trim();
+      }
+      return section.trim();
+    });
+
     return {
-      latest: sortedSections[0],
-      previous: sortedSections.slice(1),
+      latest: completeEmploymentSections[0],
+      previous: completeEmploymentSections.slice(1),
     };
   } catch (error) {
     console.error("Error extracting employments:", error);
@@ -894,7 +906,7 @@ ${adaptedSkills.map((skill) => `• ${skill}`).join("\n")}
 WORK EXPERIENCE
 ${transformedEmployment}
 
-${previousEmployments.length > 0 ? previousEmployments.join("\n\n") : ""}
+${previousEmployments.join("\n\n")}
 
 ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(section)) || ""}
 `.trim();
@@ -983,7 +995,7 @@ ${adaptedSkills.map((skill) => `• ${skill}`).join("\n")}
 WORK EXPERIENCE
 ${transformedEmployment}
 
-${previousEmployments.length > 0 ? previousEmployments.join("\n\n") : ""}
+${previousEmployments.join("\n\n")}
 
 ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(section)) || ""}
 `.trim();
