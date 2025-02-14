@@ -38,14 +38,36 @@ export async function sendEmail(options: {
 
     const msg = {
       to: options.to,
-      from: FROM_EMAIL,
+      from: {
+        email: FROM_EMAIL,
+        name: "CV Transformer"  // Adding a friendly sender name
+      },
       subject: options.subject,
       html: options.html,
+      mailSettings: {
+        sandboxMode: {
+          enable: false
+        }
+      },
+      trackingSettings: {
+        clickTracking: {
+          enable: true
+        },
+        openTracking: {
+          enable: true
+        }
+      },
+      headers: {
+        'X-Priority': '1',
+        'Importance': 'high',
+        'X-Auto-Response-Suppress': 'OOF, AutoReply'
+      },
+      categories: ['password-reset']
     };
 
     console.log("Sending email with message:", {
       to: msg.to,
-      from: msg.from,
+      from: msg.from.email,
       subject: msg.subject
     });
 
@@ -85,28 +107,31 @@ export async function sendEmail(options: {
   }
 }
 
-// Email Templates
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
   const resetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+  const currentTime = new Date().toLocaleString();
+
   return sendEmail({
     to: email,
     subject: "Reset Your CV Transformer Password",
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2563eb;">Password Reset Request</h1>
-        <p>You requested to reset your password. Click the link below to reset it:</p>
-        <p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #2563eb; margin-bottom: 20px;">Password Reset Request</h1>
+        <p>You requested to reset your password on ${currentTime}. Click the button below to reset it:</p>
+        <div style="text-align: center; margin: 30px 0;">
           <a href="${resetUrl}" 
-             style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             Reset Password
           </a>
-        </p>
-        <p>This link will expire in 1 hour.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-        <hr />
-        <p style="color: #666; font-size: 12px;">
-          This email was sent from CV Transformer. Please do not reply to this email.
-        </p>
+        </div>
+        <p style="margin-bottom: 20px;">This link will expire in 1 hour for security reasons.</p>
+        <p style="color: #666;">If you didn't request this password reset, please ignore this email or contact support if you have concerns.</p>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 12px;">
+            This is an automated message from CV Transformer. Please do not reply to this email.<br>
+            For security reasons, this reset link can only be used once.
+          </p>
+        </div>
       </div>
     `,
   });
@@ -118,20 +143,21 @@ export async function sendEmailVerification(email: string, verificationToken: st
     to: email,
     subject: "Verify Your CV Transformer Email",
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2563eb;">Email Verification</h1>
-        <p>Thank you for registering with CV Transformer. Please verify your email by clicking the link below:</p>
-        <p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #2563eb; margin-bottom: 20px;">Email Verification</h1>
+        <p>Thank you for registering with CV Transformer. Please verify your email by clicking the button below:</p>
+        <div style="text-align: center; margin: 30px 0;">
           <a href="${verifyUrl}" 
-             style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             Verify Email
           </a>
-        </p>
-        <p>This link will expire in 24 hours.</p>
-        <hr />
-        <p style="color: #666; font-size: 12px;">
-          This email was sent from CV Transformer. Please do not reply to this email.
-        </p>
+        </div>
+        <p style="margin-bottom: 20px;">This link will expire in 24 hours for security reasons.</p>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 12px;">
+            This is an automated message from CV Transformer. Please do not reply to this email.
+          </p>
+        </div>
       </div>
     `,
   });
@@ -151,8 +177,8 @@ export async function sendContactFormNotification(contactData: {
 
   try {
     const emailContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2563eb;">New Contact Form Submission</h1>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #2563eb; margin-bottom: 20px;">New Contact Form Submission</h1>
         <div style="background-color: #f8fafc; padding: 20px; border-radius: 5px;">
           <p><strong>From:</strong> ${contactData.name} (${contactData.email})</p>
           ${contactData.phone ? `<p><strong>Phone:</strong> ${contactData.phone}</p>` : ''}
@@ -160,10 +186,11 @@ export async function sendContactFormNotification(contactData: {
           <p><strong>Message:</strong></p>
           <p style="white-space: pre-wrap;">${contactData.message}</p>
         </div>
-        <hr />
-        <p style="color: #666; font-size: 12px;">
-          This is an automated notification from CV Transformer.
-        </p>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 12px;">
+            This is an automated notification from CV Transformer.
+          </p>
+        </div>
       </div>
     `;
 
