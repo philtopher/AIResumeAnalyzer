@@ -9,6 +9,7 @@ import { users, insertUserSchema, loginSchema, resetPasswordRequestSchema, reset
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
+import { sendEmail } from "./email"; // Import sendEmail function
 
 const scryptAsync = promisify(scrypt);
 
@@ -220,6 +221,7 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Update registration endpoint to include email confirmation
   app.post("/api/register", async (req, res, next) => {
     try {
       const result = insertUserSchema.safeParse(req.body);
@@ -262,11 +264,28 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           email,
           role: "user",
-          emailVerified: true, // Set email verified to true by default
-          verificationToken: null,
-          verificationTokenExpiry: null,
+          emailVerified: false, // Set emailVerified to false initially.
+          verificationToken: randomUUID(), // Generate verification token
+          verificationTokenExpiry: new Date(Date.now() + 3600000), // Token expires in 1 hour
         })
         .returning();
+
+      // Send welcome email with verification link.
+      try {
+        await sendEmail({
+          to: email,
+          subject: 'Welcome to CV Transformer!',
+          html: `
+            <h1>Welcome to CV Transformer!</h1>
+            <p>Thank you for registering! Please verify your email address by clicking the link below:</p>
+            <a href="http://localhost:3000/api/verify-email/${newUser.verificationToken}">Verify Email</a>
+            <p>If you did not request this, please ignore this email.</p>
+          `
+        });
+      } catch (emailError) {
+        console.error("Failed to send welcome email:", emailError);
+        // Continue with registration even if email fails
+      }
 
       // Log the user in after registration
       req.login(newUser, (err) => {
@@ -274,13 +293,13 @@ export function setupAuth(app: Express) {
           return next(err);
         }
         return res.json({
-          message: "Registration successful!",
+          message: "Registration successful! Please check your email to verify your account.",
           user: {
             id: newUser.id,
             username: newUser.username,
             email: newUser.email,
             role: newUser.role,
-            emailVerified: true,
+            emailVerified: false, // Ensure emailVerified is false until verification.
           },
         });
       });

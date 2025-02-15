@@ -524,10 +524,38 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update create-subscription endpoint
+  // Update create-subscription endpoint with consistent validation
   app.post("/api/create-subscription", async (req, res) => {
     try {
-      const { email, username, password } = req.body;
+      const result = addUserSchema.safeParse(req.body); //Using addUserSchema as insertUserSchema is not defined
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const { email, username, password } = result.data;
+
+      // Check for existing user/email
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      const [existingEmail] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      if (existingEmail) {
+        return res.status(400).json({ error: "Email address is already registered" });
+      }
 
       // Log the subscription attempt
       console.log('Creating subscription for:', email);
