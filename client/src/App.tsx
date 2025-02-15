@@ -42,7 +42,6 @@ function Navigation() {
   const menuItems = [
     { label: "About", path: "/about" },
     { label: "How It Works", path: "/how-it-works" },
-    { label: "Pricing & Plans", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
   ];
@@ -50,7 +49,10 @@ function Navigation() {
   const authenticatedItems = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Privacy Settings", path: "/privacy-dashboard" },
-    ...(user?.emailVerified ? [{ label: "Upgrade to Pro", path: "/upgrade" }] : []),
+    // Show upgrade option only for verified users who aren't already pro
+    ...(user?.emailVerified && (!user.subscriptions || user.subscriptions.status !== 'active')
+      ? [{ label: "Upgrade to Pro", path: "/upgrade" }]
+      : []),
     ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
     ...(isSuperAdmin ? [{ label: "Super Admin", path: "/super-admin" }] : []),
   ];

@@ -29,6 +29,7 @@ import express from 'express';
 import { hashPassword } from "./auth";
 import {randomUUID} from 'crypto';
 import { format } from "date-fns";
+import stripeRouter from './routes/stripe';
 
 // Add proper Stripe initialization with error handling
 const stripe = (() => {
@@ -2157,6 +2158,8 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
   // Add these routes after existing routes and before the httpServer creation
 
+  // Register Stripe routes
+  app.use('/api', stripeRouter);
 
   const httpServer = createServer(app);
   return httpServer;
