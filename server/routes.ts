@@ -680,7 +680,7 @@ export function registerRoutes(app: Express): Server {
       const suspiciousReason = null;
 
       await db.insert(siteAnalytics).values({
-        userId: req.user?.id, // Use userId instead of user_id to match schema
+        user_id: req.user?.id, 
         ipAddress: ip as string,
         locationCountry: geo?.country || 'Unknown',
         locationCity: geo?.city || 'Unknown',
@@ -744,7 +744,7 @@ export function registerRoutes(app: Express): Server {
         // Get active users (last 24 hours)
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const [{ count: activeUsers }] = await db
-          .select({ count: sql<number>`count(distinct "userId")` })
+          .select({ count: sql<number>`count(distinct user_id)` })
           .from(activityLogs)
           .where(sql`created_at > ${twentyFourHoursAgo}`);
         analyticsData.activeUsers = Number(activeUsers) || 0;
@@ -770,9 +770,9 @@ export function registerRoutes(app: Express): Server {
         // Get active connections (estimate based on activity logs)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
         const [{ count: activeConnections }] = await db
-          .select({ count: sql<number>`count(distinct "userId")` })
+          .select({ count: sql<number>`count(distinct user_id)` })
           .from(activityLogs)
-          .where(sql`"createdAt" > ${fiveMinutesAgo}`);
+          .where(sql`created_at > ${fiveMinutesAgo}`);
         analyticsData.activeConnections = Number(activeConnections) || 0;
 
         // Get metrics history
@@ -878,7 +878,8 @@ export function registerRoutes(app: Express): Server {
         user_id: req.user.id,
         action: "cv_approval",
         details: { cvId, status, comment },
-      });      res.json(updatedCV);
+      });
+      res.json(updatedCV);
     } catch (error: any) {
       console.error("Admin approve CV error:", error);
       res.status(500).send(error.message);
