@@ -479,6 +479,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Find the create-subscription endpoint and update it:
   app.post("/api/create-subscription", async (req, res) => {
     try {
       const { email } = req.body;
@@ -491,10 +492,39 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
+      // Create a price if it doesn't exist
+      let price;
+      const prices = await stripe.prices.list({
+        lookup_keys: ['cv_transformer_pro_monthly'],
+        active: true,
+        limit: 1
+      });
+
+      if (prices.data.length === 0) {
+        // Create a new product
+        const product = await stripe.products.create({
+          name: 'CV Transformer Pro',
+          description: 'Monthly subscription for CV Transformer Pro features'
+        });
+
+        // Create a new price
+        price = await stripe.prices.create({
+          unit_amount: 500, // £5.00
+          currency: 'gbp',
+          recurring: {
+            interval: 'month'
+          },
+          product: product.id,
+          lookup_key: 'cv_transformer_pro_monthly'
+        });
+      } else {
+        price = prices.data[0];
+      }
+
       // Create a subscription
       const subscription = await stripe.subscriptions.create({
         customer: customer.id,
-        items: [{ price: 'price_H5ggYwtDq4fbrJ' }], // Replace with your actual price ID
+        items: [{ price: price.id }],
         payment_behavior: 'default_incomplete',
         expand: ['latest_invoice.payment_intent'],
       });
@@ -876,7 +906,7 @@ export function registerRoutes(app: Express): Server {
             timestamp: sql<string>`to_char(timestamp, 'HH24:MI')`,
             cpuUsage: sql<number>`COALESCE(cpu_usage, 0)`,
             memoryUsage: sql<number>`COALESCE(memory_usage, 0)`,
-            storageUsage: sql<number>`COALESCE(storage_usage, 0)`,
+            storageUsage: sql<number>`COALESCE(storage_usage, 0)`
           })
           .from(systemMetrics)
           .where(sql`timestamp > ${new Date(Date.now() - 60 * 60 * 1000)}`)
@@ -886,7 +916,8 @@ export function registerRoutes(app: Express): Server {
           timestamp: row.timestamp || new Date().toLocaleTimeString('en-US', { hour12: false }),
           cpuUsage: Number(row.cpuUsage) || 0,
           memoryUsage: Number(row.memoryUsage) || 0,
-          storageUsage: Number(row.storageUsage) || 0        }));
+          storageUsage: Number(row.storageUsage) || 0
+        }));
 
         // Store current metrics
         await db.insert(systemMetrics).values({

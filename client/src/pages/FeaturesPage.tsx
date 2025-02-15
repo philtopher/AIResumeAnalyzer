@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { loadStripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/stripe-js";
+import { CardElement } from "@stripe/react-stripe-js";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -51,128 +53,101 @@ const signupSchema = z.object({
   path: ["confirmPassword"],
 });
 
-export default function PricingPlansPage() {
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const form = useForm<z.infer<typeof signupSchema>>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      confirmPassword: "",
-      username: "",
-      acceptTerms: false,
-    },
-  });
+const PricingPlanContent = () => {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    const [cardError, setCardError] = useState("");
+    const form = useForm<z.infer<typeof signupSchema>>({
+      resolver: zodResolver(signupSchema),
+      defaultValues: {
+        email: "",
+        password: "",
+        confirmPassword: "",
+        username: "",
+        acceptTerms: false,
+      },
+    });
 
-  async function onSubmit(values: z.infer<typeof signupSchema>) {
-    try {
-      setIsLoading(true);
-
-      // Create payment intent
-      const response = await fetch("/api/create-subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: values.email,
-          username: values.username,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create subscription");
+    const handleCardChange = (event: any) => {
+      if (event.error) {
+        setCardError(event.error.message);
+      } else {
+        setCardError("");
       }
+    };
 
-      const { clientSecret } = await response.json();
+    async function onSubmit(values: z.infer<typeof signupSchema>) {
+      try {
+        setIsLoading(true);
 
-      // Load Stripe
-      const stripe = await stripePromise;
-      if (!stripe) throw new Error("Stripe failed to load");
+        if (cardError) {
+          throw new Error(cardError);
+        }
 
-      // Confirm payment
-      const { error } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: elements.getElement("card")!,
-          billing_details: {
+        // Create payment intent
+        const response = await fetch("/api/create-subscription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             email: values.email,
+            username: values.username,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create subscription");
+        }
+
+        const { clientSecret } = await response.json();
+
+        // Load Stripe
+        const stripe = await stripePromise;
+        if (!stripe) throw new Error("Stripe failed to load");
+
+        // Confirm payment
+        const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: {
+            card: document.querySelector('#card-element') as any,
+            billing_details: {
+              email: values.email,
+            },
           },
-        },
-      });
+        });
 
-      if (error) {
-        throw new Error(error.message);
+        if (confirmError) {
+          throw new Error(confirmError.message);
+        }
+
+        // Create user account
+        const registerResponse = await fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        });
+
+        if (!registerResponse.ok) {
+          throw new Error("Failed to create account");
+        }
+
+        toast({
+          title: "Success!",
+          description: "Your pro account has been created. Check your email for confirmation.",
+        });
+
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Something went wrong",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
       }
-
-      // Create user account
-      const registerResponse = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
-
-      if (!registerResponse.ok) {
-        throw new Error("Failed to create account");
-      }
-
-      toast({
-        title: "Success!",
-        description: "Your pro account has been created. Check your email for confirmation.",
-      });
-
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Something went wrong",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
     }
-  }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold mb-4">
-              Choose Your Plan
-            </h2>
-            <p className="text-xl text-muted-foreground">
-              Select the perfect plan to transform your career with AI-powered CV optimization
-            </p>
-          </div>
-
-          <div className="grid gap-8 mb-12">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-6 w-6" />
-                  Free Plan
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-green-500" />
-                  <span>Basic CV transformation</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-green-500" />
-                  <span>Simple score and feedback</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-green-500" />
-                  <span>Limited transformations per month</span>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Link href="/auth">
-                  <Button variant="outline">Sign Up Free</Button>
-                </Link>
-              </CardFooter>
-            </Card>
-
-            <Card className="border-primary relative overflow-hidden">
+    return (
+      <Card className="border-primary relative overflow-hidden">
               <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm">
                 Popular
               </div>
@@ -299,7 +274,12 @@ export default function PricingPlansPage() {
                       />
                     </div>
 
-                    <div id="card-element" className="p-3 border rounded-md" />
+                    <div id="card-element" className="p-3 border rounded-md">
+                      <CardElement onChange={handleCardChange} />
+                    </div>
+                    {cardError && (
+                      <p className="text-sm text-red-500 mt-2">{cardError}</p>
+                    )}
 
                     <Button type="submit" className="w-full" disabled={isLoading}>
                       {isLoading ? (
@@ -310,7 +290,7 @@ export default function PricingPlansPage() {
                       ) : (
                         <>
                           <CreditCard className="mr-2 h-4 w-4" />
-                          Subscribe Now
+                          Subscribe Now - £5/month
                         </>
                       )}
                     </Button>
@@ -318,9 +298,17 @@ export default function PricingPlansPage() {
                 </Form>
               </CardContent>
             </Card>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
+    );
+  };
+
+  export default function PricingPlansPage() {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="container mx-auto px-4 py-12">
+          <Elements stripe={stripePromise}>
+            <PricingPlanContent />
+          </Elements>
+        </main>
+      </div>
+    );
+  }
