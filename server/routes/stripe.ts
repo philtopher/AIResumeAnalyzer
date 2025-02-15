@@ -241,4 +241,75 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   }
 });
 
+// Add new test endpoint for sending welcome email
+router.post('/test-send-welcome-email/:userId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    console.log('Attempting to send test welcome email for user:', userId);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Verify user exists and has active subscription
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .limit(1);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!subscription || subscription.status !== 'active') {
+      return res.status(400).json({ error: 'No active subscription found for this user' });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({ error: 'User has no email address' });
+    }
+
+    // Get the application URL based on environment
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? process.env.APP_URL?.replace(/\/+$/, '')
+      : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+
+    if (!baseUrl) {
+      throw new Error('Unable to determine application URL for email');
+    }
+
+    console.log('Sending test welcome email to:', user.email);
+
+    await sendEmail({
+      to: user.email,
+      subject: 'Welcome to CV Transformer Pro!',
+      html: `
+        <h1>Welcome to CV Transformer Pro!</h1>
+        <p>Thank you for upgrading to our Pro Plan! Your subscription is now active.</p>
+        <h2>Your Pro Features Include:</h2>
+        <ul>
+          <li>Advanced CV Analysis</li>
+          <li>Employer Competitor Analysis</li>
+          <li>Interviewer LinkedIn Insights</li>
+          <li>Unlimited CV Downloads</li>
+        </ul>
+        <p>Start exploring your new features now by visiting your <a href="${baseUrl}/dashboard">dashboard</a>.</p>
+        <p>If you have any questions, our support team is here to help!</p>
+        <p>Best regards,<br>CV Transformer Team</p>
+      `,
+    });
+
+    console.log('Test welcome email sent successfully to:', user.email);
+    res.json({ success: true, message: 'Welcome email sent successfully' });
+  } catch (error) {
+    console.error('Failed to send test welcome email:', error);
+    res.status(500).json({
+      error: 'Failed to send welcome email',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 export default router;

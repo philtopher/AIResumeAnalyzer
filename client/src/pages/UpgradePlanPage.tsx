@@ -13,6 +13,7 @@ export default function UpgradePlanPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const { toast } = useToast();
   const search = useSearch();
   const params = new URLSearchParams(search);
@@ -59,6 +60,46 @@ export default function UpgradePlanPage() {
         });
     }
   }, [paymentStatus, paymentUserId, toast]);
+
+  const handleResendWelcomeEmail = async () => {
+    if (!paymentUserId) {
+      toast({
+        title: "Error",
+        description: "User ID not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingEmail(true);
+    try {
+      const response = await fetch(`/api/stripe/test-send-welcome-email/${paymentUserId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send welcome email');
+      }
+
+      toast({
+        title: "Email Sent",
+        description: "Welcome email has been resent successfully!",
+      });
+    } catch (error) {
+      console.error('Email sending error:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send welcome email",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
 
   const handleUpgradeClick = async () => {
     if (!user) {
@@ -127,6 +168,24 @@ export default function UpgradePlanPage() {
               <> Please <a href="/auth" className="font-medium underline">log in</a> to access your Pro features.</>
             )}
           </AlertDescription>
+          {paymentUserId && (
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                onClick={handleResendWelcomeEmail}
+                disabled={isSendingEmail}
+              >
+                {isSendingEmail ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending Email...
+                  </>
+                ) : (
+                  "Resend Welcome Email"
+                )}
+              </Button>
+            </div>
+          )}
         </Alert>
       )}
 
