@@ -3,7 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
-import { Loader2, Menu, FileText, Shield } from "lucide-react";
+import { Loader2, Menu, FileText, Shield, Activity } from "lucide-react";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -26,6 +26,18 @@ import AdminDashboardPage from "./pages/AdminDashboardPage";
 import PrivacyDashboardPage from "./pages/PrivacyDashboardPage";
 import SuperAdminDashboardPage from "./pages/SuperAdminDashboardPage";
 import UpgradePlanPage from "./pages/UpgradePlanPage";
+import MetricsPage from "./pages/MetricsPage"; // Import MetricsPage
+
+// Add type for user subscription
+type User = {
+  id: number;
+  username: string;
+  email: string;
+  role: "user" | "sub_admin" | "super_admin";
+  subscription?: {
+    status: "active" | "inactive" | "canceled";
+  };
+};
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -36,6 +48,7 @@ function Navigation() {
     setLocation("/");
   };
 
+  // Check user roles
   const isSuperAdmin = user?.role === "super_admin";
   const isAdmin = isSuperAdmin || user?.role === "sub_admin";
 
@@ -47,16 +60,33 @@ function Navigation() {
     { label: "Contact", path: "/contact" },
   ];
 
+  // Base authenticated items that all logged-in users see
   const authenticatedItems = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Privacy Settings", path: "/privacy-dashboard" },
-    ...(user?.subscription?.status !== "active" ? [{ label: "Upgrade to Pro", path: "/upgrade" }] : []),
   ];
 
-  const adminItems = [
-    ...(isAdmin ? [{ label: "User Management", path: "/admin", icon: <Shield className="h-4 w-4 mr-2" /> }] : []),
-    ...(isSuperAdmin ? [{ label: "System Admin", path: "/super-admin", icon: <Shield className="h-4 w-4 mr-2" /> }] : []),
-  ];
+  // Add upgrade link if user is not pro
+  if (user && user.subscription?.status !== "active") {
+    authenticatedItems.push({ label: "Upgrade to Pro", path: "/upgrade" });
+  }
+
+  // Add admin items if user is admin/super admin
+  if (isAdmin) {
+    authenticatedItems.push(
+      { label: "User Management", path: "/admin", icon: <Shield className="h-4 w-4 mr-2" /> },
+      { label: "Metrics", path: "/metrics", icon: <Activity className="h-4 w-4 mr-2" /> }
+    );
+  }
+
+  // Add super admin items
+  if (isSuperAdmin) {
+    authenticatedItems.push({
+      label: "System Admin",
+      path: "/super-admin",
+      icon: <Shield className="h-4 w-4 mr-2" />,
+    });
+  }
 
   return (
     <nav className="border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -81,12 +111,10 @@ function Navigation() {
             <>
               {authenticatedItems.map((item) => (
                 <Link key={item.path} href={item.path}>
-                  <Button variant="ghost">{item.label}</Button>
-                </Link>
-              ))}
-              {adminItems.map((item) => (
-                <Link key={item.path} href={item.path}>
-                  <Button variant="default" className="flex items-center">
+                  <Button
+                    variant={item.icon ? "default" : "ghost"}
+                    className={item.icon ? "flex items-center" : ""}
+                  >
                     {item.icon}
                     {item.label}
                   </Button>
@@ -128,16 +156,7 @@ function Navigation() {
                     <DropdownMenuItem
                       key={item.path}
                       onClick={() => setLocation(item.path)}
-                      className="cursor-pointer"
-                    >
-                      {item.label}
-                    </DropdownMenuItem>
-                  ))}
-                  {adminItems.map((item) => (
-                    <DropdownMenuItem
-                      key={item.path}
-                      onClick={() => setLocation(item.path)}
-                      className="cursor-pointer font-medium"
+                      className={`cursor-pointer ${item.icon ? "font-medium" : ""}`}
                     >
                       <div className="flex items-center">
                         {item.icon}
@@ -179,6 +198,10 @@ function App() {
     );
   }
 
+  // Check user roles
+  const isSuperAdmin = user?.role === "super_admin";
+  const isAdmin = isSuperAdmin || user?.role === "sub_admin";
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
@@ -199,13 +222,16 @@ function App() {
             <>
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
-              {(user?.role === "super_admin" || user?.role === "sub_admin") && (
-                <Route path="/admin" component={AdminDashboardPage} />
-              )}
-              {user?.role === "super_admin" && (
-                <Route path="/super-admin" component={SuperAdminDashboardPage} />
-              )}
             </>
+          )}
+          {isAdmin && (
+            <>
+              <Route path="/admin" component={AdminDashboardPage} />
+              <Route path="/metrics" component={MetricsPage} />
+            </>
+          )}
+          {isSuperAdmin && (
+            <Route path="/super-admin" component={SuperAdminDashboardPage} />
           )}
           <Route component={NotFound} />
         </Switch>
