@@ -304,13 +304,14 @@ export function setupAuth(app: Express) {
 
       // Send welcome email with verification link using the reliable email sending approach
       try {
+        const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
         await sendEmail({
           to: email,
           subject: 'Welcome to CV Transformer!',
           html: `
             <h1>Welcome to CV Transformer!</h1>
             <p>Thank you for registering with CV Transformer! Please verify your email address by clicking the link below:</p>
-            <a href="${process.env.APP_URL || 'http://localhost:3000'}/verify-email/${newUser.verificationToken}">Verify Email</a>
+            <a href="${baseUrl}/verify-email/${newUser.verificationToken}">Verify Email</a>
             <p>This verification link will expire in 1 hour.</p>
             <p>If you did not request this registration, please ignore this email.</p>
             <p>Best regards,<br>CV Transformer Team</p>
@@ -495,8 +496,8 @@ export function setupAuth(app: Express) {
       res.status(500).send(error.message);
     }
   });
-  // Add email verification endpoint
-  app.get("/api/verify-email/:token", async (req, res) => {
+  // Add email verification endpoint with proper URL handling
+  app.get("/verify-email/:token", async (req, res) => {
     try {
       const { token } = req.params;
 

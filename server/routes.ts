@@ -690,13 +690,14 @@ export function registerRoutes(app: Express): Server {
 
               // Send welcome email using the reliable approach
               try {
+                const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
                 await sendEmail({
                   to: customer.email!,
                   subject: 'Welcome to CV Transformer Pro!',
                   html: `
                     <h1>Welcome to CV Transformer Pro!</h1>
                     <p>Thank you for subscribing to our premium service! Please verify your email address by clicking the link below:</p>
-                    <a href="${process.env.APP_URL || 'http://localhost:3000'}/verify-email/${newUser.verificationToken}">Verify Email</a>
+                    <a href="${baseUrl}/verify-email/${newUser.verificationToken}">Verify Email</a>
                     <p>Your account has been successfully created with premium features enabled.</p>
                     <h2>Your Account Details:</h2>
                     <ul>
@@ -911,7 +912,7 @@ export function registerRoutes(app: Express): Server {
       await db.insert(siteAnalytics).values({
         user_id: req.user?.id,
         ipAddress: ip as string,
-        locationCountry: geo?.country || 'Unknown',
+        locationCountry: geo?.country|| 'Unknown',
         locationCity: geo?.city || 'Unknown',
         userAgent: parsed.ua,
         pageVisited: req.path,
