@@ -13,7 +13,7 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 
-// Initialize Stripe
+// Initialize Stripe outside component to prevent multiple initializations
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 function CheckoutForm() {
@@ -81,10 +81,12 @@ function CheckoutForm() {
 export default function UpgradePlanPage() {
   const { user, isLoading } = useUser();
   const [clientSecret, setClientSecret] = useState<string>();
+  const [stripeError, setStripeError] = useState<string>();
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (user?.id) {
-      // Create a payment intent when the page loads
+    // Only fetch if we have a user and don't already have a client secret
+    if (user?.id && !clientSecret) {
       fetch("/api/create-subscription", {
         method: "POST",
         headers: {
@@ -92,17 +94,30 @@ export default function UpgradePlanPage() {
         },
         credentials: "include",
       })
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error("Failed to initialize payment");
+          }
+          return res.json();
+        })
         .then((data) => {
           if (data.clientSecret) {
             setClientSecret(data.clientSecret);
+          } else {
+            throw new Error("No client secret received");
           }
         })
         .catch((error) => {
-          console.error("Error:", error);
+          console.error("Payment initialization error:", error);
+          setStripeError(error.message);
+          toast({
+            title: "Error",
+            description: "Failed to initialize payment form. Please try again.",
+            variant: "destructive",
+          });
         });
     }
-  }, [user]);
+  }, [user, clientSecret, toast]);
 
   // Only show loading state when initially loading user data
   if (isLoading) {
@@ -185,13 +200,27 @@ export default function UpgradePlanPage() {
               </div>
             </div>
 
-            {clientSecret ? (
+            {stripeError ? (
+              <div className="mt-6 text-center text-red-500">
+                <p>{stripeError}</p>
+                <Button 
+                  className="mt-2"
+                  onClick={() => {
+                    setStripeError(undefined);
+                    setClientSecret(undefined);
+                  }}
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : clientSecret ? (
               <div className="mt-6">
                 <Elements 
                   stripe={stripePromise} 
                   options={{ 
                     clientSecret,
-                    appearance 
+                    appearance,
+                    loader: "auto"
                   }}
                 >
                   <CheckoutForm />
