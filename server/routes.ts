@@ -5,7 +5,7 @@ import { db } from "@db";
 import { sendEmail, sendContactFormNotification } from "./email";
 import { users, cvs, activityLogs, subscriptions, contacts, siteAnalytics, systemMetrics } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
-import { addUserSchema, updateUserRoleSchema, cvApprovalSchema } from "@db/schema";
+import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema"; // Added import for insertUserSchema
 import multer from "multer";
 import { extname } from "path";
 import mammoth from "mammoth";
@@ -528,14 +528,21 @@ export function registerRoutes(app: Express): Server {
   // Update create-subscription endpoint with consistent validation
   app.post("/api/create-subscription", async (req, res) => {
     try {
-      const result = addUserSchema.safeParse(req.body); //Using addUserSchema as insertUserSchema is not defined
+      // Validate required fields are present
+      const { email, username, password } = req.body;
+
+      if (!email || !username || !password) {
+        return res.status(400).json({ 
+          error: "All fields are required - please provide email, username, and password" 
+        });
+      }
+
+      const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ 
           error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         });
       }
-
-      const { email, username, password } = result.data;
 
       // Check for existing user/email
       const [existingUser] = await db
