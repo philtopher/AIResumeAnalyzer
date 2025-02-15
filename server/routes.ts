@@ -532,14 +532,14 @@ export function registerRoutes(app: Express): Server {
       const { email, username, password } = req.body;
 
       if (!email || !username || !password) {
-        return res.status(400).json({ 
-          error: "All fields are required - please provide email, username, and password" 
+        return res.status(400).json({
+          error: "All fields are required - please provide email, username, and password"
         });
       }
 
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         });
       }
@@ -667,11 +667,11 @@ export function registerRoutes(app: Express): Server {
                 verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour expiry
               }).returning();
 
-              console.log('Created new user:', { 
-                id: newUser.id, 
+              console.log('Created new user:', {
+                id: newUser.id,
                 username: newUser.username,
                 email: newUser.email,
-                role: newUser.role 
+                role: newUser.role
               });
 
               // Create subscription record with proper end date tracking
@@ -902,7 +902,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Calculate subscription end date (1 month from now for activation)
-      const endDate = action === "activate" 
+      const endDate = action === "activate"
         ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
         : new Date(); // Immediate end for deactivation
 
@@ -937,13 +937,13 @@ export function registerRoutes(app: Express): Server {
       await db.insert(activityLogs).values({
         userId: req.user.id,
         action: `${action}_subscription`,
-        details: { 
+        details: {
           targetUserId: userId,
           endDate: endDate.toISOString()
         }
       });
 
-      res.json({ 
+      res.json({
         message: `Subscription ${action === "activate" ? "activated" : "deactivated"} successfully`,
         endDate
       });
@@ -993,10 +993,10 @@ export function registerRoutes(app: Express): Server {
       await db.insert(activityLogs).values({
         userId: req.user.id,
         action: "update_user_role",
-        details: { 
-          updatedUserId: userId, 
-          oldRole: existingUser.role, 
-          newRole: role 
+        details: {
+          updatedUserId: userId,
+          oldRole: existingUser.role,
+          newRole: role
         }
       });
 
@@ -1051,7 +1051,7 @@ export function registerRoutes(app: Express): Server {
       await db.insert(siteAnalytics).values({
         userId: req.user?.id,
         ipAddress: ip as string,
-        locationCountry: geo?.country|| 'Unknown',
+        locationCountry: geo?.country || 'Unknown',
         locationCity: geo?.city || 'Unknown',
         userAgent: parsed.ua,
         pageVisited: req.path,
@@ -1140,7 +1140,8 @@ export function registerRoutes(app: Express): Server {
         const [{ count: activeConnections }] = await db
           .select({ count: sql<number>`count(distinct user_id)` })
           .from(activityLogs)
-          .where(sql`created_at > ${fiveMinutesAgo}`);        analyticsData.activeConnections = Number(activeConnections) || 0;
+          .where(sql`created_at > ${fiveMinutesAgo}`);
+        analyticsData.activeConnections = Number(activeConnections) || 0;
         // Get metrics history
         const metricsHistory = await db
           .select({
@@ -1728,6 +1729,111 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
     } catch (error) {
       console.error("Email verification error:", error);
       res.status(500).send("An error occurred during email verification");
+    }
+  });
+
+  // Add CV transformation routes after existing routes
+  app.post("/api/cv/transform/public", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).send("No file uploaded");
+      }
+
+      const { targetRole, jobDescription } = req.body;
+      if (!targetRole || !jobDescription) {
+        return res.status(400).send("Missing required fields");
+      }
+
+      // Extract text content from uploaded CV
+      const textContent = await extractTextContent(req.file);
+
+      // Extract employments from CV
+      const employments = await extractEmployments(textContent);
+
+      // Transform the CV content
+      const transformedEmployment = await transformEmployment(
+        employments.latest,
+        targetRole,
+        jobDescription
+      );
+
+      // Transform professional summary
+      const transformedSummary = await transformProfessionalSummary(
+        textContent,
+        targetRole,
+        jobDescription
+      );
+
+      // Evaluate CV and get feedback
+      const evaluation = evaluateCV(transformedEmployment, jobDescription);
+
+      // Store transformed CV in database
+      const [cv] = await db.insert(cvs).values({
+        originalContent: textContent,
+        transformedContent: `${transformedSummary}\n\n${transformedEmployment}`,
+        feedback: evaluation.feedback,
+        targetRole,
+        score: evaluation.score,
+        status: 'completed'
+      }).returning();
+
+      res.json(cv);
+    } catch (error: any) {
+      console.error("CV transformation error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.get("/api/cv/:id/content/public", async (req, res) => {
+    try {
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, parseInt(req.params.id)))
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      res.send(cv.transformedContent);
+    } catch (error: any) {
+      console.error("Get CV content error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.get("/api/cv/:id/download/public", async (req, res) => {
+    try {
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, parseInt(req.params.id)))
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [new TextRun(cv.transformedContent)]
+            })
+          ]
+        }]
+      });
+
+      const buffer = await Packer.toBuffer(doc);
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", "attachment; filename=transformed_cv.docx");
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Download CV error:", error);
+      res.status(500).send(error.message);
     }
   });
 
