@@ -23,6 +23,7 @@ import {
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import FAQPage from "./pages/FAQPage";
+import AboutPage from "./pages/AboutPage"; // Import the new AboutPage component
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -37,6 +38,7 @@ function Navigation() {
 
   const menuItems = [
     { label: "About", path: "/about" },
+    { label: "How It Works", path: "/how-it-works" },
     { label: "FAQ", path: "/faq" },
     { label: "Features", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
@@ -158,7 +160,8 @@ function AuthenticatedApp() {
       <main className="flex-1">
         <Switch>
           <Route path="/" component={HomePage} />
-          <Route path="/about" component={TutorialPage} />
+          <Route path="/about" component={AboutPage} />
+          <Route path="/how-it-works" component={TutorialPage} />
           <Route path="/faq" component={FAQPage} />
           <Route path="/features" component={FeaturesPage} />
           <Route path="/auth" component={AuthPage} />
@@ -171,6 +174,7 @@ function AuthenticatedApp() {
             window.location.pathname !== "/" &&
             window.location.pathname !== "/features" &&
             window.location.pathname !== "/about" &&
+            window.location.pathname !== "/how-it-works" &&
             window.location.pathname !== "/faq" &&
             window.location.pathname !== "/public-cv" &&
             window.location.pathname !== "/contact" &&
