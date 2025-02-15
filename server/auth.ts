@@ -7,7 +7,7 @@ import { scrypt, randomBytes, timingSafeEqual, randomUUID } from "crypto";
 import { promisify } from "util";
 import { users, insertUserSchema, loginSchema, resetPasswordRequestSchema, resetPasswordSchema, subscriptions } from "@db/schema";
 import { db } from "@db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, desc } from "drizzle-orm";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 import { sendEmail } from "./email"; // Import sendEmail function
 
@@ -33,6 +33,71 @@ export async function comparePasswords(supplied: string, stored: string) {
   } catch (error) {
     console.error("Password comparison error:", error);
     return false;
+  }
+}
+
+async function sendVerificationEmailToProUsers() {
+  try {
+    // Get all users with active subscriptions
+    const proUsers = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        username: users.username,
+        emailVerified: users.emailVerified,
+      })
+      .from(users)
+      .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
+      .where(
+        and(
+          eq(subscriptions.status, 'active'),
+          eq(users.emailVerified, false)
+        )
+      );
+
+    const results = [];
+    for (const user of proUsers) {
+      try {
+        // Generate new verification token
+        const verificationToken = randomUUID();
+        const verificationTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+
+        // Update user with new verification token
+        await db
+          .update(users)
+          .set({
+            verificationToken,
+            verificationTokenExpiry,
+          })
+          .where(eq(users.id, user.id));
+
+        // Send verification email
+        await sendVerificationEmail(user.email, verificationToken);
+
+        results.push({
+          email: user.email,
+          status: 'sent',
+          message: 'Verification email sent successfully'
+        });
+
+        console.log(`[Auth] Verification email sent to pro user: ${user.email}`);
+      } catch (error) {
+        console.error(`[Auth] Failed to send verification email to ${user.email}:`, error);
+        results.push({
+          email: user.email,
+          status: 'failed',
+          message: error.message
+        });
+      }
+    }
+
+    return {
+      totalProcessed: proUsers.length,
+      results
+    };
+  } catch (error) {
+    console.error('[Auth] Error in sendVerificationEmailToProUsers:', error);
+    throw error;
   }
 }
 
@@ -538,14 +603,14 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (!user) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Invalid verification token",
           message: "The verification link is invalid or has expired. Please request a new verification email."
         });
       }
 
       if (!user.verificationTokenExpiry || user.verificationTokenExpiry < new Date()) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Token expired",
           message: "The verification link has expired. Please request a new verification email."
         });
@@ -627,6 +692,31 @@ export function setupAuth(app: Express) {
     } catch (error) {
       console.error("Resend verification error:", error);
       res.status(500).send("Failed to resend verification email");
+    }
+  });
+
+  // Add this new endpoint after the existing /api/resend-verification endpoint
+  app.post("/api/admin/send-pro-verification-emails", async (req, res) => {
+    try {
+      // Check if the user is an admin
+      if (!req.isAuthenticated() || !req.user.role?.includes('admin')) {
+        return res.status(403).json({
+          error: "Unauthorized",
+          message: "Only administrators can perform this action"
+        });
+      }
+
+      const result = await sendVerificationEmailToProUsers();
+      res.json({
+        message: "Verification emails sent to pro users",
+        ...result
+      });
+    } catch (error) {
+      console.error("Error sending pro verification emails:", error);
+      res.status(500).json({
+        error: "Failed to send verification emails",
+        message: error.message
+      });
     }
   });
 
