@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Download, Eye } from "lucide-react";
+import { Loader2, Upload, Download, Eye, Settings } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 export default function DashboardPage() {
@@ -25,6 +25,7 @@ export default function DashboardPage() {
 
   // Consider admin users as having pro access
   const hasPro = user?.role === "super_admin" || user?.role === "sub_admin" || subscription?.status === "active";
+  const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -153,6 +154,11 @@ export default function DashboardPage() {
             <span className="text-sm text-muted-foreground">
               Welcome, {user?.username}
             </span>
+            {isAdmin && (
+              <Link href="/admin">
+                <Button variant="default">Admin Area</Button>
+              </Link>
+            )}
             {!hasPro && user?.role !== "super_admin" && user?.role !== "sub_admin" && (
               <Link href="/features">
                 <Button variant="secondary">Upgrade to Pro</Button>
