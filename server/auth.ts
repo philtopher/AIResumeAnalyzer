@@ -488,7 +488,7 @@ export function setupAuth(app: Express) {
     }
   });
   // Add email verification endpoint with proper URL handling
-  app.get("/verify-email/:token", async (req, res) => {
+  app.get("/api/verify-email/:token", async (req, res) => {
     try {
       const { token } = req.params;
 
@@ -499,11 +499,17 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (!user) {
-        return res.status(400).send("Invalid verification token");
+        return res.status(400).json({ 
+          error: "Invalid verification token",
+          message: "The verification link is invalid or has expired. Please request a new verification email."
+        });
       }
 
       if (!user.verificationTokenExpiry || user.verificationTokenExpiry < new Date()) {
-        return res.status(400).send("Verification token has expired");
+        return res.status(400).json({ 
+          error: "Token expired",
+          message: "The verification link has expired. Please request a new verification email."
+        });
       }
 
       await db
@@ -515,13 +521,17 @@ export function setupAuth(app: Express) {
         })
         .where(eq(users.id, user.id));
 
-      res.json({ message: "Email verified successfully" });
+      // Redirect to frontend with success message
+      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+      res.redirect(`${baseUrl}/auth?verified=true`);
     } catch (error) {
       console.error("Email verification error:", error);
-      res.status(500).send("An error occurred during email verification");
+      res.status(500).json({
+        error: "Verification failed",
+        message: "An error occurred during email verification. Please try again."
+      });
     }
   });
-
   // Add resend verification email endpoint
   app.post("/api/resend-verification", async (req, res) => {
     try {
