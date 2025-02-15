@@ -665,29 +665,30 @@ export function registerRoutes(app: Express): Server {
   // Middleware to track site analytics
   app.use(async (req, res, next) => {
     try {
+      // Skip analytics for static, API routes, and undefined paths to prevent errors
+      if (!req.path || req.path.startsWith('/static') || req.path.startsWith('/api') || req.path === '/favicon.ico') {
+        return next();
+      }
+
       const ip = req.ip || req.connection.remoteAddress;
       const geo = geoip.lookup(ip as string);
       const ua = new UAParser(req.headers['user-agent']);
       const parsed = ua.getResult();
 
-      // Don't track certain paths
-      if (req.path.startsWith('/static') || req.path.startsWith('/api')) {
-        return next();
-      }
-
-      // Check for suspicious activity
-      const isSuspicious = false; // You would implement your security checks here
+      // Check for suspicious activity (implement security checks here)
+      const isSuspicious = false;
       const suspiciousReason = null;
 
       await db.insert(siteAnalytics).values({
-        user_id: req.user?.id,
-        ip_address: ip as string,
-        location_country: geo?.country || 'Unknown',
-        location_city: geo?.city || 'Unknown',
-        user_agent: parsed.ua,
-        page_visited: req.path,
-        is_suspicious: isSuspicious,
-        suspicious_reason: suspiciousReason,
+        userId: req.user?.id, // Use userId instead of user_id to match schema
+        ipAddress: ip as string,
+        locationCountry: geo?.country || 'Unknown',
+        locationCity: geo?.city || 'Unknown',
+        userAgent: parsed.ua,
+        pageVisited: req.path,
+        isSuspicious: isSuspicious,
+        suspiciousReason: suspiciousReason,
+        timestamp: new Date(),
       });
 
       next();
@@ -705,19 +706,24 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Initialize default values
-      let analyticsData = {
+      const analyticsData = {
         totalUsers: 0,
         activeUsers: 0,
         registeredUsers: 0,
         anonymousUsers: 0,
         premiumUsers: 0,
         totalConversions: 0,
+        registeredConversions: 0,
+        anonymousConversions: 0,
         conversionRate: 0,
         cpuUsage: 0,
         memoryUsage: 0,
         storageUsage: 0,
         activeConnections: 0,
         systemMetricsHistory: [],
+        suspiciousActivities: [],
+        usersByLocation: [],
+        conversionsByLocation: []
       };
 
       try {
@@ -725,29 +731,29 @@ export function registerRoutes(app: Express): Server {
         const [{ count: totalUsers }] = await db
           .select({ count: sql<number>`count(*)` })
           .from(users);
-        analyticsData.totalUsers = Number(totalUsers);
+        analyticsData.totalUsers = Number(totalUsers) || 0;
 
         // Get registered vs anonymous users (excluding demo users)
         const [{ count: registeredUsers }] = await db
           .select({ count: sql<number>`count(*)` })
           .from(users)
           .where(sql`role != 'demo'`);
-        analyticsData.registeredUsers = Number(registeredUsers);
+        analyticsData.registeredUsers = Number(registeredUsers) || 0;
         analyticsData.anonymousUsers = analyticsData.totalUsers - analyticsData.registeredUsers;
 
         // Get active users (last 24 hours)
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const [{ count: activeUsers }] = await db
-          .select({ count: sql<number>`count(distinct user_id)` })
+          .select({ count: sql<number>`count(distinct "userId")` })
           .from(activityLogs)
           .where(sql`created_at > ${twentyFourHoursAgo}`);
-        analyticsData.activeUsers = Number(activeUsers);
+        analyticsData.activeUsers = Number(activeUsers) || 0;
 
         // Get conversion metrics
         const [{ count: totalConversions }] = await db
           .select({ count: sql<number>`count(*)` })
           .from(cvs);
-        analyticsData.totalConversions = Number(totalConversions);
+        analyticsData.totalConversions = Number(totalConversions) || 0;
 
         // Calculate conversion rate
         analyticsData.conversionRate = analyticsData.totalUsers > 0
@@ -756,7 +762,7 @@ export function registerRoutes(app: Express): Server {
 
         // Get system metrics
         analyticsData.cpuUsage = await new Promise<number>((resolve) => {
-          os.cpuUsage((value) => resolve(value * 100));
+          os.cpuUsage((value) => resolve((value || 0) * 100));
         });
         analyticsData.memoryUsage = (1 - os.freememPercentage()) * 100;
         analyticsData.storageUsage = (os.totalmem() - os.freemem()) / os.totalmem() * 100;
@@ -764,34 +770,39 @@ export function registerRoutes(app: Express): Server {
         // Get active connections (estimate based on activity logs)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
         const [{ count: activeConnections }] = await db
-          .select({ count: sql<number>`count(distinct user_id)` })
+          .select({ count: sql<number>`count(distinct "userId")` })
           .from(activityLogs)
-          .where(sql`created_at > ${fiveMinutesAgo}`);
-        analyticsData.activeConnections = Number(activeConnections);
+          .where(sql`"createdAt" > ${fiveMinutesAgo}`);
+        analyticsData.activeConnections = Number(activeConnections) || 0;
 
         // Get metrics history
         const metricsHistory = await db
           .select({
             timestamp: sql<string>`to_char(timestamp, 'HH24:MI')`,
-            cpuUsage: systemMetrics.cpu_usage,
-            memoryUsage: systemMetrics.memory_usage,
-            storageUsage: systemMetrics.storage_usage,
+            cpuUsage: sql<number>`COALESCE(cpu_usage, 0)`,
+            memoryUsage: sql<number>`COALESCE(memory_usage, 0)`,
+            storageUsage: sql<number>`COALESCE(storage_usage, 0)`,
           })
           .from(systemMetrics)
           .where(sql`timestamp > ${new Date(Date.now() - 60 * 60 * 1000)}`)
           .orderBy(sql`timestamp`);
 
-        analyticsData.systemMetricsHistory = metricsHistory;
+        analyticsData.systemMetricsHistory = metricsHistory.map(row => ({
+          timestamp: row.timestamp || new Date().toLocaleTimeString('en-US', { hour12: false }),
+          cpuUsage: Number(row.cpuUsage) || 0,
+          memoryUsage: Number(row.memoryUsage) || 0,
+          storageUsage: Number(row.storageUsage) || 0
+        }));
 
         // Store current metrics
         await db.insert(systemMetrics).values({
-          cpu_usage: analyticsData.cpuUsage,
-          memory_usage: analyticsData.memoryUsage,
-          storage_usage: analyticsData.storageUsage,
-          active_connections: analyticsData.activeConnections,
+          cpuUsage: analyticsData.cpuUsage || 0,
+          memoryUsage: analyticsData.memoryUsage || 0,
+          storageUsage: analyticsData.storageUsage || 0,
+          activeConnections: analyticsData.activeConnections || 0,
           timestamp: new Date(),
-          response_time: 0,
-          error_count: 0,
+          responseTime: 0,
+          errorCount: 0,
         });
 
         res.json(analyticsData);
@@ -867,9 +878,7 @@ export function registerRoutes(app: Express): Server {
         user_id: req.user.id,
         action: "cv_approval",
         details: { cvId, status, comment },
-      });
-
-      res.json(updatedCV);
+      });      res.json(updatedCV);
     } catch (error: any) {
       console.error("Admin approve CV error:", error);
       res.status(500).send(error.message);
