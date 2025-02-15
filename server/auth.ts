@@ -531,6 +531,65 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Add resend verification email endpoint
+  app.post("/api/resend-verification", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).send("Email is required");
+      }
+
+      // Find user by email
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!user) {
+        // Don't reveal if user exists or not
+        return res.json({ message: "If an account exists with this email, a verification link will be sent." });
+      }
+
+      if (user.emailVerified) {
+        return res.status(400).send("Email is already verified");
+      }
+
+      // Generate new verification token
+      const verificationToken = randomUUID();
+      const verificationTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+
+      // Update user with new verification token
+      await db
+        .update(users)
+        .set({
+          verificationToken,
+          verificationTokenExpiry,
+        })
+        .where(eq(users.id, user.id));
+
+      // Send verification email
+      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+      await sendEmail({
+        to: email,
+        subject: 'CV Transformer - Email Verification',
+        html: `
+          <h1>Verify Your Email Address</h1>
+          <p>Please click the link below to verify your email address:</p>
+          <a href="${baseUrl}/verify-email/${verificationToken}">Verify Email</a>
+          <p>This verification link will expire in 1 hour.</p>
+          <p>If you did not request this verification, please ignore this email.</p>
+          <p>Best regards,<br>CV Transformer Team</p>
+        `
+      });
+
+      res.json({ message: "Verification email has been resent" });
+    } catch (error) {
+      console.error("Resend verification error:", error);
+      res.status(500).send("Failed to resend verification email");
+    }
+  });
+
   // Call createOrUpdateAdmin when setting up auth
   createOrUpdateAdmin().catch(console.error);
 }
