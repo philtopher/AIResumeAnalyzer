@@ -31,8 +31,13 @@ router.post('/create-payment-link', async (req, res) => {
       throw new Error('STRIPE_PRICE_ID is not configured');
     }
 
-    // Create a payment link with fixed protocol and no double slashes
-    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || '';
+    // Ensure proper URL format without double slashes
+    const baseUrl = process.env.APP_URL ? process.env.APP_URL.replace(/\/+$/, '') : '';
+    const successUrl = `${baseUrl}/upgrade?payment=success&userId=${req.user.id}`;
+
+    console.log('Success URL will be:', successUrl);
+
+    // Create a payment link
     const paymentLink = await stripe.paymentLinks.create({
       line_items: [
         {
@@ -43,7 +48,7 @@ router.post('/create-payment-link', async (req, res) => {
       after_completion: {
         type: 'redirect',
         redirect: {
-          url: `${baseUrl}/upgrade?payment=success&userId=${req.user.id}`,
+          url: successUrl,
         },
       },
       metadata: {
@@ -71,6 +76,7 @@ router.get('/verify-subscription/:userId', async (req, res) => {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
 
+    // Check if there's an active subscription in our database
     const [subscription] = await db
       .select()
       .from(subscriptions)
@@ -78,6 +84,32 @@ router.get('/verify-subscription/:userId', async (req, res) => {
       .limit(1);
 
     console.log('Found subscription:', subscription);
+
+    // If we don't find a subscription in our database, check Stripe directly
+    if (!subscription) {
+      console.log('No subscription found in database, checking Stripe...');
+      const stripeSubscriptions = await stripe.subscriptions.list({
+        limit: 1,
+        status: 'active',
+        expand: ['data.customer'],
+      });
+
+      const stripeSubscription = stripeSubscriptions.data.find(sub => 
+        sub.metadata.userId === userId.toString()
+      );
+
+      if (stripeSubscription) {
+        console.log('Found active subscription in Stripe, creating database record');
+        await db.insert(subscriptions).values({
+          userId,
+          stripeCustomerId: stripeSubscription.customer as string,
+          stripeSubscriptionId: stripeSubscription.id,
+          status: 'active',
+          createdAt: new Date(),
+        });
+        return res.json({ success: true, isSubscribed: true });
+      }
+    }
 
     res.json({ 
       success: true,
@@ -149,7 +181,7 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
                 <li>Interviewer LinkedIn Insights</li>
                 <li>Unlimited CV Downloads</li>
               </ul>
-              <p>Start exploring your new features now by visiting your <a href="${process.env.APP_URL}/dashboard">dashboard</a>.</p>
+              <p>Start exploring your new features now by visiting your <a href="${process.env.APP_URL?.replace(/\/+$/, '')}/dashboard">dashboard</a>.</p>
               <p>If you have any questions, our support team is here to help!</p>
               <p>Best regards,<br>CV Transformer Team</p>
             `
