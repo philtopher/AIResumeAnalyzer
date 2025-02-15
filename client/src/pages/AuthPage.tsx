@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, UserPlus, CreditCard } from "lucide-react";
 import { usePasswordStrength } from "@/hooks/use-password-strength";
 import { AnimatePresence, motion } from "framer-motion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -44,7 +45,6 @@ export default function AuthPage() {
       if (isLogin) {
         const result = await login({ username, password, email });
         if (!result.ok) {
-          // Check if the error is due to unverified email
           if (result.message.includes("verify your email")) {
             toast({
               title: "Email Not Verified",
@@ -70,14 +70,13 @@ export default function AuthPage() {
 
         const result = await register({ username, password, email });
         if (!result.ok) {
-          // Check if the error is due to existing pro user
           if (result.message?.includes("pro subscription")) {
             toast({
               title: "Pro Account Exists",
               description: "An account with pro subscription already exists. Please login instead.",
               duration: 6000,
             });
-            setIsLogin(true); // Switch to login form
+            setIsLogin(true);
             return;
           }
           throw new Error(result.message);
@@ -108,6 +107,77 @@ export default function AuthPage() {
     }
   }
 
+  const LoginForm = ({ isPro = false }: { isPro?: boolean }) => (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="username">Username</Label>
+        <Input
+          id="username"
+          name="username"
+          required
+          disabled={isLoading}
+          className="transition-all duration-200 focus:ring-2 focus:ring-primary"
+        />
+      </div>
+
+      {!isLogin && (
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            required
+            disabled={isLoading}
+            className="transition-all duration-200 focus:ring-2 focus:ring-primary"
+          />
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+        <div className="relative">
+          <Input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            required
+            disabled={isLoading}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      <Button
+        type="submit"
+        className="w-full transition-all duration-200 hover:scale-[1.02]"
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <span className="flex items-center gap-2">
+            {isPro ? <CreditCard className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+            {isLogin ? "Login" : "Create Account"}
+          </span>
+        )}
+      </Button>
+    </form>
+  );
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
@@ -115,125 +185,30 @@ export default function AuthPage() {
           <CardTitle>{isLogin ? "Login" : "Create Account"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                name="username"
-                required
-                disabled={isLoading}
-                className="transition-all duration-200 focus:ring-2 focus:ring-primary"
-              />
+          <Tabs defaultValue="regular" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="regular">Regular Account</TabsTrigger>
+              <TabsTrigger value="pro">Pro Account</TabsTrigger>
+            </TabsList>
+            <TabsContent value="regular">
+              <CardDescription className="mb-4">
+                Login to your free account to access basic features
+              </CardDescription>
+              <LoginForm />
+            </TabsContent>
+            <TabsContent value="pro">
+              <CardDescription className="mb-4">
+                Login to your pro account to access premium features
+              </CardDescription>
+              <LoginForm isPro={true} />
+            </TabsContent>
+          </Tabs>
+
+          {resendEmailSent && (
+            <div className="mt-4 text-sm text-muted-foreground text-center">
+              A new verification email has been sent. Please check your inbox.
             </div>
-
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  disabled={isLoading}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  disabled={isLoading}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-
-              {!isLogin && password && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-2"
-                >
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${color} transition-all duration-300`}
-                      style={{ width: `${(score + 1) * 20}%` }}
-                    />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Password strength: {label}
-                  </p>
-                  {feedback.length > 0 && (
-                    <ul className="text-sm text-muted-foreground list-disc pl-4">
-                      {feedback.map((suggestion, i) => (
-                        <li key={i}>{suggestion}</li>
-                      ))}
-                    </ul>
-                  )}
-                </motion.div>
-              )}
-            </div>
-
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    disabled={isLoading}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="text-sm text-red-500">Passwords do not match</p>
-                )}
-              </div>
-            )}
-
-            {resendEmailSent && (
-              <div className="text-sm text-muted-foreground text-center">
-                A new verification email has been sent. Please check your inbox.
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full transition-all duration-200 hover:scale-[1.02]"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isLogin ? (
-                "Login"
-              ) : (
-                "Create Account"
-              )}
-            </Button>
-          </form>
+          )}
 
           <div className="mt-4 text-center space-y-2">
             <button
@@ -245,9 +220,7 @@ export default function AuthPage() {
               }}
               type="button"
             >
-              {isLogin
-                ? "Don't have an account? Sign up"
-                : "Already have an account? Login"}
+              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Login"}
             </button>
 
             {isLogin && (
