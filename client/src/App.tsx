@@ -40,7 +40,7 @@ function Navigation() {
     { label: "About", path: "/about" },
     { label: "How It Works", path: "/how-it-works" },
     { label: "FAQ", path: "/faq" },
-    { label: "Features", path: "/features" },
+    { label: "Pricing & Plans", path: "/features" }, // Updated label
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
   ];

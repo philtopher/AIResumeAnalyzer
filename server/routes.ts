@@ -24,6 +24,8 @@ import { sql } from 'drizzle-orm';
 import os from 'os-utils';
 import geoip from 'geoip-lite';
 import { UAParser } from 'ua-parser-js';
+import Stripe from 'stripe';
+
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -353,6 +355,9 @@ const feedbackSchema = z.object({
   message: z.string().min(10),
 });
 
+// Initialize Stripe
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
@@ -471,6 +476,96 @@ export function registerRoutes(app: Express): Server {
         success: false,
         message: "Failed to process your request. Please try again later."
       });
+    }
+  });
+
+  app.post("/api/create-subscription", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      // Create a customer
+      const customer = await stripe.customers.create({
+        email,
+        metadata: {
+          signup_pending: 'true'
+        }
+      });
+
+      // Create a subscription
+      const subscription = await stripe.subscriptions.create({
+        customer: customer.id,
+        items: [{ price: 'price_H5ggYwtDq4fbrJ' }], // Replace with your actual price ID
+        payment_behavior: 'default_incomplete',
+        expand: ['latest_invoice.payment_intent'],
+      });
+
+      // Return the client secret
+      const invoice = subscription.latest_invoice as Stripe.Invoice;
+      const payment_intent = invoice.payment_intent as Stripe.PaymentIntent;
+      res.json({
+        subscriptionId: subscription.id,
+        clientSecret: payment_intent.client_secret,
+      });
+    } catch (error: any) {
+      console.error('Error creating subscription:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add webhook handler for Stripe events
+  app.post("/api/webhook", async (req, res) => {
+    try {
+      const sig = req.headers['stripe-signature']!;
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+
+      switch (event.type) {
+        case 'customer.subscription.created':
+          const subscription = event.data.object as Stripe.Subscription;
+          const customer = await stripe.customers.retrieve(subscription.customer as string);
+
+          if (customer.metadata.signup_pending === 'true') {
+            // Send welcome email
+            await sendEmail({
+              to: customer.email!,
+              from: 'support@cvtransformer.com',
+              subject: 'Welcome to CV Transformer Pro!',
+              html: `
+                <h1>Welcome to CV Transformer Pro!</h1>
+                <p>Thank you for subscribing to our premium service!</p>
+                <h2>Your Subscription Details:</h2>
+                <ul>
+                  <li>Plan: Pro Account</li>
+                  <li>Price: £5/month</li>
+                  <li>Billing Period: Monthly</li>
+                </ul>
+                <h2>Important Links:</h2>
+                <ul>
+                  <li><a href="${process.env.APP_URL}/terms-of-service">Terms of Service</a></li>
+                  <li><a href="${process.env.APP_URL}/privacy-policy">Privacy Policy</a></li>
+                </ul>
+                <h2>Managing Your Subscription:</h2>
+                <p>To cancel your subscription or request a refund:</p>
+                <ol>
+                  <li>Log in to your account</li>
+                  <li>Go to Settings > Subscription</li>
+                  <li>Click "Cancel Subscription"</li>
+                </ol>
+                <p>You can also contact our support team at support@cvtransformer.com</p>
+                <p>Note: Refunds are available within 14 days of subscription start.</p>
+              `
+            });
+          }
+          break;
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error('Webhook error:', error);
+      res.status(400).json({ error: error.message });
     }
   });
 
@@ -680,7 +775,7 @@ export function registerRoutes(app: Express): Server {
       const suspiciousReason = null;
 
       await db.insert(siteAnalytics).values({
-        user_id: req.user?.id, 
+        user_id: req.user?.id,
         ipAddress: ip as string,
         locationCountry: geo?.country || 'Unknown',
         locationCity: geo?.city || 'Unknown',
@@ -791,8 +886,7 @@ export function registerRoutes(app: Express): Server {
           timestamp: row.timestamp || new Date().toLocaleTimeString('en-US', { hour12: false }),
           cpuUsage: Number(row.cpuUsage) || 0,
           memoryUsage: Number(row.memoryUsage) || 0,
-          storageUsage: Number(row.storageUsage) || 0
-        }));
+          storageUsage: Number(row.storageUsage) || 0        }));
 
         // Store current metrics
         await db.insert(systemMetrics).values({
