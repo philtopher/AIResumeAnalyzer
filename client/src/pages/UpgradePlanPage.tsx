@@ -87,6 +87,7 @@ export default function UpgradePlanPage() {
   useEffect(() => {
     // Only fetch if we have a user and don't already have a client secret
     if (user?.id && !clientSecret) {
+      console.log('Creating subscription for user:', user.id);
       fetch("/api/create-subscription", {
         method: "POST",
         headers: {
