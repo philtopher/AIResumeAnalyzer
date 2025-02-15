@@ -1,127 +1,45 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useUser } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Redirect } from "wouter";
 import { Loader2, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { loadStripe } from "@stripe/stripe-js";
-import {
-  Elements,
-  PaymentElement,
-  useStripe,
-  useElements,
-} from "@stripe/react-stripe-js";
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-
-function CheckoutForm() {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!stripe || !elements) {
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const { error } = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: `${window.location.origin}/dashboard?payment=success`,
-        },
-      });
-
-      if (error) {
-        toast({
-          title: "Payment failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Something went wrong",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement />
-      <Button 
-        type="submit" 
-        disabled={!stripe || isLoading} 
-        className="w-full"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          "Upgrade Now - £5/month"
-        )}
-      </Button>
-    </form>
-  );
-}
 
 export default function UpgradePlanPage() {
   const { user, isLoading } = useUser();
-  const [clientSecret, setClientSecret] = useState<string>();
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (user?.id) {
-      console.log('Fetching client secret...');
-      fetch("/api/create-subscription", {
+  const handleUpgradeClick = async () => {
+    if (!user) return;
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch("/api/create-payment-link", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-      })
-        .then(async (res) => {
-          const data = await res.json();
-          console.log('Response received:', { status: res.status, data });
-          if (!res.ok) {
-            throw new Error(data.error || "Failed to initialize payment");
-          }
-          return data;
-        })
-        .then((data) => {
-          console.log('Setting client secret');
-          setClientSecret(data.clientSecret);
-        })
-        .catch((error) => {
-          console.error("Payment initialization error:", error);
-          toast({
-            title: "Error",
-            description: error.message || "Failed to initialize payment form. Please try again.",
-            variant: "destructive",
-          });
-        });
-    }
-  }, [user, toast]);
+      });
 
-  const appearance = {
-    theme: 'stripe' as const,
-    variables: {
-      colorPrimary: '#0f172a',
-      fontFamily: 'system-ui, sans-serif',
-      borderRadius: '0.5rem',
-    },
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create payment link");
+      }
+
+      // Redirect to Stripe's hosted payment page
+      window.location.href = data.url;
+    } catch (error) {
+      console.error("Payment link creation error:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to start upgrade process",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+    }
   };
 
   if (isLoading) {
@@ -198,22 +116,20 @@ export default function UpgradePlanPage() {
             </div>
 
             <div className="mt-6">
-              {clientSecret ? (
-                <Elements 
-                  stripe={stripePromise} 
-                  options={{
-                    clientSecret,
-                    appearance,
-                    loader: 'always'
-                  }}
-                >
-                  <CheckoutForm />
-                </Elements>
-              ) : (
-                <div className="flex justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
-              )}
+              <Button 
+                className="w-full" 
+                onClick={handleUpgradeClick}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  "Upgrade Now - £5/month"
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>
