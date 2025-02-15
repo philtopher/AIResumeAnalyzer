@@ -1564,6 +1564,41 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
     }
   });
 
+  // Update the verification endpoint to handle GET requests
+  app.get("/verify-email/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.verificationToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).send("Invalid verification token");
+      }
+
+      if (!user.verificationTokenExpiry || user.verificationTokenExpiry < new Date()) {
+        return res.status(400).send("Verification token has expired");
+      }
+
+      await db
+        .update(users)
+        .set({
+          emailVerified: true,
+          verificationToken: null,
+          verificationTokenExpiry: null,
+        })
+        .where(eq(users.id, user.id));
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).send("An error occurred during email verification");
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

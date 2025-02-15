@@ -47,11 +47,22 @@ export async function sendEmail(options: {
       },
       trackingSettings: {
         clickTracking: {
-          enable: false // Disable click tracking for all emails
+          enable: false,
+          enableText: false
         },
         openTracking: {
-          enable: true
+          enable: false
+        },
+        subscriptionTracking: {
+          enable: false
+        },
+        ganalytics: {
+          enable: false
         }
+      },
+      asm: {
+        groupId: 0,
+        groupsToDisplay: []
       }
     };
 
@@ -101,21 +112,25 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
   const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
   const currentTime = new Date().toLocaleString();
 
+  console.log('Sending password reset email with URL:', resetUrl);
+
   return sendEmail({
     to: email,
     subject: "Reset Your CV Transformer Password",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h1 style="color: #2563eb; margin-bottom: 20px;">Password Reset Request</h1>
-        <p>You requested to reset your password on ${currentTime}. Click the button below to reset it:</p>
+        <p>You requested to reset your password on ${currentTime}. Click the link below to reset it:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+          <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;" data-clicktracking="off">
             Reset Password
           </a>
         </div>
         <p style="margin-bottom: 20px;">This link will expire in 1 hour for security reasons.</p>
-        <p style="margin-bottom: 20px;">If the button doesn't work, copy and paste this URL into your browser: ${resetUrl}</p>
+        <p style="margin-bottom: 20px;">If the button doesn't work, copy and paste this URL into your browser:</p>
+        <p style="background: #f5f5f5; padding: 10px; word-break: break-all;"><span data-clicktracking="off">${resetUrl}</span></p>
         <p style="color: #666;">If you didn't request this password reset, please ignore this email or contact support if you have concerns.</p>
+        <p style="color: #666;">Direct link (no tracking): <a href="${resetUrl}" style="color: #2563eb; text-decoration: underline;" data-clicktracking="off">${resetUrl}</a></p>
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
           <p style="color: #666; font-size: 12px;">
             This is an automated message from CV Transformer. Please do not reply to this email.<br>
@@ -130,7 +145,6 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
 export async function sendVerificationEmail(email: string, verificationToken: string) {
   const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
   const verificationUrl = `${baseUrl}/verify-email/${verificationToken}`;
-  const currentTime = new Date().toLocaleString();
 
   console.log('Sending verification email with URL:', verificationUrl);
 
@@ -140,15 +154,17 @@ export async function sendVerificationEmail(email: string, verificationToken: st
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h1 style="color: #2563eb; margin-bottom: 20px;">Welcome to CV Transformer!</h1>
-        <p>Thank you for registering on ${currentTime}. Please verify your email address by clicking the button below:</p>
+        <p>Thank you for registering at CV Transformer. Please verify your email address by clicking the link below:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${verificationUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+          <a href="${verificationUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;" data-clicktracking="off">
             Verify Email Address
           </a>
         </div>
-        <p style="margin-bottom: 20px;">This link will expire in 24 hours for security reasons.</p>
-        <p style="margin-bottom: 20px;">If the button doesn't work, copy and paste this URL into your browser: ${verificationUrl}</p>
-        <p style="color: #666;">If you didn't create an account with CV Transformer, please ignore this email.</p>
+        <p style="margin-bottom: 20px;">This link will expire in 1 hour.</p>
+        <p style="margin-bottom: 20px;">If the button doesn't work, copy and paste this URL into your browser:</p>
+        <p style="background: #f5f5f5; padding: 10px; word-break: break-all;"><span data-clicktracking="off">${verificationUrl}</span></p>
+        <p style="color: #666;">If you didn't request this verification, please ignore this email.</p>
+        <p style="color: #666;">Direct link (no tracking): <a href="${verificationUrl}" style="color: #2563eb; text-decoration: underline;" data-clicktracking="off">${verificationUrl}</a></p>
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
           <p style="color: #666; font-size: 12px;">
             This is an automated message from CV Transformer. Please do not reply to this email.<br>
