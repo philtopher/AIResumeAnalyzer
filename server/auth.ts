@@ -265,24 +265,40 @@ export function setupAuth(app: Express) {
 
       const { username, password, email } = result.data;
 
-      // Check if user or email already exists
+      // Check if user or email already exists and if they're a pro user
       const [existingUser] = await db
         .select()
         .from(users)
+        .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
         .where(eq(users.username, username))
         .limit(1);
 
       const [existingEmail] = await db
         .select()
         .from(users)
+        .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
         .where(eq(users.email, email))
         .limit(1);
 
       if (existingUser) {
+        // Check if the existing user has an active subscription
+        if (existingUser.subscriptions && existingUser.subscriptions.status === 'active') {
+          return res.status(400).json({
+            error: "pro_user_exists",
+            message: "An account with pro subscription already exists. Please login instead."
+          });
+        }
         return res.status(400).send("Username already exists");
       }
 
       if (existingEmail) {
+        // Check if the existing email has an active subscription
+        if (existingEmail.subscriptions && existingEmail.subscriptions.status === 'active') {
+          return res.status(400).json({
+            error: "pro_user_exists",
+            message: "This email is associated with a pro subscription. Please login instead."
+          });
+        }
         return res.status(400).send("Email address is already registered");
       }
 
@@ -302,7 +318,7 @@ export function setupAuth(app: Express) {
         })
         .returning();
 
-      // Send welcome email with verification link using the reliable email sending approach
+      // Send verification email - keep existing email sending code
       try {
         await sendVerificationEmail(email, newUser.verificationToken!);
         console.log("[Auth] Verification email sent successfully to:", email);

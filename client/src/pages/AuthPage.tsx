@@ -70,6 +70,16 @@ export default function AuthPage() {
 
         const result = await register({ username, password, email });
         if (!result.ok) {
+          // Check if the error is due to existing pro user
+          if (result.message?.includes("pro subscription")) {
+            toast({
+              title: "Pro Account Exists",
+              description: "An account with pro subscription already exists. Please login instead.",
+              duration: 6000,
+            });
+            setIsLogin(true); // Switch to login form
+            return;
+          }
           throw new Error(result.message);
         }
 
