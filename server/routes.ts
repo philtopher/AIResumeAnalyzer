@@ -525,10 +525,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(500).json({error: "Failed to create Stripe customer"});
       }
 
+      // Use environment variable for price ID
+      const priceId = process.env.STRIPE_PRICE_ID;
+      if (!priceId) {
+        return res.status(500).json({error: "Stripe price ID is not configured"});
+      }
+
       // Create a subscription
       const subscription = await stripe?.subscriptions.create({
         customer: customer.id,
-        items: [{ price: 'price_H5ggYwtDq4fbrJ' }], // Replace with your actual price ID
+        items: [{ price: priceId }],
         payment_behavior: 'default_incomplete',
         payment_settings: { save_default_payment_method: 'on_subscription' },
         expand: ['latest_invoice.payment_intent'],
@@ -903,8 +909,7 @@ export function registerRoutes(app: Express): Server {
         const [{ count: activeConnections }] = await db
           .select({ count: sql<number>`count(distinct user_id)` })
           .from(activityLogs)
-          .where(sql`created_at > ${fiveMinutesAgo}`);
-        analyticsData.activeConnections = Number(activeConnections) || 0;
+          .where(sql`created_at > ${fiveMinutesAgo}`);        analyticsData.activeConnections = Number(activeConnections) || 0;
         // Get metrics history
         const metricsHistory = await db
           .select({

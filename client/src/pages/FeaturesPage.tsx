@@ -124,6 +124,7 @@ const ProPlanContent = () => {
   const [cardError, setCardError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [postalCode, setPostalCode] = useState("");
   const stripe = useStripe();
   const elements = useElements();
 
@@ -179,6 +180,9 @@ const ProPlanContent = () => {
           billing_details: {
             email: values.email,
             name: values.username,
+            address: {
+              postal_code: postalCode
+            }
           },
         },
       });
@@ -196,6 +200,7 @@ const ProPlanContent = () => {
       // Reset form and clear card input
       form.reset();
       elements.getElement(CardElement)?.clear();
+      setPostalCode("");
 
     } catch (error: any) {
       console.error('Subscription error:', error);
@@ -315,9 +320,9 @@ const ProPlanContent = () => {
                   <FormLabel>Password</FormLabel>
                   <div className="relative">
                     <FormControl>
-                      <Input 
-                        {...field} 
-                        type={showPassword ? "text" : "password"} 
+                      <Input
+                        {...field}
+                        type={showPassword ? "text" : "password"}
                       />
                     </FormControl>
                     <Button
@@ -347,9 +352,9 @@ const ProPlanContent = () => {
                   <FormLabel>Confirm Password</FormLabel>
                   <div className="relative">
                     <FormControl>
-                      <Input 
-                        {...field} 
-                        type={showConfirmPassword ? "text" : "password"} 
+                      <Input
+                        {...field}
+                        type={showConfirmPassword ? "text" : "password"}
                       />
                     </FormControl>
                     <Button
@@ -403,28 +408,41 @@ const ProPlanContent = () => {
 
             <div className="space-y-2">
               <FormLabel>Card Details</FormLabel>
-              <div className="p-3 border rounded-md">
-                <CardElement
-                  options={{
-                    style: {
-                      base: {
-                        fontSize: '16px',
-                        color: '#424770',
-                        '::placeholder': {
-                          color: '#aab7c4',
+              <div className="space-y-4">
+                <div className="p-3 border rounded-md">
+                  <CardElement
+                    options={{
+                      style: {
+                        base: {
+                          fontSize: '16px',
+                          color: '#424770',
+                          '::placeholder': {
+                            color: '#aab7c4',
+                          },
+                        },
+                        invalid: {
+                          color: '#9e2146',
                         },
                       },
-                      invalid: {
-                        color: '#9e2146',
-                      },
-                    },
-                  }}
-                  onChange={handleCardChange}
-                />
+                    }}
+                    onChange={handleCardChange}
+                  />
+                </div>
+                <FormItem>
+                  <FormLabel>Postal Code</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      value={postalCode}
+                      onChange={(e) => setPostalCode(e.target.value)}
+                      placeholder="Enter your postal code"
+                    />
+                  </FormControl>
+                </FormItem>
+                {cardError && (
+                  <p className="text-sm text-destructive">{cardError}</p>
+                )}
               </div>
-              {cardError && (
-                <p className="text-sm text-destructive">{cardError}</p>
-              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
