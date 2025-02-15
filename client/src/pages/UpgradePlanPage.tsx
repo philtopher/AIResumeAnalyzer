@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useUser } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,66 +6,123 @@ import { Redirect } from "wouter";
 import { Loader2, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { loadStripe } from "@stripe/stripe-js";
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
+function CheckoutForm() {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!stripe || !elements) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const { error } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/dashboard?payment=success`,
+        },
+      });
+
+      if (error) {
+        toast({
+          title: "Payment failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <PaymentElement />
+      <Button 
+        type="submit" 
+        disabled={!stripe || isLoading} 
+        className="w-full"
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processing...
+          </>
+        ) : (
+          "Upgrade Now - £5/month"
+        )}
+      </Button>
+    </form>
+  );
+}
+
 export default function UpgradePlanPage() {
   const { user, isLoading } = useUser();
-  const { toast } = useToast();
+  const [clientSecret, setClientSecret] = useState<string>();
 
   // Redirect if user is not logged in or email is not verified
   if (!isLoading && (!user || !user.emailVerified)) {
     return <Redirect to="/auth" />;
   }
 
-  // Handle upgrade to pro plan
-  const handleUpgrade = async () => {
-    try {
-      const stripe = await stripePromise;
-      if (!stripe) {
-        throw new Error("Stripe failed to initialize");
-      }
-
-      const response = await fetch("/api/create-subscription", {
+  useEffect(() => {
+    if (user?.emailVerified) {
+      // Create a payment intent when the page loads
+      fetch("/api/create-subscription", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
-      }
-
-      const { sessionId } = await response.json();
-
-      // Redirect to Stripe checkout
-      const { error } = await stripe.redirectToCheckout({
-        sessionId
-      });
-
-      if (error) {
-        throw error;
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to start subscription process",
-        variant: "destructive",
-      });
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.clientSecret) {
+            setClientSecret(data.clientSecret);
+          }
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+        });
     }
-  };
+  }, [user]);
 
-  if (isLoading) {
+  if (isLoading || !clientSecret) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
+
+  const appearance = {
+    theme: 'stripe',
+    variables: {
+      colorPrimary: '#0f172a',
+    },
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -127,17 +184,19 @@ export default function UpgradePlanPage() {
               </div>
             </div>
 
-            <Button 
-              className="w-full" 
-              onClick={handleUpgrade}
-              disabled={!user?.emailVerified}
-            >
-              {user?.emailVerified ? (
-                "Upgrade to Pro - £5/month"
-              ) : (
-                "Please verify your email first"
-              )}
-            </Button>
+            {clientSecret && (
+              <div className="mt-6">
+                <Elements 
+                  stripe={stripePromise} 
+                  options={{ 
+                    clientSecret,
+                    appearance 
+                  }}
+                >
+                  <CheckoutForm />
+                </Elements>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

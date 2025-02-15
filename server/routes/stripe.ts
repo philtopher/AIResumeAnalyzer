@@ -11,7 +11,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-01-27.acacia'
+  apiVersion: '2023-10-16'
 });
 
 const router = Router();
@@ -26,37 +26,70 @@ router.post('/create-subscription', async (req, res) => {
   }
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
+    // Create or retrieve a customer
+    let customer;
+    const [existingSubscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, req.user.id))
+      .limit(1);
+
+    if (existingSubscription?.stripeCustomerId) {
+      customer = await stripe.customers.retrieve(existingSubscription.stripeCustomerId);
+    } else {
+      customer = await stripe.customers.create({
+        email: req.user.email,
+        metadata: {
+          userId: req.user.id.toString()
+        }
+      });
+    }
+
+    // Create a subscription
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [
         {
           price: process.env.STRIPE_PRICE_ID,
-          quantity: 1,
         },
       ],
-      mode: 'subscription',
-      success_url: `${req.protocol}://${req.get('host')}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.protocol}://${req.get('host')}/upgrade`,
-      customer_email: req.user.email,
+      payment_behavior: 'default_incomplete',
+      payment_settings: { save_default_payment_method: 'on_subscription' },
+      expand: ['latest_invoice.payment_intent'],
       metadata: {
-        userId: req.user.id.toString(),
-      },
+        userId: req.user.id.toString()
+      }
     });
 
-    // Create a pending subscription record
-    await db.insert(subscriptions).values({
-      userId: req.user.id,
-      stripeCustomerId: session.id,
-      status: 'pending',
-      createdAt: new Date(),
-    });
+    const invoice = subscription.latest_invoice as Stripe.Invoice;
+    const payment_intent = invoice.payment_intent as Stripe.PaymentIntent;
+
+    // Create or update subscription record
+    if (existingSubscription) {
+      await db.update(subscriptions)
+        .set({
+          stripeCustomerId: customer.id,
+          stripeSubscriptionId: subscription.id,
+          status: 'pending',
+          updatedAt: new Date()
+        })
+        .where(eq(subscriptions.userId, req.user.id));
+    } else {
+      await db.insert(subscriptions).values({
+        userId: req.user.id,
+        stripeCustomerId: customer.id,
+        stripeSubscriptionId: subscription.id,
+        status: 'pending',
+        createdAt: new Date()
+      });
+    }
 
     res.json({
-      sessionId: session.id
+      clientSecret: payment_intent.client_secret
     });
   } catch (error) {
-    console.error('Stripe session creation error:', error);
-    res.status(500).json({ error: 'Failed to create checkout session' });
+    console.error('Stripe subscription creation error:', error);
+    res.status(500).json({ error: 'Failed to create subscription' });
   }
 });
 
@@ -75,19 +108,18 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
       endpointSecret
     );
 
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      const userId = parseInt(session.metadata?.userId || '0');
+    if (event.type === 'payment_intent.succeeded') {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      const userId = parseInt(paymentIntent.metadata?.userId || '0');
 
       if (!userId) {
-        throw new Error('Missing userId in session metadata');
+        throw new Error('Missing userId in payment intent metadata');
       }
 
       // Update subscription status
       await db.update(subscriptions)
         .set({
           status: 'active',
-          stripeSubscriptionId: session.subscription?.toString(),
           updatedAt: new Date(),
         })
         .where(eq(subscriptions.userId, userId));
