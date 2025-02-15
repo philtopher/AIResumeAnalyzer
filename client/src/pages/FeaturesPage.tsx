@@ -124,7 +124,6 @@ const ProPlanContent = () => {
   const [cardError, setCardError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [postalCode, setPostalCode] = useState("");
   const stripe = useStripe();
   const elements = useElements();
 
@@ -179,10 +178,7 @@ const ProPlanContent = () => {
           card: elements.getElement(CardElement)!,
           billing_details: {
             email: values.email,
-            name: values.username,
-            address: {
-              postal_code: postalCode
-            }
+            name: values.username
           },
         },
       });
@@ -200,7 +196,6 @@ const ProPlanContent = () => {
       // Reset form and clear card input
       form.reset();
       elements.getElement(CardElement)?.clear();
-      setPostalCode("");
 
     } catch (error: any) {
       console.error('Subscription error:', error);
@@ -428,17 +423,6 @@ const ProPlanContent = () => {
                     onChange={handleCardChange}
                   />
                 </div>
-                <FormItem>
-                  <FormLabel>Postal Code</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="text"
-                      value={postalCode}
-                      onChange={(e) => setPostalCode(e.target.value)}
-                      placeholder="Enter your postal code"
-                    />
-                  </FormControl>
-                </FormItem>
                 {cardError && (
                   <p className="text-sm text-destructive">{cardError}</p>
                 )}
