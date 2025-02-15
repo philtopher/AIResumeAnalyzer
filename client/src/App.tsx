@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
+import FAQPage from "./pages/FAQPage"; // Import the new component
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -35,7 +36,8 @@ function Navigation() {
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
 
   const menuItems = [
-    { label: "About CV Transformer", path: "/tutorial" },
+    { label: "How It Works", path: "/tutorial" },
+    { label: "FAQ", path: "/faq" },
     { label: "Features", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
@@ -157,6 +159,7 @@ function AuthenticatedApp() {
         <Switch>
           <Route path="/" component={HomePage} />
           <Route path="/tutorial" component={TutorialPage} />
+          <Route path="/faq" component={FAQPage} />
           <Route path="/features" component={FeaturesPage} />
           <Route path="/auth" component={AuthPage} />
           <Route path="/reset-password" component={ResetPasswordPage} />
@@ -168,6 +171,7 @@ function AuthenticatedApp() {
             window.location.pathname !== "/" &&
             window.location.pathname !== "/features" &&
             window.location.pathname !== "/tutorial" &&
+            window.location.pathname !== "/faq" &&
             window.location.pathname !== "/public-cv" &&
             window.location.pathname !== "/contact" &&
             window.location.pathname !== "/privacy-policy" &&
