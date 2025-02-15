@@ -21,10 +21,15 @@ export default function UpgradePlanPage() {
   useEffect(() => {
     // Verify subscription status when payment=success is in URL
     if (paymentStatus === 'success' && paymentUserId && user?.id.toString() === paymentUserId) {
+      console.log('Verifying payment success:', { paymentStatus, paymentUserId, userId: user?.id });
       setIsVerifying(true);
       fetch(`/api/verify-subscription/${paymentUserId}`)
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to verify subscription');
+          return res.json();
+        })
         .then(data => {
+          console.log('Verification response:', data);
           if (data.isSubscribed) {
             setIsSubscribed(true);
             toast({
@@ -168,8 +173,8 @@ export default function UpgradePlanPage() {
                   Currently Subscribed
                 </Button>
               ) : (
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   onClick={handleUpgradeClick}
                   disabled={isProcessing}
                 >
