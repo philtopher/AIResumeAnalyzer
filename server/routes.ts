@@ -269,7 +269,7 @@ function adaptSkills(originalSkills: string[]): string[] {
       ]
     };
 
-    return Object.entries(skillCategories).map(([category, skills]) => 
+    return Object.entries(skillCategories).map(([category, skills]) =>
       `${category}: ${skills.join(', ')}`
     );
   } catch (error) {
@@ -422,7 +422,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const result = feedbackSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
           message: result.error.issues.map(i => i.message).join(", ")
         });
@@ -704,146 +704,112 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).send("Access denied");
       }
 
-      // Get total users count
-      const [{ count: totalUsers }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(users);
-
-      // Get registered vs anonymous users
-      const [{ count: registeredUsers }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(users)
-        .where(sql`role != 'demo'`);
-
-      const anonymousUsers = totalUsers - registeredUsers;
-
-      // Get premium users count
-      const [{ count: premiumUsers }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(subscriptions)
-        .where(sql`status = 'active'`);
-
-      // Get active users (last 24 hours)
-      const twentyFourHoursAgo = new Date();
-      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
-
-      const [{ count: activeUsers }] = await db
-        .select({ count: sql<number>`count(distinct user_id)` })
-        .from(siteAnalytics)
-        .where(sql`visit_timestamp > ${twentyFourHoursAgo}`);
-
-      // Get conversion metrics
-      const [{ count: totalConversions }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(cvs);
-
-      const [{ count: registeredConversions }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(cvs)
-        .where(sql`user_id IN (SELECT id FROM users WHERE role != 'demo')`);
-
-      const anonymousConversions = totalConversions - registeredConversions;
-      const conversionRate = totalUsers > 0
-        ? ((totalConversions / totalUsers) * 100).toFixed(1)
-        : 0;
-
-      // Get system metrics
-      const cpuUsage = await new Promise<number>((resolve) => {
-        os.cpuUsage((value) => resolve(value * 100));
-      });
-
-      const memoryUsage = (1 - os.freememPercentage()) * 100;
-      const totalStorage = os.totalmem();
-      const freeStorage = os.freemem();
-      const storageUsage = ((totalStorage - freeStorage) / totalStorage) * 100;
-
-      // Get active connections
-      const [{ count: activeConnections }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(siteAnalytics)
-        .where(sql`visit_timestamp > ${new Date(Date.now() - 5 * 60 * 1000)}`);
-
-      // Get system metrics history
-      const systemMetricsHistory = await db
-        .select({
-          timestamp: sql<string>`to_char(timestamp, 'HH24:MI')`,
-          cpuUsage: systemMetrics.cpuUsage,
-          memoryUsage: systemMetrics.memoryUsage,
-          storageUsage: systemMetrics.storageUsage,
-        })
-        .from(systemMetrics)
-        .where(sql`timestamp > ${new Date(Date.now() - 60 * 60 * 1000)}`)
-        .orderBy(sql`timestamp`);
-
-      // Get suspicious activities
-      const suspiciousActivities = await db
-        .select({
-          ipAddress: siteAnalytics.ipAddress,
-          location: sql<string>`CONCAT(location_country, ', ', location_city)`,
-          reason: siteAnalytics.suspiciousReason,
-          timestamp: sql<string>`to_char(visit_timestamp, 'YYYY-MM-DD HH24:MI:SS')`,
-        })
-        .from(siteAnalytics)
-        .where(sql`is_suspicious = true`)
-        .orderBy(sql`visit_timestamp DESC`)
-        .limit(10);
-
-      // Get geographical distribution
-      const usersByLocation = await db
-        .select({
-          location: sql<string>`CONCAT(location_country, ', ', location_city)`,
-          count: sql<number>`count(DISTINCT user_id)`,
-        })
-        .from(siteAnalytics)
-        .groupBy(sql`location_country, location_city`)
-        .orderBy(sql`count DESC`)
-        .limit(10);
-
-      // Get conversions by location
-      const conversionsByLocation = await db
-        .select({
-          location: sql<string>`CONCAT(sa.location_country, ', ', sa.location_city)`,
-          count: sql<number>`count(DISTINCT c.id)`,
-        })
-        .from(siteAnalytics.as('sa'))
-        .innerJoin(cvs.as('c'), eq(siteAnalytics.userId, cvs.userId))
-        .groupBy(sql`sa.location_country, sa.location_city`)
-        .orderBy(sql`count DESC`)
-        .limit(10);
-
-      // Store current system metrics
-      await db.insert(systemMetrics).values({
-        cpuUsage,
-        memoryUsage,
-        storageUsage,
-        activeConnections,
-        responseTime: 0, // You would calculate this based on your needs
-        errorCount: 0, // You would increment this based on error logging
-      });
-
-      // Compile all analytics data
-      const analyticsData = {
-        totalUsers,
-        activeUsers,
-        registeredUsers,
-        anonymousUsers,
-        premiumUsers,
-        totalConversions,
-        registeredConversions,
-        anonymousConversions,
-        conversionRate,
-        cpuUsage,
-        memoryUsage,
-        storageUsage,
-        activeConnections,
-        systemMetricsHistory,
-        suspiciousActivities,
-        usersByLocation,
-        conversionsByLocation,
+      // Initialize default values
+      let analyticsData = {
+        totalUsers: 0,
+        activeUsers: 0,
+        registeredUsers: 0,
+        anonymousUsers: 0,
+        premiumUsers: 0,
+        totalConversions: 0,
+        registeredConversions: 0,
+        anonymousConversions: 0,
+        conversionRate: 0,
+        cpuUsage: 0,
+        memoryUsage: 0,
+        storageUsage: 0,
+        activeConnections: 0,
+        systemMetricsHistory: [],
+        suspiciousActivities: [],
+        usersByLocation: [],
+        conversionsByLocation: []
       };
 
+      try {
+        // Get total users count
+        const [{ count: totalUsers }] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(users);
+        analyticsData.totalUsers = Number(totalUsers);
+
+        // Get registered vs anonymous users
+        const [{ count: registeredUsers }] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(sql`role != 'demo'`);
+        analyticsData.registeredUsers = Number(registeredUsers);
+        analyticsData.anonymousUsers = analyticsData.totalUsers - analyticsData.registeredUsers;
+
+        // Get premium users count
+        const [{ count: premiumUsers }] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(subscriptions)
+          .where(sql`status = 'active'`);
+        analyticsData.premiumUsers = Number(premiumUsers);
+
+        // Get active users (last 24 hours)
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const [{ count: activeUsers }] = await db
+          .select({ count: sql<number>`count(distinct user_id)` })
+          .from(activityLogs)
+          .where(sql`created_at > ${twentyFourHoursAgo}`);
+        analyticsData.activeUsers = Number(activeUsers);
+
+        // Get conversion metrics
+        const [{ count: totalConversions }] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(cvs);
+        analyticsData.totalConversions = Number(totalConversions);
+
+        // Get system metrics
+        analyticsData.cpuUsage = await new Promise<number>((resolve) => {
+          os.cpuUsage((value) => resolve(value * 100));
+        });
+        analyticsData.memoryUsage = (1 - os.freememPercentage()) * 100;
+        const totalStorage = os.totalmem();
+        const freeStorage = os.freemem();
+        analyticsData.storageUsage = ((totalStorage - freeStorage) / totalStorage) * 100;
+
+        // Get active connections (last 5 minutes)
+        const [{ count: activeConnections }] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(siteAnalytics)
+          .where(sql`created_at > ${new Date(Date.now() - 5 * 60 * 1000)}`);
+        analyticsData.activeConnections = Number(activeConnections);
+
+        // Calculate conversion rate
+        analyticsData.conversionRate = analyticsData.totalUsers > 0
+          ? Number(((analyticsData.totalConversions / analyticsData.totalUsers) * 100).toFixed(1))
+          : 0;
+
+        // Get system metrics history (last hour)
+        const systemMetricsHistory = await db
+          .select({
+            timestamp: sql<string>`to_char(created_at, 'HH24:MI')`,
+            cpuUsage: systemMetrics.cpuUsage,
+            memoryUsage: systemMetrics.memoryUsage,
+            storageUsage: systemMetrics.storageUsage,
+          })
+          .from(systemMetrics)
+          .where(sql`created_at > ${new Date(Date.now() - 60 * 60 * 1000)}`)
+          .orderBy(sql`created_at`);
+        analyticsData.systemMetricsHistory = systemMetricsHistory;
+
+        // Store current system metrics
+        await db.insert(systemMetrics).values({
+          cpuUsage: analyticsData.cpuUsage,
+          memoryUsage: analyticsData.memoryUsage,
+          storageUsage: analyticsData.storageUsage,
+          activeConnections: analyticsData.activeConnections,
+        });
+
+      } catch (dbError) {
+        console.error("Database error in analytics:", dbError);
+        return res.status(500).send(`Database error: ${dbError.message}`);
+      }
+
       res.json(analyticsData);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Admin analytics error:", error);
       res.status(500).send(error.message);
     }

@@ -51,7 +51,6 @@ interface AnalyticsData {
   memoryUsage: number;
   storageUsage: number;
   activeConnections: number;
-  averageResponseTime: number;
   systemMetricsHistory: Array<{
     timestamp: string;
     cpuUsage: number;
@@ -76,11 +75,16 @@ export default function AdminDashboardPage() {
         credentials: "include",
       });
       if (!response.ok) {
-        throw new Error("Failed to fetch analytics");
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to fetch analytics: ${response.status} ${response.statusText}${
+            errorText ? ` - ${errorText}` : ""
+          }`
+        );
       }
       return response.json();
     },
-    refetchInterval: 30000,
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   if (isLoading) {
@@ -101,7 +105,9 @@ export default function AdminDashboardPage() {
       <div className="p-6">
         <Alert variant="destructive">
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>Failed to load analytics data</AlertDescription>
+          <AlertDescription>
+            {error instanceof Error ? error.message : "Failed to load analytics data"}
+          </AlertDescription>
         </Alert>
       </div>
     );
@@ -232,12 +238,12 @@ export default function AdminDashboardPage() {
             <PieChart>
               <Pie
                 data={[
-                  { name: 'Premium', value: analytics?.premiumUsers ?? 0 },
+                  { name: "Premium", value: analytics?.premiumUsers ?? 0 },
                   {
-                    name: 'Regular',
+                    name: "Regular",
                     value: (analytics?.registeredUsers ?? 0) - (analytics?.premiumUsers ?? 0),
                   },
-                  { name: 'Anonymous', value: analytics?.anonymousUsers ?? 0 },
+                  { name: "Anonymous", value: analytics?.anonymousUsers ?? 0 },
                 ]}
                 cx="50%"
                 cy="50%"
