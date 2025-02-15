@@ -43,12 +43,20 @@ import {
 
 // Initialize Stripe with proper error handling and debugging
 const stripePromise = (() => {
+  // List all available environment variables (excluding sensitive data)
+  console.log('Available environment variables:', Object.keys(import.meta.env));
+
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
   if (!key) {
-    console.error('Stripe publishable key is missing. Available env vars:', import.meta.env);
+    console.error('Stripe publishable key is missing. Available env vars:', 
+      Object.keys(import.meta.env)
+        .filter(key => !key.includes('SECRET'))
+        .reduce((acc, key) => ({ ...acc, [key]: import.meta.env[key] }), {})
+    );
     return null;
   }
-  console.log('Initializing Stripe with key prefix:', key.substring(0, 7));
+
+  console.log('Initializing Stripe with key prefix:', key.substring(0, 8) + '...');
   return loadStripe(key);
 })();
 

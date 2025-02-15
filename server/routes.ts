@@ -28,6 +28,19 @@ import Stripe from 'stripe';
 import express from 'express';
 
 
+// Update the Stripe initialization with better error handling
+const stripe = (() => {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    console.error('Stripe secret key is missing');
+    return null;
+  }
+  return new Stripe(key, {
+    apiVersion: '2023-10-16',
+    typescript: true,
+  });
+})();
+
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -371,9 +384,6 @@ function getWebhookUrl() {
 }
 
 // Initialize Stripe with proper configuration
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -502,7 +512,7 @@ export function registerRoutes(app: Express): Server {
       const { email, username, password } = req.body;
 
       // Create a customer with pending signup status and user data
-      const customer = await stripe.customers.create({
+      const customer = await stripe?.customers.create({
         email,
         metadata: {
           signup_pending: 'true',
@@ -510,8 +520,12 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
+      if (!customer) {
+        return res.status(500).json({error: "Failed to create Stripe customer"});
+      }
+
       // Create a subscription
-      const subscription = await stripe.subscriptions.create({
+      const subscription = await stripe?.subscriptions.create({
         customer: customer.id,
         items: [{ price: 'price_H5ggYwtDq4fbrJ' }], // Replace with your actual price ID
         payment_behavior: 'default_incomplete',
@@ -521,6 +535,10 @@ export function registerRoutes(app: Express): Server {
           signup_pending: 'true'
         }
       });
+
+      if (!subscription) {
+        return res.status(500).json({error: "Failed to create Stripe subscription"});
+      }
 
       const invoice = subscription.latest_invoice as Stripe.Invoice;
       const payment_intent = invoice.payment_intent as Stripe.PaymentIntent;
@@ -543,7 +561,7 @@ export function registerRoutes(app: Express): Server {
       let event;
 
       try {
-        event = stripe.webhooks.constructEvent(
+        event = stripe?.webhooks.constructEvent(
           req.body,
           sig,
           process.env.STRIPE_WEBHOOK_SECRET!
@@ -554,12 +572,17 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).send(`Webhook Error: ${err.message}`);
       }
 
+      if (!event) {
+          return res.status(400).send("Invalid webhook event");
+      }
+
+
       // Handle the event
       switch (event.type) {
         case 'payment_intent.succeeded':
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
           // Get the customer details
-          const customer = await stripe.customers.retrieve(paymentIntent.customer as string);
+          const customer = await stripe?.customers.retrieve(paymentIntent.customer as string);
 
           if (customer && !customer.deleted && customer.metadata.signup_pending) {
             const userData = JSON.parse(customer.metadata.user_data || '{}');
@@ -581,7 +604,7 @@ export function registerRoutes(app: Express): Server {
             });
 
             // Remove pending flag and user data from customer metadata
-            await stripe.customers.update(customer.id, {
+            await stripe?.customers.update(customer.id, {
               metadata: {
                 signup_pending: 'false',
                 user_data: ''
@@ -610,7 +633,7 @@ export function registerRoutes(app: Express): Server {
           const failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
           if (failedPaymentIntent.customer) {
             // Get customer and notify about failed payment
-            const customer = await stripe.customers.retrieve(failedPaymentIntent.customer as string);
+            const customer = await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
             if (customer && !customer.deleted) {
               await sendEmail({
                 to: customer.email!,
@@ -881,7 +904,6 @@ export function registerRoutes(app: Express): Server {
           .from(activityLogs)
           .where(sql`created_at > ${fiveMinutesAgo}`);
         analyticsData.activeConnections = Number(activeConnections) || 0;
-
         // Get metrics history
         const metricsHistory = await db
           .select({
