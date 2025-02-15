@@ -66,8 +66,8 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    // Use port 3000 for Replit
-    const PORT = 3000;
+    // Use port 5000 for Replit
+    const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server is running on port ${PORT}`);
     });

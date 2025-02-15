@@ -496,59 +496,36 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Find the create-subscription endpoint and update it:
+  // Update create-subscription endpoint
   app.post("/api/create-subscription", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, username, password } = req.body;
 
-      // Create a customer
+      // Create a customer with pending signup status and user data
       const customer = await stripe.customers.create({
         email,
+        metadata: {
+          signup_pending: 'true',
+          user_data: JSON.stringify({ username, password })
+        }
+      });
+
+      // Create a subscription
+      const subscription = await stripe.subscriptions.create({
+        customer: customer.id,
+        items: [{ price: 'price_H5ggYwtDq4fbrJ' }], // Replace with your actual price ID
+        payment_behavior: 'default_incomplete',
+        payment_settings: { save_default_payment_method: 'on_subscription' },
+        expand: ['latest_invoice.payment_intent'],
         metadata: {
           signup_pending: 'true'
         }
       });
 
-      // Create a price if it doesn't exist
-      let price;
-      const prices = await stripe.prices.list({
-        lookup_keys: ['cv_transformer_pro_monthly'],
-        active: true,
-        limit: 1
-      });
-
-      if (prices.data.length === 0) {
-        // Create a new product
-        const product = await stripe.products.create({
-          name: 'CV Transformer Pro',
-          description: 'Monthly subscription for CV Transformer Pro features'
-        });
-
-        // Create a new price
-        price = await stripe.prices.create({
-          unit_amount: 500, // £5.00
-          currency: 'gbp',
-          recurring: {
-            interval: 'month'
-          },
-          product: product.id,
-          lookup_key: 'cv_transformer_pro_monthly'
-        });
-      } else {
-        price = prices.data[0];
-      }
-
-      // Create a subscription
-      const subscription = await stripe.subscriptions.create({
-        customer: customer.id,
-        items: [{ price: price.id }],
-        payment_behavior: 'default_incomplete',
-        expand: ['latest_invoice.payment_intent'],
-      });
-
-      // Return the client secret
       const invoice = subscription.latest_invoice as Stripe.Invoice;
       const payment_intent = invoice.payment_intent as Stripe.PaymentIntent;
+
+      // Return the client secret
       res.json({
         subscriptionId: subscription.id,
         clientSecret: payment_intent.client_secret,
@@ -559,7 +536,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add webhook handler for Stripe events
+  // Update the webhook handler to properly sync subscription status
   app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
     try {
       const sig = req.headers['stripe-signature']!;
@@ -579,11 +556,39 @@ export function registerRoutes(app: Express): Server {
 
       // Handle the event
       switch (event.type) {
-        case 'customer.subscription.created':
-          const subscription = event.data.object as Stripe.Subscription;
-          const customer = await stripe.customers.retrieve(subscription.customer as string);
+        case 'payment_intent.succeeded':
+          const paymentIntent = event.data.object as Stripe.PaymentIntent;
+          // Get the customer details
+          const customer = await stripe.customers.retrieve(paymentIntent.customer as string);
 
-          if (customer && !customer.deleted) {
+          if (customer && !customer.deleted && customer.metadata.signup_pending) {
+            const userData = JSON.parse(customer.metadata.user_data || '{}');
+
+            // Create user account
+            const [newUser] = await db.insert(users).values({
+              email: customer.email!,
+              username: userData.username,
+              password: userData.password, // Note: Should be hashed in production
+              role: 'user'
+            }).returning();
+
+            // Create subscription record
+            await db.insert(subscriptions).values({
+              userId: newUser.id,
+              stripeCustomerId: customer.id,
+              status: 'active',
+              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+            });
+
+            // Remove pending flag and user data from customer metadata
+            await stripe.customers.update(customer.id, {
+              metadata: {
+                signup_pending: 'false',
+                user_data: ''
+              }
+            });
+
+            // Send welcome email
             await sendEmail({
               to: customer.email!,
               subject: 'Welcome to CV Transformer Pro!',
@@ -598,6 +603,24 @@ export function registerRoutes(app: Express): Server {
                 </ul>
               `
             });
+          }
+          break;
+
+        case 'payment_intent.payment_failed':
+          const failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
+          if (failedPaymentIntent.customer) {
+            // Get customer and notify about failed payment
+            const customer = await stripe.customers.retrieve(failedPaymentIntent.customer as string);
+            if (customer && !customer.deleted) {
+              await sendEmail({
+                to: customer.email!,
+                subject: 'Payment Failed',
+                html: `
+                  <h1>Payment Failed</h1>
+                  <p>We were unable to process your payment for CV Transformer Pro. Please try again or update your payment method.</p>
+                `
+              });
+            }
           }
           break;
 

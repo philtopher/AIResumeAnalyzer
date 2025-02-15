@@ -91,12 +91,14 @@ const PricingPlanContent = () => {
         throw new Error("Stripe.js hasn't loaded yet");
       }
 
+      // Create subscription with customer data
       const response = await fetch("/api/create-subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: values.email,
           username: values.username,
+          password: values.password
         }),
       });
 
@@ -107,11 +109,13 @@ const PricingPlanContent = () => {
 
       const { clientSecret } = await response.json();
 
-      const { error: paymentError } = await stripe.confirmCardPayment(clientSecret, {
+      // Confirm payment with the card details
+      const { error: paymentError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
-          card: elements.getElement(CardElement),
+          card: elements.getElement(CardElement)!,
           billing_details: {
             email: values.email,
+            name: values.username,
           },
         },
       });
@@ -120,27 +124,18 @@ const PricingPlanContent = () => {
         throw new Error(paymentError.message);
       }
 
-      // Create user account
-      const registerResponse = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
-
-      if (!registerResponse.ok) {
-        throw new Error("Failed to create account");
-      }
-
+      // Payment successful
       toast({
-        title: "Success!",
-        description: "Your pro account has been created. Check your email for confirmation.",
+        title: "Payment Successful!",
+        description: "Your account will be created momentarily. Please check your email for confirmation.",
       });
 
-      // Reset form
+      // Reset form and clear card input
       form.reset();
-      elements.getElement(CardElement).clear();
+      elements.getElement(CardElement)?.clear();
 
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Subscription error:', error);
       toast({
         title: "Error",
         description: error.message,
