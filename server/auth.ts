@@ -304,21 +304,10 @@ export function setupAuth(app: Express) {
 
       // Send welcome email with verification link using the reliable email sending approach
       try {
-        const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
-        await sendEmail({
-          to: email,
-          subject: 'Welcome to CV Transformer!',
-          html: `
-            <h1>Welcome to CV Transformer!</h1>
-            <p>Thank you for registering with CV Transformer! Please verify your email address by clicking the link below:</p>
-            <a href="${baseUrl}/verify-email/${newUser.verificationToken}">Verify Email</a>
-            <p>This verification link will expire in 1 hour.</p>
-            <p>If you did not request this registration, please ignore this email.</p>
-            <p>Best regards,<br>CV Transformer Team</p>
-          `
-        });
+        await sendVerificationEmail(email, newUser.verificationToken!);
+        console.log("[Auth] Verification email sent successfully to:", email);
       } catch (emailError) {
-        console.error("Failed to send welcome email:", emailError);
+        console.error("[Auth] Failed to send verification email:", emailError);
         // Continue with registration even if email fails
       }
 
@@ -438,9 +427,11 @@ export function setupAuth(app: Express) {
         // Send reset email
         try {
           await sendPasswordResetEmail(email, resetToken);
+          console.log("[Auth] Password reset email sent successfully to:", email);
         } catch (emailError) {
-          console.error("Failed to send password reset email:", emailError);
+          console.error("[Auth] Failed to send password reset email:", emailError);
           // Don't expose email sending failures to client
+          throw new Error("Failed to send password reset email. Please try again later.");
         }
       }
 
