@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
-import FAQPage from "./pages/FAQPage"; // Import the new component
+import FAQPage from "./pages/FAQPage";
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -36,7 +36,7 @@ function Navigation() {
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
 
   const menuItems = [
-    { label: "How It Works", path: "/tutorial" },
+    { label: "About CV Transformer", path: "/tutorial" },
     { label: "FAQ", path: "/faq" },
     { label: "Features", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
