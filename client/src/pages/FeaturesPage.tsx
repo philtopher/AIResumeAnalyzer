@@ -59,9 +59,11 @@ const FreePlanContent = () => {
           </div>
         </div>
 
-        <Button variant="outline" className="w-full">
-          Start Free
-        </Button>
+        <Link href="/auth">
+          <Button variant="outline" className="w-full">
+            Start Free
+          </Button>
+        </Link>
       </CardContent>
     </Card>
   );
