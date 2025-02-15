@@ -187,12 +187,22 @@ export function setupAuth(app: Express) {
     new LocalStrategy(async (username, password, done) => {
       try {
         // Join with subscriptions table to get subscription info
-        const [user] = await db
-          .select()
+        const result = await db
+          .select({
+            id: users.id,
+            username: users.username,
+            password: users.password,
+            email: users.email,
+            role: users.role,
+            emailVerified: users.emailVerified,
+            subscription: subscriptions,
+          })
           .from(users)
           .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
           .where(eq(users.username, username))
           .limit(1);
+
+        const user = result[0];
 
         if (!user) {
           return done(null, false, { message: "Invalid username or password." });
@@ -204,13 +214,17 @@ export function setupAuth(app: Express) {
         }
 
         // Check if user has an active subscription
-        const hasActiveSubscription = user.subscriptions && user.subscriptions.status === 'active';
+        const hasActiveSubscription = user.subscription && user.subscription.status === 'active';
 
         // Convert user to match Express.User interface
         const userForAuth = {
-          ...user,
+          id: user.id,
+          username: user.username,
+          password: user.password,
+          email: user.email,
           role: hasActiveSubscription ? 'pro_user' : user.role,
-          emailVerified: true, // Force email verified to true
+          emailVerified: user.emailVerified ?? false,
+          subscriptions: user.subscription ? { status: user.subscription.status } : null,
         };
 
         return done(null, userForAuth);
