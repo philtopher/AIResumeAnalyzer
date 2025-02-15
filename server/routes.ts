@@ -28,7 +28,7 @@ import Stripe from 'stripe';
 import express from 'express';
 
 
-// Update the Stripe initialization with better error handling
+// Add proper Stripe initialization with error handling
 const stripe = (() => {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) {
@@ -384,6 +384,7 @@ function getWebhookUrl() {
 }
 
 // Initialize Stripe with proper configuration
+
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -907,7 +908,7 @@ export function registerRoutes(app: Express): Server {
         // Get metrics history
         const metricsHistory = await db
           .select({
-            timestamp: sql<string>`to_char(timestamp, 'HH24:MI')`,
+            timestamp: sql<string>`tochar(timestamp, 'HH24:MI')`,
             cpuUsage: sql<number>`COALESCE(cpu_usage, 0)`,
             memoryUsage: sql<number>`COALESCE(memory_usage, 0)`,
             storageUsage: sql<number>`COALESCE(storage_usage, 0)`

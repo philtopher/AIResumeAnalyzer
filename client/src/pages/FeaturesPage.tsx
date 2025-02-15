@@ -43,8 +43,15 @@ import {
   Loader2,
 } from "lucide-react";
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// Initialize Stripe with proper error handling
+const stripePromise = (() => {
+  const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+  if (!key) {
+    console.error('Stripe publishable key is missing');
+    return null;
+  }
+  return loadStripe(key);
+})();
 
 // Form validation schema
 const signupSchema = z.object({
@@ -197,6 +204,32 @@ const ProPlanContent = () => {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (!stripePromise) {
+    return (
+      <Card className="border-primary relative overflow-hidden">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart className="h-6 w-6" />
+            Pro Plan
+          </CardTitle>
+          <CardDescription>
+            £5/month - Unlock premium features
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center p-4">
+            <p className="text-muted-foreground mb-4">
+              Payment system is currently unavailable. Please try again later.
+            </p>
+            <Link href="/contact">
+              <Button variant="outline">Contact Support</Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -375,7 +408,7 @@ const ProPlanContent = () => {
   );
 };
 
-export default function PricingPlansPage() {
+export default function FeaturesPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-12">
