@@ -31,7 +31,8 @@ router.post('/create-payment-link', async (req, res) => {
       throw new Error('STRIPE_PRICE_ID is not configured');
     }
 
-    // Create a payment link
+    // Create a payment link with fixed protocol and no double slashes
+    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || '';
     const paymentLink = await stripe.paymentLinks.create({
       line_items: [
         {
@@ -42,7 +43,7 @@ router.post('/create-payment-link', async (req, res) => {
       after_completion: {
         type: 'redirect',
         redirect: {
-          url: `${process.env.APP_URL}/upgrade?payment=success&userId=${req.user.id}`,
+          url: `${baseUrl}/upgrade?payment=success&userId=${req.user.id}`,
         },
       },
       metadata: {
@@ -56,6 +57,30 @@ router.post('/create-payment-link', async (req, res) => {
     res.status(500).json({ 
       error: error.message || 'Failed to create payment link'
     });
+  }
+});
+
+// Add endpoint to verify subscription status
+router.get('/verify-subscription/:userId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .limit(1);
+
+    res.json({ 
+      success: true,
+      isSubscribed: !!subscription && subscription.status === 'active'
+    });
+  } catch (error) {
+    console.error('Subscription verification error:', error);
+    res.status(500).json({ error: 'Failed to verify subscription status' });
   }
 });
 

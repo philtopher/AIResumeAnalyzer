@@ -1,15 +1,51 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Redirect } from "wouter";
+import { Redirect, useLocation, useSearch } from "wouter";
 import { Loader2, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function UpgradePlanPage() {
-  const { user, isLoading } = useUser();
+  const { user, isLoading: userLoading } = useUser();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
   const { toast } = useToast();
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const paymentStatus = params.get('payment');
+  const paymentUserId = params.get('userId');
+
+  useEffect(() => {
+    // Verify subscription status when payment=success is in URL
+    if (paymentStatus === 'success' && paymentUserId && user?.id.toString() === paymentUserId) {
+      setIsVerifying(true);
+      fetch(`/api/verify-subscription/${paymentUserId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.isSubscribed) {
+            setIsSubscribed(true);
+            toast({
+              title: "Upgrade Successful!",
+              description: "Welcome to CV Transformer Pro! Check your email for confirmation.",
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Verification error:', error);
+          toast({
+            title: "Verification Error",
+            description: "Could not verify subscription status. Please contact support.",
+            variant: "destructive",
+          });
+        })
+        .finally(() => {
+          setIsVerifying(false);
+        });
+    }
+  }, [paymentStatus, paymentUserId, user, toast]);
 
   const handleUpgradeClick = async () => {
     if (!user) return;
@@ -42,7 +78,7 @@ export default function UpgradePlanPage() {
     }
   };
 
-  if (isLoading) {
+  if (userLoading || isVerifying) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -57,6 +93,17 @@ export default function UpgradePlanPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-8">Upgrade to Pro Plan</h1>
+
+      {isSubscribed && (
+        <Alert className="mb-8">
+          <AlertTitle>Pro Plan Active!</AlertTitle>
+          <AlertDescription>
+            Your subscription is active. You now have access to all Pro features.
+            Visit your <a href="/dashboard" className="font-medium underline">dashboard</a> to start using them!
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid md:grid-cols-2 gap-8">
         {/* Free Plan Card */}
         <Card>
@@ -116,20 +163,26 @@ export default function UpgradePlanPage() {
             </div>
 
             <div className="mt-6">
-              <Button 
-                className="w-full" 
-                onClick={handleUpgradeClick}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  "Upgrade Now - £5/month"
-                )}
-              </Button>
+              {isSubscribed ? (
+                <Button className="w-full" disabled>
+                  Currently Subscribed
+                </Button>
+              ) : (
+                <Button 
+                  className="w-full" 
+                  onClick={handleUpgradeClick}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Upgrade Now - £5/month"
+                  )}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
