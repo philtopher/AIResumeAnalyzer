@@ -18,6 +18,11 @@ export async function sendEmail(options: {
   to: string;
   subject: string;
   html: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+  }>;
   retryCount?: number;
 }): Promise<boolean> {
   const retryCount = options.retryCount || 0;
@@ -29,7 +34,8 @@ export async function sendEmail(options: {
       subject: options.subject,
       attempt: retryCount + 1,
       apiKeySet: !!process.env.SENDGRID_API_KEY,
-      fromEmailSet: !!process.env.SENDGRID_FROM_EMAIL
+      fromEmailSet: !!process.env.SENDGRID_FROM_EMAIL,
+      hasAttachments: !!options.attachments
     });
 
     const msg = {
@@ -40,18 +46,19 @@ export async function sendEmail(options: {
       },
       subject: options.subject,
       html: options.html,
+      attachments: options.attachments,
       mailSettings: {
         sandboxMode: {
-          enable: false
+          enable: process.env.NODE_ENV === 'development'
         }
       },
       trackingSettings: {
         clickTracking: {
-          enable: false,
-          enableText: false
+          enable: true,
+          enableText: true
         },
         openTracking: {
-          enable: false
+          enable: true
         },
         subscriptionTracking: {
           enable: false
@@ -59,28 +66,25 @@ export async function sendEmail(options: {
         ganalytics: {
           enable: false
         }
-      },
-      asm: {
-        groupId: 0,
-        groupsToDisplay: []
       }
     };
 
     console.log("Sending email with message:", {
       to: msg.to,
       from: msg.from.email,
-      subject: msg.subject
+      subject: msg.subject,
+      hasAttachments: !!options.attachments
     });
 
     const [response] = await sgMail.send(msg);
 
     console.log("SendGrid API Response:", {
-      statusCode: response.statusCode,
-      headers: response.headers,
+      statusCode: response?.statusCode,
+      headers: response?.headers,
     });
 
-    if (response.statusCode !== 202) {
-      throw new Error(`SendGrid returned status code ${response.statusCode}`);
+    if (response?.statusCode !== 202) {
+      throw new Error(`SendGrid returned status code ${response?.statusCode}`);
     }
 
     return true;
@@ -180,20 +184,28 @@ export async function sendContactFormNotification(contactData: {
   name: string;
   email: string;
   phone?: string;
+  subject?: string;
   message: string;
 }) {
-  console.log("Starting contact form notification process to:", FROM_EMAIL, {
+  console.log("Starting contact form notification process", {
     fromEmail: FROM_EMAIL,
-    hasApiKey: !!process.env.SENDGRID_API_KEY
+    hasApiKey: !!process.env.SENDGRID_API_KEY,
+    contactData: {
+      name: contactData.name,
+      email: contactData.email,
+      hasPhone: !!contactData.phone,
+      messageLength: contactData.message.length
+    }
   });
 
   try {
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h1 style="color: #2563eb; margin-bottom: 20px;">New Feedback Submission</h1>
+        <h1 style="color: #2563eb; margin-bottom: 20px;">New Contact Form Submission</h1>
         <div style="background-color: #f8fafc; padding: 20px; border-radius: 5px;">
           <p><strong>From:</strong> ${contactData.name} (${contactData.email})</p>
           ${contactData.phone ? `<p><strong>Phone:</strong> ${contactData.phone}</p>` : ''}
+          ${contactData.subject ? `<p><strong>Subject:</strong> ${contactData.subject}</p>` : ''}
           <p><strong>Message:</strong></p>
           <p style="white-space: pre-wrap;">${contactData.message}</p>
         </div>
@@ -205,23 +217,42 @@ export async function sendContactFormNotification(contactData: {
       </div>
     `;
 
-    const success = await sendEmail({
+    // Send to admin
+    const adminSuccess = await sendEmail({
       to: FROM_EMAIL,
-      subject: `New Feedback Submission from ${contactData.name}`,
+      subject: `New Contact Form Submission from ${contactData.name}`,
       html: emailContent,
     });
 
-    if (!success) {
-      console.error("Failed to send feedback email notification", {
-        to: FROM_EMAIL,
-        name: contactData.name
+    // Send confirmation to user
+    const userSuccess = await sendEmail({
+      to: contactData.email,
+      subject: "Thank you for contacting CV Transformer",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h1 style="color: #2563eb; margin-bottom: 20px;">Thank You for Contacting Us</h1>
+          <p>Dear ${contactData.name},</p>
+          <p>We have received your message and will get back to you as soon as possible.</p>
+          <p>For reference, here is a copy of your message:</p>
+          <div style="background-color: #f8fafc; padding: 20px; border-radius: 5px; margin: 20px 0;">
+            <p style="white-space: pre-wrap;">${contactData.message}</p>
+          </div>
+          <p>Best regards,<br>CV Transformer Team</p>
+        </div>
+      `,
+    });
+
+    if (!adminSuccess || !userSuccess) {
+      console.error("Failed to send one or more contact form notifications", {
+        adminSuccess,
+        userSuccess
       });
-      throw new Error("Failed to send feedback email");
+      throw new Error("Failed to send notifications");
     }
 
-    return success;
+    return true;
   } catch (error: any) {
-    console.error("Feedback notification error:", {
+    console.error("Contact form notification error:", {
       error: error.message,
       stack: error.stack,
       sendGridError: error.response?.body
