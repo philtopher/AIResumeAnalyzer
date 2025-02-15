@@ -27,9 +27,6 @@ export default function FeaturesPage() {
             <Link href="/dashboard">
               <Button variant="ghost">Dashboard</Button>
             </Link>
-            <Link href="/auth">
-              <Button>Get Started</Button>
-            </Link>
           </div>
         </div>
       </nav>
