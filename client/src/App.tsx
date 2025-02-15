@@ -24,6 +24,7 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import FAQPage from "./pages/FAQPage";
 import AboutPage from "./pages/AboutPage"; // Import the new AboutPage component
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -187,7 +188,7 @@ function AuthenticatedApp() {
             <>
               <Route path="/dashboard" component={DashboardPage} />
               {(user?.role === "super_admin" || user?.role === "sub_admin") && (
-                <Route path="/admin" component={AdminPage} />
+                <Route path="/admin" component={AdminDashboardPage} />
               )}
             </>
           )}
