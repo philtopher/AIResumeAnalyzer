@@ -42,6 +42,7 @@ function Navigation() {
   const menuItems = [
     { label: "About", path: "/about" },
     { label: "How It Works", path: "/how-it-works" },
+    { label: "Features", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
   ];
@@ -49,10 +50,7 @@ function Navigation() {
   const authenticatedItems = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Privacy Settings", path: "/privacy-dashboard" },
-    // Show upgrade option only for verified users who aren't already pro
-    ...(user?.emailVerified && (!user.subscriptions || user.subscriptions.status !== 'active')
-      ? [{ label: "Upgrade to Pro", path: "/upgrade" }]
-      : []),
+    { label: "Upgrade to Pro", path: "/upgrade" },
     ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
     ...(isSuperAdmin ? [{ label: "Super Admin", path: "/super-admin" }] : []),
   ];
@@ -179,9 +177,7 @@ function App() {
             <>
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
-              {user.emailVerified && (
-                <Route path="/upgrade" component={UpgradePlanPage} />
-              )}
+              <Route path="/upgrade" component={UpgradePlanPage} />
               {(user?.role === "super_admin" || user?.role === "sub_admin") && (
                 <Route path="/admin" component={AdminDashboardPage} />
               )}
