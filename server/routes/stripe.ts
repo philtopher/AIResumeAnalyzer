@@ -52,7 +52,7 @@ router.post('/create-subscription', async (req, res) => {
     });
 
     res.json({
-      url: session.url,
+      sessionId: session.id
     });
   } catch (error) {
     console.error('Stripe session creation error:', error);

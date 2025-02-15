@@ -5,6 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Redirect } from "wouter";
 import { Loader2, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { loadStripe } from "@stripe/stripe-js";
+
+// Initialize Stripe
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 export default function UpgradePlanPage() {
   const { user, isLoading } = useUser();
@@ -18,6 +22,11 @@ export default function UpgradePlanPage() {
   // Handle upgrade to pro plan
   const handleUpgrade = async () => {
     try {
+      const stripe = await stripePromise;
+      if (!stripe) {
+        throw new Error("Stripe failed to initialize");
+      }
+
       const response = await fetch("/api/create-subscription", {
         method: "POST",
         headers: {
@@ -31,13 +40,15 @@ export default function UpgradePlanPage() {
         throw new Error(error);
       }
 
-      const { url } = await response.json();
+      const { sessionId } = await response.json();
 
       // Redirect to Stripe checkout
-      if (url) {
-        window.location.href = url;
-      } else {
-        throw new Error("No checkout URL received");
+      const { error } = await stripe.redirectToCheckout({
+        sessionId
+      });
+
+      if (error) {
+        throw error;
       }
     } catch (error: any) {
       toast({
