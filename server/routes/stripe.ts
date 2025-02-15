@@ -4,6 +4,7 @@ import { db } from '@db';
 import { subscriptions } from '@db/schema';
 import { eq } from 'drizzle-orm';
 import express from 'express';
+import { sendEmail } from '../email';
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('STRIPE_SECRET_KEY must be set');
@@ -44,15 +45,13 @@ router.post('/create-subscription', async (req, res) => {
 
     // Create a pending subscription record
     await db.insert(subscriptions).values({
-      user_id: req.user.id,
-      stripe_session_id: session.id,
+      userId: req.user.id,
+      stripeCustomerId: session.id,
       status: 'pending',
-      created_at: new Date(),
-      updated_at: new Date(),
+      createdAt: new Date(),
     });
 
     res.json({
-      sessionId: session.id,
       url: session.url,
     });
   } catch (error) {
@@ -88,10 +87,43 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
       await db.update(subscriptions)
         .set({
           status: 'active',
-          stripe_subscription_id: session.subscription?.toString(),
-          updated_at: new Date(),
+          stripeSubscriptionId: session.subscription?.toString(),
+          updatedAt: new Date(),
         })
-        .where(eq(subscriptions.user_id, userId));
+        .where(eq(subscriptions.userId, userId));
+
+      // Send confirmation email
+      try {
+        const [user] = await db
+          .select()
+          .from('users')
+          .where(eq('users.id', userId))
+          .limit(1);
+
+        if (user && user.email) {
+          await sendEmail({
+            to: user.email,
+            subject: 'Welcome to CV Transformer Pro!',
+            html: `
+              <h1>Welcome to CV Transformer Pro!</h1>
+              <p>Thank you for upgrading to our Pro Plan! Your subscription is now active.</p>
+              <h2>Your Pro Features Include:</h2>
+              <ul>
+                <li>Advanced CV Analysis</li>
+                <li>Employer Competitor Analysis</li>
+                <li>Interviewer LinkedIn Insights</li>
+                <li>Unlimited CV Downloads</li>
+              </ul>
+              <p>Start exploring your new features now by visiting your <a href="${process.env.APP_URL}/dashboard">dashboard</a>.</p>
+              <p>If you have any questions, our support team is here to help!</p>
+              <p>Best regards,<br>CV Transformer Team</p>
+            `
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send confirmation email:', emailError);
+        // Continue even if email fails
+      }
     }
 
     res.json({ received: true });

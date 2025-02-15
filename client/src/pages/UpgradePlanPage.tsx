@@ -31,11 +31,15 @@ export default function UpgradePlanPage() {
         throw new Error(error);
       }
 
-      const { subscriptionId, clientSecret } = await response.json();
+      const { url } = await response.json();
 
       // Redirect to Stripe checkout
-      window.location.href = `/checkout?session_id=${subscriptionId}&client_secret=${clientSecret}`;
-    } catch (error) {
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error("No checkout URL received");
+      }
+    } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to start subscription process",
@@ -55,7 +59,7 @@ export default function UpgradePlanPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-8">Upgrade to Pro Plan</h1>
-      
+
       <div className="grid md:grid-cols-2 gap-8">
         <Card className="relative">
           <CardHeader>
@@ -82,7 +86,7 @@ export default function UpgradePlanPage() {
 
         <Card className="relative border-primary">
           <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm">
-            Upgrade Now
+            Advanced Features
           </div>
           <CardHeader>
             <CardTitle>Pro Plan</CardTitle>
@@ -100,15 +104,15 @@ export default function UpgradePlanPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Organization insights</span>
+                <span>Employer competitor analysis</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Detailed CV scoring and analysis</span>
+                <span>Interviewer LinkedIn insights</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Full CV generation option</span>
+                <span>Advanced CV scoring and analysis</span>
               </div>
             </div>
 
