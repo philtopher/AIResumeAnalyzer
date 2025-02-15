@@ -88,12 +88,12 @@ export default function PublicCVPage() {
     }
   }
 
-  async function handleDownload() {
+  async function handleDownload(format: 'pdf' | 'docx') {
     if (!transformedCV) return;
 
     try {
       const response = await fetch(
-        `/api/cv/${transformedCV.id}/download/public?format=docx`
+        `/api/cv/${transformedCV.id}/download/public?format=${format}`
       );
       if (!response.ok) {
         throw new Error(await response.text());
@@ -103,7 +103,7 @@ export default function PublicCVPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "transformed_cv.docx";
+      a.download = `transformed_cv.${format}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -205,7 +205,7 @@ export default function PublicCVPage() {
                     <div className="flex gap-2 mb-4">
                       <Button
                         variant="secondary"
-                        onClick={handleView}
+                        onClick={() => handleView()}
                         className="transition-all duration-200 hover:scale-[1.02]"
                       >
                         <Eye className="h-4 w-4 mr-1" />
@@ -213,11 +213,19 @@ export default function PublicCVPage() {
                       </Button>
                       <Button
                         variant="secondary"
-                        onClick={handleDownload}
+                        onClick={() => handleDownload('pdf')}
                         className="transition-all duration-200 hover:scale-[1.02]"
                       >
                         <Download className="h-4 w-4 mr-1" />
-                        Download as Word
+                        Download PDF
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleDownload('docx')}
+                        className="transition-all duration-200 hover:scale-[1.02]"
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download Word
                       </Button>
                     </div>
 
