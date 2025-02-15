@@ -7,77 +7,108 @@ export default function PrivacyPolicyPage() {
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto prose">
           <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
-          
+          <p className="text-sm text-muted-foreground mb-8">Effective Date: 15/02/2025</p>
+
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Data Collection and Usage</h2>
+            <h2 className="text-2xl font-semibold mb-4">1. Introduction</h2>
             <p>
-              We collect and process the following information when you use our CV transformation service:
+              Welcome to CV Transformer ("we," "us," "our"). We value your privacy and are committed to protecting your personal data. 
+              This Privacy Policy explains how we collect, use, and protect your information when you use our CV conversion service.
             </p>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold mb-4">2. Data We Collect</h2>
+            <p>When you use our service, we may collect:</p>
             <ul>
-              <li>Uploaded CV documents (temporarily during processing)</li>
-              <li>Email address (for account management and communications)</li>
-              <li>Payment details (processed securely through our payment provider)</li>
+              <li>Uploaded CVs (processed in real-time and automatically deleted after transformation)</li>
+              <li>Contact details (if voluntarily provided) for customer support</li>
+              <li>Payment information (processed securely through third-party payment providers, we do not store this data)</li>
+              <li>Website usage data (e.g., IP address, browser type, and analytics to improve our service)</li>
             </ul>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Data Retention</h2>
-            <p>
-              Your privacy is important to us. Here's how we handle your data:
-            </p>
+            <h2 className="text-2xl font-semibold mb-4">3. How We Use Your Data</h2>
+            <p>We use your data to:</p>
             <ul>
-              <li>CV documents are automatically deleted after processing</li>
-              <li>Account information is retained while your account is active</li>
-              <li>Payment information is not stored on our servers</li>
+              <li>Process and transform your CV based on the job description you provide</li>
+              <li>Improve and optimize services rendered to you</li>
+              <li>Provide customer support and respond to inquiries</li>
+              <li>Comply with legal obligations</li>
             </ul>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Data Sharing</h2>
-            <p>
-              We do not sell or share your personal information with third parties. Your data is only used to provide our CV transformation service.
-            </p>
-          </section>
-
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Security Measures</h2>
-            <p>
-              We implement several security measures to protect your information:
-            </p>
+            <h2 className="text-2xl font-semibold mb-4">4. Data Retention and Storage</h2>
             <ul>
-              <li>Secure SSL/TLS encryption for all data transfers</li>
-              <li>Regular security audits and updates</li>
-              <li>Limited employee access to user data</li>
+              <li>We do not permanently store uploaded CVs—they are automatically deleted after processing.</li>
+              <li>We do not sell, share, or distribute personal data to third parties.</li>
+              <li>Payment details are handled securely by our payment processor and are never stored by us.</li>
             </ul>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Your Rights</h2>
-            <p>
-              You have the right to:
-            </p>
+            <h2 className="text-2xl font-semibold mb-4">5. Security Measures</h2>
+            <p>We implement appropriate security measures to protect your data, including:</p>
             <ul>
-              <li>Request access to your personal data</li>
-              <li>Request correction or deletion of your data</li>
-              <li>Opt-out of marketing communications</li>
+              <li>End-to-end encryption for CV uploads and processing</li>
+              <li>Automatic data deletion after processing</li>
+              <li>Secure third-party payment handling to prevent unauthorized access to financial data</li>
             </ul>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Contact Information</h2>
+            <h2 className="text-2xl font-semibold mb-4">6. Your Rights (EU/UK Users)</h2>
+            <p>If you are a resident of the EU or UK (GDPR-compliant regions), you have the right to:</p>
+            <ul>
+              <li>Access your personal data</li>
+              <li>Request deletion of your data</li>
+              <li>Restrict processing of your data</li>
+              <li>Object to data processing under certain conditions</li>
+            </ul>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold mb-4">7. Your Rights (US Users – CCPA Compliance)</h2>
+            <p>If you are a resident of California (CCPA compliance), you have the right to:</p>
+            <ul>
+              <li>Request what personal information we have collected</li>
+              <li>Request deletion of your personal data</li>
+              <li>Opt-out of any data sharing (though we do not sell user data)</li>
+            </ul>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold mb-4">8. Third-Party Services</h2>
             <p>
-              For any privacy-related questions or requests, please contact us through our{" "}
-              <Link href="/contact" className="text-primary hover:underline">
-                contact form
+              We may use third-party services (e.g., analytics, payment processors) that adhere to their own privacy policies. 
+              We recommend reviewing their policies for further details.
+            </p>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold mb-4">9. Changes to This Privacy Policy</h2>
+            <p>
+              We may update this Privacy Policy periodically. Any changes will be posted here with an updated "Effective Date."
+            </p>
+          </section>
+
+          <div className="mt-12 pt-6 border-t">
+            <div className="flex justify-center gap-4 mb-4">
+              <Link href="/terms-of-service">
+                <Button variant="link">Terms & Conditions</Button>
               </Link>
-              .
+              <Link href="/contact">
+                <Button variant="link">Contact Us</Button>
+              </Link>
+              <Link href="/">
+                <Button variant="link">Home</Button>
+              </Link>
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              © {new Date().getFullYear()} CV Transformer. All rights reserved.
             </p>
-          </section>
-
-          <div className="mt-8">
-            <Link href="/">
-              <Button variant="ghost">Back to Home</Button>
-            </Link>
           </div>
         </div>
       </main>

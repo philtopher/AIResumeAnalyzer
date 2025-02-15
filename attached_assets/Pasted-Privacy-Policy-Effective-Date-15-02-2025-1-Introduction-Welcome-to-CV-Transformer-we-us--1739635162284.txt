@@ -1,0 +1,45 @@
+Privacy Policy
+Effective Date: 15/02/2025
+1. Introduction
+Welcome to CV Transformer (“we,” “us,” “our”). We value your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, and protect your information when you use our CV conversion service.
+2. Data We Collect
+When you use our service, we may collect:
+•	Uploaded CVs (processed in real-time and automatically deleted after transformation)
+•	Contact details (if voluntarily provided) for customer support
+•	Payment information (processed securely through third-party payment providers, we do not store this data)
+•	Website usage data (e.g., IP address, browser type, and analytics to improve our service)
+3. How We Use Your Data
+We use your data to:
+•	Process and transform your CV based on the job description you provide
+•	Improve and optimize services rendered to you
+•	Provide customer support and respond to inquiries
+•	Comply with legal obligations
+4. Data Retention and Storage
+•	We do not permanently store uploaded CVs—they are automatically deleted after processing.
+•	We do not sell, share, or distribute personal data to third parties.
+•	Payment details are handled securely by our payment processor and are never stored by us.
+5. Security Measures
+We implement appropriate security measures to protect your data, including:
+•	End-to-end encryption for CV uploads and processing
+•	Automatic data deletion after processing
+•	Secure third-party payment handling to prevent unauthorized access to financial data
+6. Your Rights (EU/UK Users)
+If you are a resident of the EU or UK (GDPR-compliant regions), you have the right to:
+•	Access your personal data
+•	Request deletion of your data
+•	Restrict processing of your data
+•	Object to data processing under certain conditions
+To exercise these right, please visit our contact page.
+7. Your Rights (US Users – CCPA Compliance)
+If you are a resident of California (CCPA compliance), you have the right to:
+•	Request what personal information we have collected
+•	Request deletion of your personal data
+•	Opt-out of any data sharing (though we do not sell user data)
+To exercise these rights, email [Your Contact Email].
+8. Third-Party Services
+We may use third-party services (e.g., analytics, payment processors) that adhere to their own privacy policies. We recommend reviewing their policies for further details.
+9. Changes to This Privacy Policy
+We may update this Privacy Policy periodically. Any changes will be posted here with an updated "Effective Date."
+10. Contact Information
+For any privacy-related questions or requests, contact us at [Your Email Address].
+

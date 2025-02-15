@@ -6,73 +6,105 @@ export default function TermsOfServicePage() {
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto prose">
-          <h1 className="text-4xl font-bold mb-8">Terms of Service</h1>
+          <h1 className="text-4xl font-bold mb-8">Terms & Conditions</h1>
+          <p className="text-sm text-muted-foreground mb-8">Effective Date: 15/02/2025</p>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Service Usage</h2>
+            <h2 className="text-2xl font-semibold mb-4">1. Introduction</h2>
             <p>
-              By using our CV transformation service, you agree to these terms:
+              These Terms & Conditions ("Terms") govern your use of CV Transformer ("we," "us," "our"). 
+              By using our website and services, you agree to these Terms. If you do not agree, please do not use our services.
             </p>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold mb-4">2. Service Description</h2>
+            <p>CV Transformer provides an AI-powered CV transformation service. Our service:</p>
             <ul>
-              <li>You must provide accurate information in your CV</li>
-              <li>You must not upload CVs containing false or misleading information</li>
-              <li>You must not use the service for any illegal purposes</li>
-              <li>You are responsible for maintaining the confidentiality of your account</li>
+              <li>Processes and optimizes CVs based on job descriptions</li>
+              <li>Does not guarantee job placement or interviews</li>
+              <li>Does not store CVs permanently, files are automatically deleted after processing</li>
             </ul>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Subscription and Refunds</h2>
-            <p>
-              Our subscription terms are as follows:
-            </p>
+            <h2 className="text-2xl font-semibold mb-4">3. User Responsibilities</h2>
+            <p>By using our service, you agree that you:</p>
             <ul>
-              <li>Monthly subscription of £5 for premium features</li>
-              <li>Refund requests must be submitted within 14 days of purchase</li>
-              <li>Refunds are processed at our discretion based on service usage</li>
+              <li>Will only upload CVs that you own or have permission to modify</li>
+              <li>Will not use our service for fraudulent or illegal purposes</li>
+              <li>Understand that we do not guarantee employment outcomes</li>
             </ul>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Service Limitations</h2>
-            <p>
-              Please be aware of the following limitations:
-            </p>
+            <h2 className="text-2xl font-semibold mb-4">4. Data Loss & Security Disclaimer</h2>
+            <p>While we take strong security measures, you acknowledge that:</p>
             <ul>
-              <li>We do not guarantee job interviews or employment</li>
-              <li>The AI transformation process optimizes existing content but does not generate false experience</li>
-              <li>Service availability may vary due to maintenance or technical issues</li>
+              <li>Data transmission over the internet is not 100% secure</li>
+              <li>We are not liable for any data loss, breach, or unintended access due to third-party vulnerabilities</li>
+              <li>You should keep backups of your original CV, as we do not store them permanently</li>
             </ul>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Intellectual Property</h2>
-            <p>
-              While you retain ownership of your CV content, you grant us the right to:
-            </p>
+            <h2 className="text-2xl font-semibold mb-4">5. Payment & Refund Policy</h2>
             <ul>
-              <li>Process and transform your CV using our AI technology</li>
-              <li>Store necessary data for service provision</li>
-              <li>Improve our AI models using anonymized data</li>
+              <li>Our service operates on a subscription/payment basis.</li>
+              <li>Payments are processed securely by third-party providers.</li>
+              <li>Refunds may be granted under specific conditions, please contact us for eligibility.</li>
             </ul>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Dispute Resolution</h2>
-            <p>
-              Any disputes will be resolved through:
-            </p>
+            <h2 className="text-2xl font-semibold mb-4">6. Limitation of Liability</h2>
+            <p>To the fullest extent permitted by law, we are not liable for:</p>
             <ul>
-              <li>Initial informal communication</li>
-              <li>Formal mediation if necessary</li>
-              <li>Legal proceedings as a last resort</li>
+              <li>Any loss of employment opportunities due to the use of our service</li>
+              <li>Any errors or inaccuracies in the AI generated CV output</li>
+              <li>Any indirect, incidental, or consequential damages arising from your use of our website</li>
             </ul>
           </section>
 
-          <div className="mt-8">
-            <Link href="/">
-              <Button variant="ghost">Back to Home</Button>
-            </Link>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold mb-4">7. Termination of Service</h2>
+            <p>We reserve the right to suspend or terminate accounts that:</p>
+            <ul>
+              <li>Violate these Terms</li>
+              <li>Engage in fraudulent or abusive activities</li>
+            </ul>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold mb-4">8. Governing Law</h2>
+            <ul>
+              <li>For UK/EU users, these Terms comply with GDPR regulations and UK consumer protection laws.</li>
+              <li>For US users, these Terms comply with applicable federal and state laws (including CCPA).</li>
+            </ul>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold mb-4">9. Changes to These Terms</h2>
+            <p>
+              We may update these Terms periodically. Continued use of our service means you accept any changes.
+            </p>
+          </section>
+
+          <div className="mt-12 pt-6 border-t">
+            <div className="flex justify-center gap-4 mb-4">
+              <Link href="/privacy-policy">
+                <Button variant="link">Privacy Policy</Button>
+              </Link>
+              <Link href="/contact">
+                <Button variant="link">Contact Us</Button>
+              </Link>
+              <Link href="/">
+                <Button variant="link">Home</Button>
+              </Link>
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              © {new Date().getFullYear()} CV Transformer. All rights reserved.
+            </p>
           </div>
         </div>
       </main>
