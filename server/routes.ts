@@ -25,6 +25,7 @@ import os from 'os-utils';
 import geoip from 'geoip-lite';
 import { UAParser } from 'ua-parser-js';
 import Stripe from 'stripe';
+import express from 'express';
 
 
 // Configure multer for file uploads
@@ -355,8 +356,24 @@ const feedbackSchema = z.object({
   message: z.string().min(10),
 });
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Helper function to get webhook URL
+function getWebhookUrl() {
+  if (process.env.NODE_ENV === 'production') {
+    return `${process.env.APP_URL}/api/webhook`;
+  }
+  // For Replit development environment
+  const replitId = process.env.REPL_ID;
+  const replitOwner = process.env.REPL_OWNER;
+  const replitSlug = process.env.REPL_SLUG;
+
+  // Construct the Replit-specific URL
+  return `https://${replitSlug}.${replitOwner}.repl.co/api/webhook`;
+}
+
+// Initialize Stripe with proper configuration
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16',
+});
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -543,25 +560,32 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add webhook handler for Stripe events
-  app.post("/api/webhook", async (req, res) => {
+  app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
     try {
       const sig = req.headers['stripe-signature']!;
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET!
-      );
+      let event;
 
+      try {
+        event = stripe.webhooks.constructEvent(
+          req.body,
+          sig,
+          process.env.STRIPE_WEBHOOK_SECRET!
+        );
+        console.log('Webhook received:', event.type);
+      } catch (err: any) {
+        console.error(`⚠️ Webhook Error: ${err.message}`);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+
+      // Handle the event
       switch (event.type) {
         case 'customer.subscription.created':
           const subscription = event.data.object as Stripe.Subscription;
           const customer = await stripe.customers.retrieve(subscription.customer as string);
 
-          if (customer.metadata.signup_pending === 'true') {
-            // Send welcome email
+          if (customer && !customer.deleted) {
             await sendEmail({
               to: customer.email!,
-              from: 'support@cvtransformer.com',
               subject: 'Welcome to CV Transformer Pro!',
               html: `
                 <h1>Welcome to CV Transformer Pro!</h1>
@@ -572,24 +596,13 @@ export function registerRoutes(app: Express): Server {
                   <li>Price: £5/month</li>
                   <li>Billing Period: Monthly</li>
                 </ul>
-                <h2>Important Links:</h2>
-                <ul>
-                  <li><a href="${process.env.APP_URL}/terms-of-service">Terms of Service</a></li>
-                  <li><a href="${process.env.APP_URL}/privacy-policy">Privacy Policy</a></li>
-                </ul>
-                <h2>Managing Your Subscription:</h2>
-                <p>To cancel your subscription or request a refund:</p>
-                <ol>
-                  <li>Log in to your account</li>
-                  <li>Go to Settings > Subscription</li>
-                  <li>Click "Cancel Subscription"</li>
-                </ol>
-                <p>You can also contact our support team at support@cvtransformer.com</p>
-                <p>Note: Refunds are available within 14 days of subscription start.</p>
               `
             });
           }
           break;
+
+        default:
+          console.log(`Unhandled event type ${event.type}`);
       }
 
       res.json({ received: true });
@@ -598,60 +611,6 @@ export function registerRoutes(app: Express): Server {
       res.status(400).json({ error: error.message });
     }
   });
-
-  app.post("/api/admin/contacts/:id/status", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user ||
-        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
-        return res.status(403).send("Access denied");
-      }
-
-      const contactId = parseInt(req.params.id);
-      const { status } = req.body;
-
-      if (!["new", "read", "responded"].includes(status)) {
-        return res.status(400).send("Invalid status");
-      }
-
-      const [contact] = await db
-        .update(contacts)
-        .set({ status })
-        .where(eq(contacts.id, contactId))
-        .returning();
-
-      // Log activity
-      await db.insert(activityLogs).values({
-        user_id: req.user.id,
-        action: "update_contact_status",
-        details: { contactId, status },
-      });
-
-      res.json(contact);
-    } catch (error: any) {
-      console.error("Update contact status error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.get("/api/admin/contacts", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user ||
-        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
-        return res.status(403).send("Access denied");
-      }
-
-      const allContacts = await db
-        .select()
-        .from(contacts)
-        .orderBy(desc(contacts.created_at));
-
-      res.json(allContacts);
-    } catch (error: any) {
-      console.error("Get contacts error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
 
   // Admin routes
   app.get("/api/admin/users", async (req, res) => {

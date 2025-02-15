@@ -4,7 +4,16 @@ import { setupVite, serveStatic, log } from "./vite";
 import { updateAdminPassword } from "./auth";
 
 const app = express();
-app.use(express.json());
+
+// Important: Raw body parsing for Stripe webhooks must come before JSON parsing
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/webhook') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -57,9 +66,10 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    const PORT = 5000;
+    // Use port 3000 for Replit
+    const PORT = 3000;
     server.listen(PORT, "0.0.0.0", () => {
-      log(`serving on port ${PORT}`);
+      log(`Server is running on port ${PORT}`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
