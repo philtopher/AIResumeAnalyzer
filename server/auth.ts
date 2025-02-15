@@ -524,14 +524,14 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (!user) {
-        return res.status(400).json({
+        return res.status(400).json({ 
           error: "Invalid verification token",
           message: "The verification link is invalid or has expired. Please request a new verification email."
         });
       }
 
       if (!user.verificationTokenExpiry || user.verificationTokenExpiry < new Date()) {
-        return res.status(400).json({
+        return res.status(400).json({ 
           error: "Token expired",
           message: "The verification link has expired. Please request a new verification email."
         });
