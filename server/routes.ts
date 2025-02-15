@@ -921,7 +921,7 @@ export function registerRoutes(app: Express): Server {
             status: action === "activate" ? "active" : "inactive",
             endedAt: endDate
           })
-          .where(eq(subscriptions.userId, userId));
+          .where(eq(subscriptions.userId.userId, userId));
       } else if (action === "activate") {
         await db
           .insert(subscriptions)
@@ -1863,7 +1863,59 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
     }
   });
 
-  // Add CV transformation routes after existing routes
+  // Add CV transformation routes after existing routes and before the httpServer creation
+
+  app.post("/api/admin/send-access-link", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "super_admin") {
+        return res.status(403).send("Access denied");
+      }
+
+      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+
+      await sendEmail({
+        to: "t.unamka@yahoo.co.uk",
+        subject: "CV Transformer - Super Admin Dashboard Access",
+        html: `
+          <h1>CV Transformer Super Admin Dashboard Access</h1>
+          <p>Hello,</p>
+          <p>You can access the Super Admin Dashboard through this link:</p>
+          <p><a href="${baseUrl}/super-admin" style="padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Access Super Admin Dashboard</a></p>
+
+          <h2>Available Features:</h2>
+          <ul>
+            <li><strong>User Management:</strong> Add, verify, modify, and delete user accounts</li>
+            <li><strong>Analytics Dashboard:</strong> View user distribution, activity patterns, and geographic data</li>
+            <li><strong>Security Monitoring:</strong> Track suspicious activities and manage security threats</li>
+          </ul>
+
+          <p><strong>Security Note:</strong> This link provides access to sensitive administrative functions. Please:</p>
+          <ul>
+            <li>Do not share this link with unauthorized users</li>
+            <li>Always log out after your session</li>
+            <li>Use a secure, private network when accessing admin features</li>
+          </ul>
+
+          <p>Best regards,<br>CV Transformer Team</p>
+        `
+      });
+
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "send_admin_access_link",
+        details: {
+          timestamp: new Date().toISOString(),
+          emailSent: true
+        }
+      });
+
+      res.json({ message: "Access link sent successfully" });
+    } catch (error: any) {
+      console.error("Error sending access link:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
   app.post("/api/cv/transform/public", upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
@@ -2104,6 +2156,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
   });
 
   // Add these routes after existing routes and before the httpServer creation
+
 
   const httpServer = createServer(app);
   return httpServer;
