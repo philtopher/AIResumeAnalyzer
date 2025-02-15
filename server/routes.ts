@@ -9,7 +9,7 @@ import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema
 import multer from "multer";
 import { extname } from "path";
 import mammoth from "mammoth";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import {
   Document,
   Paragraph,
@@ -28,6 +28,7 @@ import Stripe from 'stripe';
 import express from 'express';
 import { hashPassword } from "./auth";
 import {randomUUID} from 'crypto';
+import { format } from "date-fns";
 
 // Add proper Stripe initialization with error handling
 const stripe = (() => {
@@ -1031,6 +1032,136 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add this route after the existing admin routes
+  app.post("/api/admin/users/:id/activity-report", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "super_admin") {
+        return res.status(403).send("Access denied");
+      }
+
+      const userId = parseInt(req.params.id);
+
+      // Get user details
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      // Get user's activity logs
+      const activities = await db
+        .select()
+        .from(activityLogs)
+        .where(eq(activityLogs.userId, userId))
+        .orderBy(desc(activityLogs.createdAt));
+
+      // Create PDF document
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage();
+      const { width, height } = page.getSize();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const fontSize = 12;
+
+      // Add title
+      page.drawText(`Activity Report for ${user.username}`, {
+        x: 50,
+        y: height - 50,
+        size: 20,
+        font,
+        color: rgb(0, 0, 0),
+      });
+
+      // Add timestamp
+      page.drawText(`Generated on: ${format(new Date(), 'PPpp')}`, {
+        x: 50,
+        y: height - 80,
+        size: fontSize,
+        font,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+
+      // Add user info
+      page.drawText(`Email: ${user.email}`, {
+        x: 50,
+        y: height - 120,
+        size: fontSize,
+        font,
+      });
+
+      // Add activities
+      let yOffset = height - 160;
+      for (const activity of activities) {
+        if (yOffset < 50) {
+          // Add new page if we're running out of space
+          page = pdfDoc.addPage();
+          yOffset = height - 50;
+        }
+
+        const timestamp = format(new Date(activity.createdAt), 'PPpp');
+        page.drawText(`${timestamp} - ${activity.action}`, {
+          x: 50,
+          y: yOffset,
+          size: fontSize,
+          font,
+        });
+
+        if (activity.details) {
+          yOffset -= 20;
+          page.drawText(`Details: ${JSON.stringify(activity.details)}`, {
+            x: 70,
+            y: yOffset,
+            size: fontSize - 2,
+            font,
+            color: rgb(0.4, 0.4, 0.4),
+          });
+        }
+
+        yOffset -= 30;
+      }
+
+      // Generate PDF
+      const pdfBytes = await pdfDoc.save();
+
+      // Send email with PDF attachment
+      await sendEmail({
+        to: user.email,
+        subject: "Your Activity Report from CV Transformer",
+        html: `
+          <h1>Activity Report</h1>
+          <p>Dear ${user.username},</p>
+          <p>As requested by the administrator, please find attached your activity report from CV Transformer.</p>
+          <p>This report includes a comprehensive log of your account activity.</p>
+          <p>If you have any questions about this report, please contact our support team.</p>
+          <p>Best regards,<br>CV Transformer Team</p>
+        `,
+        attachments: [{
+          filename: `activity_report_${user.username}.pdf`,
+          content: Buffer.from(pdfBytes),
+          contentType: 'application/pdf'
+        }]
+      });
+
+      // Log this action
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "generate_activity_report",
+        details: {
+          targetUserId: userId,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      res.json({ message: "Activity report sent successfully" });
+    } catch (error: any) {
+      console.error("Error generating activity report:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
   // Middleware to track site analytics
   app.use(async (req, res, next) => {
     try {
@@ -1847,7 +1978,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       const [user] = await db
         .select()
         .from(users)
-.where(eq(users.id, req.user.id))
+        .where(eq(users.id, req.user.id))
         .limit(1);
 
       if (!user) {

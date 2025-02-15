@@ -35,6 +35,7 @@ import {
   UserCheck,
   UserX,
   Crown,
+  Send,
 } from "lucide-react";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
@@ -179,6 +180,28 @@ function AdminDashboardPage() {
     }
   };
 
+  const sendActivityReport = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/activity-report`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok) throw new Error(await response.text());
+
+      toast({
+        title: "Success",
+        description: "Activity report has been sent to the user's email",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoadingAnalytics || isLoadingUsers) {
     return (
       <div className="p-6 space-y-4">
@@ -269,6 +292,14 @@ function AdminDashboardPage() {
                               onClick={() => handleDeleteUser(user.id)}
                             >
                               Delete
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => sendActivityReport(user.id)}
+                            >
+                              <Send className="h-4 w-4 mr-1" />
+                              Send Activity Report
                             </Button>
                           </div>
                         </td>
