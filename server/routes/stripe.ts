@@ -51,6 +51,7 @@ router.post('/create-payment-link', async (req, res) => {
       },
     });
 
+    console.log('Payment link created:', paymentLink.url);
     res.json({ url: paymentLink.url });
   } catch (error: any) {
     console.error('Stripe payment link creation error:', error);
@@ -64,6 +65,8 @@ router.post('/create-payment-link', async (req, res) => {
 router.get('/verify-subscription/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
+    console.log('Verifying subscription for user:', userId);
+
     if (isNaN(userId)) {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
@@ -73,6 +76,8 @@ router.get('/verify-subscription/:userId', async (req, res) => {
       .from(subscriptions)
       .where(eq(subscriptions.userId, userId))
       .limit(1);
+
+    console.log('Found subscription:', subscription);
 
     res.json({ 
       success: true,
@@ -93,15 +98,20 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
   }
 
   try {
+    console.log('Received webhook event');
     const event = stripe.webhooks.constructEvent(
       req.body,
       sig,
       endpointSecret
     );
 
+    console.log('Webhook event type:', event.type);
+
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = parseInt(session.metadata?.userId || '0');
+
+      console.log('Processing successful checkout for user:', userId);
 
       if (!userId) {
         throw new Error('Missing userId in session metadata');
@@ -115,6 +125,8 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
         status: 'active',
         createdAt: new Date(),
       });
+
+      console.log('Subscription record created for user:', userId);
 
       // Send confirmation email
       try {
@@ -142,6 +154,7 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
               <p>Best regards,<br>CV Transformer Team</p>
             `
           });
+          console.log('Confirmation email sent to:', user.email);
         }
       } catch (emailError) {
         console.error('Failed to send confirmation email:', emailError);
