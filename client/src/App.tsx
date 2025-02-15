@@ -3,7 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
-import { Loader2, Menu, FileText } from "lucide-react";
+import { Loader2, Menu, FileText, Shield, Settings } from "lucide-react";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -23,10 +23,10 @@ import {
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import FAQPage from "./pages/FAQPage";
-import AboutPage from "./pages/AboutPage"; // Import the new AboutPage component
+import AboutPage from "./pages/AboutPage";
 
 function Navigation() {
-  const { user, logout } = useUser();
+  const { user, logout, isAdmin, isSuperAdmin } = useUser();
   const [, setLocation] = useLocation();
 
   const handleLogout = async () => {
@@ -34,20 +34,18 @@ function Navigation() {
     setLocation("/");
   };
 
-  const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
-
   const menuItems = [
     { label: "About", path: "/about" },
     { label: "How It Works", path: "/how-it-works" },
     { label: "FAQ", path: "/faq" },
-    { label: "Pricing & Plans", path: "/features" }, // Updated label
+    { label: "Pricing & Plans", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
   ];
 
   const authenticatedItems = [
-    { label: "Dashboard", path: "/dashboard" },
-    ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
+    { label: "Dashboard", path: "/dashboard", icon: Settings },
+    ...(isAdmin ? [{ label: "Admin Panel", path: "/admin", icon: Shield }] : []),
   ];
 
   return (
@@ -73,7 +71,10 @@ function Navigation() {
             <>
               {authenticatedItems.map((item) => (
                 <Link key={item.path} href={item.path}>
-                  <Button variant="ghost">{item.label}</Button>
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    {item.icon && <item.icon className="w-4 h-4" />}
+                    {item.label}
+                  </Button>
                 </Link>
               ))}
               <Button onClick={handleLogout} variant="ghost">
@@ -117,6 +118,7 @@ function Navigation() {
                   onClick={() => setLocation(item.path)}
                   className="cursor-pointer"
                 >
+                  {item.icon && <item.icon className="w-4 h-4 mr-2" />}
                   {item.label}
                 </DropdownMenuItem>
               ))}
@@ -144,7 +146,7 @@ function Navigation() {
 }
 
 function AuthenticatedApp() {
-  const { user, isLoading } = useUser();
+  const { user, isLoading, isAdmin, isSuperAdmin } = useUser();
 
   if (isLoading) {
     return (
@@ -170,41 +172,30 @@ function AuthenticatedApp() {
           <Route path="/contact" component={ContactPage} />
           <Route path="/privacy-policy" component={PrivacyPolicyPage} />
           <Route path="/terms-of-service" component={TermsOfServicePage} />
-          {(!user && window.location.pathname !== "/reset-password" &&
-            window.location.pathname !== "/" &&
-            window.location.pathname !== "/features" &&
-            window.location.pathname !== "/about" &&
-            window.location.pathname !== "/how-it-works" &&
-            window.location.pathname !== "/faq" &&
-            window.location.pathname !== "/public-cv" &&
-            window.location.pathname !== "/contact" &&
-            window.location.pathname !== "/privacy-policy" &&
-            window.location.pathname !== "/terms-of-service") ? (
-            <Route component={AuthPage} />
-          ) : (
+
+          {/* Protected Routes */}
+          {user ? (
             <>
               <Route path="/dashboard" component={DashboardPage} />
-              {(user?.role === "super_admin" || user?.role === "sub_admin") && (
+              {isAdmin && (
                 <Route path="/admin" component={AdminPage} />
               )}
             </>
-          )}
-          <Route component={NotFound} />
+          ) : null}
+
+          {/* 404 Route */}
+          <Route>
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
+                <p className="text-muted-foreground">
+                  The page you're looking for doesn't exist.
+                </p>
+              </div>
+            </div>
+          </Route>
         </Switch>
       </main>
-    </div>
-  );
-}
-
-function NotFound() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
-        <p className="text-muted-foreground">
-          The page you're looking for doesn't exist.
-        </p>
-      </div>
     </div>
   );
 }

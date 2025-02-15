@@ -790,7 +790,14 @@ export function registerRoutes(app: Express): Server {
         .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
         .orderBy(desc(users.createdAt));
 
-      res.json(allUsers);
+      // Add isPremium field based on subscription status
+      const usersWithPremium = allUsers.map(user => ({
+        ...user,
+        isPremium: user.subscription?.status === "active" && 
+                   new Date(user.subscription.endedAt) > new Date()
+      }));
+
+      res.json(usersWithPremium);
     } catch (error: any) {
       console.error("Admin get users error:", error);
       res.status(500).send(error.message);
@@ -859,16 +866,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).send("Invalid action. Use 'activate' or 'deactivate'");
       }
 
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
-      if (!user) {
-        return res.status(404).send("User not found");
-      }
-
       // Calculate subscription end date (1 month from now for activation)
       const endDate = action === "activate" 
         ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
@@ -918,8 +915,8 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error("Admin update subscription error:", error);
       res.status(500).send(error.message);
-    }    }
-  );
+    }
+  });
 
   // Update user role (super admin only)
   app.put("/api/admin/users/:id/role", async (req, res) => {
@@ -1728,3 +1725,824 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
   const httpServer = createServer(app);
   return httpServer;
 }
+// Add subscription schema
+const updateSubscriptionSchema = z.object({
+  isPremium: z.boolean()
+});
+
+// Add to registerRoutes function after other admin routes
+app.put("/api/admin/users/:id/subscription", async (req, res) => {
+  try {
+    if (!req.isAuthenticated() || !req.user || 
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+      return res.status(403).send("Access denied");
+    }
+
+    const userId = parseInt(req.params.id);
+    const { isPremium } = updateSubscriptionSchema.parse(req.body);
+
+    // Check if user exists
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!existingUser) {
+      return res.status(404).send("User not found");
+    }
+
+    // Update or create subscription
+    const [existingSub] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .limit(1);
+
+    const endDate = isPremium 
+      ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+      : new Date(); // Current date for ending subscription
+
+    if (existingSub) {
+      await db
+        .update(subscriptions)
+        .set({
+          status: isPremium ? "active" : "inactive",
+          endedAt: endDate
+        })
+        .where(eq(subscriptions.userId, userId));
+    } else if (isPremium) {
+      await db
+        .insert(subscriptions)
+        .values({
+          status: "active",
+          endedAt: endDate,
+          stripeCustomerId: null,
+          stripeSubscriptionId: null,
+          userId
+        });
+    }
+
+    // Log activity
+    await db.insert(activityLogs).values({
+      userId: req.user.id,
+      action: isPremium ? "activate_subscription" : "deactivate_subscription",
+      details: {
+        targetUserId: userId,
+        endDate: endDate.toISOString()
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Subscription ${isPremium ? "activated" : "deactivated"} successfully`
+    });
+  } catch (error: any) {
+    console.error("Update subscription error:", error);
+    res.status(500).send(error.message);
+  }
+});
+
+// Delete user endpoint
+app.delete("/api/admin/users/:id", async (req, res) => {
+  try {
+    if (!req.isAuthenticated() || !req.user || 
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+      return res.status(403).send("Access denied");
+    }
+
+    const userId = parseInt(req.params.id);
+
+    // Check if user exists and is not a super_admin
+    const [userToDelete] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!userToDelete) {
+      return res.status(404).send("User not found");
+    }
+
+    if (userToDelete.role === "super_admin") {
+      return res.status(403).send("Cannot delete super admin accounts");
+    }
+
+    // Delete user's subscription first
+    await db
+      .delete(subscriptions)
+      .where(eq(subscriptions.userId, userId));
+
+    // Delete user
+    await db
+      .delete(users)
+      .where(eq(users.id, userId));
+
+    // Log activity
+    await db.insert(activityLogs).values({
+      userId: req.user.id,
+      action: "delete_user",
+      details: { deletedUserId: userId }
+    });
+
+    res.json({ success: true, message: "User deleted successfully" });
+  } catch (error: any) {
+    console.error("Delete user error:", error);
+    res.status(500).send(error.message);
+  }
+});
+
+// Get admin users endpoint
+app.get("/api/admin/users", async (req, res) => {
+  try {
+    if (!req.isAuthenticated() || !req.user || 
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+      return res.status(403).send("Access denied");
+    }
+
+    const allUsers = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        role: users.role,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+        subscription: {
+          status: subscriptions.status,
+          endedAt: subscriptions.endedAt
+        }
+      })
+      .from(users)
+      .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
+      .orderBy(desc(users.createdAt));
+
+    // Add isPremium field based on subscription status
+    const usersWithPremium = allUsers.map(user => ({
+      ...user,
+      isPremium: user.subscription?.status === "active" && 
+                 new Date(user.subscription.endedAt) > new Date()
+    }));
+
+    res.json(usersWithPremium);
+  } catch (error: any) {
+    console.error("Get users error:", error);
+    res.status(500).send(error.message);
+  }
+});
+
+// Get pending CVs (admin only)
+app.get("/api/admin/cvs/pending", async (req, res) => {
+  try {
+    if (!req.isAuthenticated() || !req.user ||
+      (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+      return res.status(403).send("Access denied");
+    }
+
+    const pendingCVs = await db
+      .select()
+      .from(cvs)
+      .where(eq(cvs.needsApproval, true))
+      .orderBy(desc(cvs.createdAt));
+
+    res.json(pendingCVs);
+  } catch (error: any) {
+    console.error("Admin get pending CVs error:", error);
+    res.status(500).send(error.message);
+  }
+});
+
+// Approve/reject CV (admin only)
+app.post("/api/admin/cvs/:id/approve", async (req, res) => {
+  try {
+    if (!req.isAuthenticated() || !req.user ||
+      (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+      return res.status(403).send("Access denied");
+    }
+
+    const result = cvApprovalSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).send(result.error.message);
+    }
+
+    const cvId = parseInt(req.params.id);
+    const { status, comment } = result.data;
+
+    const [cv] = await db
+      .select()
+      .from(cvs)
+      .where(eq(cvs.id, cvId))
+      .limit(1);
+
+    if (!cv) {
+      return res.status(404).send("CV not found");
+    }
+
+    const [updatedCV] = await db
+      .update(cvs)
+      .set({
+        approvalStatus: status,
+        approvalComment: comment,
+        approvedBy: req.user.id,
+      })
+      .where(eq(cvs.id, cvId))
+      .returning();
+
+    // Log activity
+    await db.insert(activityLogs).values({
+      userId: req.user.id,
+      action: "cv_approval",
+      details: { cvId, status, comment },
+    });
+    res.json(updatedCV);
+  } catch (error: any) {
+    console.error("Admin approve CV error:", error);
+    res.status(500).send(error.message);
+  }
+});
+
+// Public CV transformation endpoint
+app.post("/api/cv/transform/public", upload.single("file"), async (req, res) => {
+  try {
+    const file = (req as any).file;
+    if (!file) {
+      return res.status(400).send("No file uploaded");
+    }
+
+    const { targetRole, jobDescription } = (req as any).body;
+    if (!targetRole || !jobDescription) {
+      return res.status(400).send("Target role and job description are required");
+    }
+
+    // Extract text content from the uploaded file
+    const textContent = await extractTextContent(file);
+    const fileContent = file.buffer.toString("base64");
+
+    // Extract employment history
+    const { latest: latestEmployment, previous: previousEmployments } = await extractEmployments(textContent);
+    const transformedEmployment = await transformEmployment(latestEmployment, targetRole, jobDescription);
+
+    // Extractand adapt skills
+    const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
+    const adaptedSkills = adaptSkills(currentSkills);
+
+    // Extract professional summary
+    const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
+    const originalSummary = summaryMatch ? summaryMatch[1].trim() : "";
+    const transformedSummary = await transformProfessionalSummary(originalSummary, targetRole, jobDescription);
+
+    // Format the transformed CV content
+    const transformedContent = `
+${targetRole.toUpperCase()}
+
+${transformedSummary}
+
+CORE SKILLS & TECHNOLOGIES
+${adaptedSkills.map((skill) => `• ${skill}`).join("\n")}
+
+WORK EXPERIENCE
+${transformedEmployment}
+
+${previousEmployments.join("\n\n")}
+
+${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(section)) || ""}
+`.trim();
+
+    // Gather companyinsights
+    const companyInsights = await gatherOrganizationalInsights(targetRole.split(" at ")[1] || "");
+
+    //// Evaluate the CV
+    const evaluation = evaluateCV(transformedContent, jobDescription);
+
+    // For public demo, store under a demo user
+    const [demoUser] = await db.select().from(users).where(eq(users.username, "demo")).limit(1);
+    let userId = demoUser?.id;
+
+    if (!userId) {
+      const [newDemoUser] = await db.insert(users).values({
+        username: "demo",
+        password: "demo",
+        email: "demo@example.com",
+        role: "demo",
+      }).returning();
+      userId = newDemoUser.id;
+    }
+
+    const [cv] = await db.insert(cvs).values({
+      userId: userId,
+      originalFilename: file.originalname,
+      fileContent: fileContent,
+      transformedContent: Buffer.from(transformedContent).toString("base64"),
+      targetRole: targetRole,
+      jobDescription: jobDescription,
+      score: evaluation.score,
+      feedback: evaluation.feedback,
+    }).returning();
+
+    res.json(cv);
+  } catch (error: any) {
+    console.error("Public transform CV error:", error);
+    res.status(500).send(error.message);
+  }
+});
+
+// Protected CV transformation endpoint
+app.post("/api/cv/transform", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).send("Authentication required");
+    }
+
+    const file = (req as any).file;
+    if (!file) {
+      return res.status(400).send("No file uploaded");
+    }
+
+    const { targetRole, jobDescription } = (req as any).body;
+    if (!targetRole || !jobDescription) {
+      return res.status(400).send("Target role and job description are required");
+    }
+
+    // Extract text content from the uploaded file
+    const textContent = await extractTextContent(file);
+    const fileContent = file.buffer.toString("base64");
+
+    // Extract employment history
+    const { latest: latestEmployment, previous: previousEmployments } = await extractEmployments(textContent);
+    const transformedEmployment = await transformEmployment(latestEmployment, targetRole, jobDescription);
+
+    // Extract and adapt skills
+    const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
+    const adaptedSkills = adaptSkills(currentSkills);
+
+    // Extract professional summary
+    const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
+    const originalSummary = summaryMatch ? summaryMatch[1].trim() : "";
+    const transformedSummary = await transformProfessionalSummary(originalSummary, targetRole, jobDescription);
+
+    // Format the transformed CV content
+    const transformedContent = `
+${targetRole.toUpperCase()}
+
+${transformedSummary}
+
+CORE SKILLS & TECHNOLOGIES
+${adaptedSkills.map((skill) => `• ${skill}`).join("\n")}
+
+WORK EXPERIENCE
+${transformedEmployment}
+
+${previousEmployments.join("\n\n")}
+
+${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(section)) || ""}
+`.trim();
+
+    // Gather company insights
+    const companyInsights = await gatherOrganizationalInsights(targetRole.split(" at ")[1] || "");
+
+    // Evaluate the CV
+    const evaluation = evaluateCV(transformedContent, jobDescription);
+
+    const [cv] = await db.insert(cvs).values({
+      userId: req.user.id,
+      originalFilename: file.originalname,
+      fileContent: fileContent,
+      transformedContent: Buffer.from(transformedContent).toString("base64"),
+      targetRole: targetRole,
+      jobDescription: jobDescription,
+      score: evaluation.score,
+      feedback: evaluation.feedback,
+    }).returning();
+
+    res.json(cv);
+  } catch (error: any) {
+    console.error("Transform CV error:", error);
+    res.status(500).send(error.message);
+  }
+});
+
+  // Protected routes for authenticated users
+  app.get("/api/cv/:id/content", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const cvId = parseInt(req.params.id);
+      if (isNaN(cvId)) {
+        return res.status(400).send("Invalid CV ID");
+      }
+
+      const [cv] = await db.select().from(cvs).where(eq(cvs.id, cvId)).limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      // Verify ownership
+      if (cv.userId !== req.user.id) {
+        return res.status(403).send("Access denied");
+      }
+
+      const content = Buffer.from(cv.transformedContent || "", "base64");
+      res.send(content.toString());
+    } catch (error: any) {
+      console.error("Get CV content error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.get("/api/cv/:id/download", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const cvId = parseInt(req.params.id);
+      if (isNaN(cvId)) {
+        return res.status(400).send("Invalid CV ID");
+      }
+
+      const [cv] = await db.select().from(cvs).where(eq(cvs.id, cvId)).limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      // Verify ownership
+      if (cv.userId !== req.user.id) {
+        return res.status(403).send("Access denied");
+      }
+
+      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
+      const sections = content.split("\n\n").filter(Boolean);
+
+      // Create Word document
+      const doc = new Document({
+        sections: [{
+          properties: {
+            type: SectionType.CONTINUOUS,
+          },
+          children: sections.map(section => {
+            const lines = section.split("\n");
+            const paragraphs = lines.map(line => {
+              if (line.trim().startsWith("•")) {
+                // Bullet points
+                return new Paragraph({
+                  text: line.trim().substring(1).trim(),
+                  bullet: {
+                    level: 0,
+                  },
+                });
+              } else if (line.toUpperCase() === line && line.trim().length > 0) {
+                // Headers
+                return new Paragraph({
+                  text: line,
+                  heading: HeadingLevel.HEADING_2,
+                  spacing: {
+                    before: 200,
+                    after: 200,
+                  },
+                });
+              } else {
+                // Regular text
+                return new Paragraph({
+                  text: line,
+                  spacing: {
+                    before: 100,
+                    after: 100,
+                  },
+                });
+              }
+            });
+            return paragraphs;
+          }).flat(),
+        }],
+      });
+
+      const buffer = await Packer.toBuffer(doc);
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="transformed_cv.docx"`);
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Download CV error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Get CV content
+  app.get("/api/cv/:id/content/public", async (req, res) => {
+    try {
+      const cvId = parseInt(req.params.id);
+      if (isNaN(cvId)) {
+        return res.status(400).send("Invalid CV ID");
+      }
+
+      const [cv] = await db.select().from(cvs).where(eq(cvs.id, cvId)).limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      const content = Buffer.from(cv.transformedContent || "", "base64");
+      res.send(content.toString());
+    } catch (error: any) {
+      console.error("Get CV content error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Public download transformed CV
+  app.get("/api/cv/:id/download/public", async (req, res) => {
+    try {
+      const cvId = parseInt(req.params.id);
+      if (isNaN(cvId)) {
+        return res.status(400).send("Invalid CV ID");
+      }
+
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, cvId))
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
+      const sections = content.split("\n\n").filter(Boolean);
+
+      // Create Word document
+      const doc = new Document({
+        sections: [{
+          properties: {
+            type: SectionType.CONTINUOUS,
+          },
+          children: sections.map(section => {
+            const lines = section.split("\n");
+            const paragraphs = lines.map(line => {
+              if (line.trim().startsWith("•")) {
+                // Bullet points
+                return new Paragraph({
+                  text: line.trim().substring(1).trim(),
+                  bullet: {
+                    level: 0,
+                  },
+                });
+              } else if (line.toUpperCase() === line && line.trim().length > 0) {
+                // Headers
+                return new Paragraph({
+                  text: line,
+                  heading: HeadingLevel.HEADING_2,
+                  spacing: {
+                    before: 200,
+                    after: 200,
+                  },
+                });
+              } else {
+                // Regular text
+                return new Paragraph({
+                  text: line,
+                  spacing: {
+                    before: 100,
+                    after: 100,
+                  },
+                });
+              }
+            });
+            return paragraphs;
+          }).flat(),
+        }],
+      });
+
+      const buffer = await Packer.toBuffer(doc);
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="transformed_cv.docx"`);
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Public download CV error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Test email route
+  app.post("/api/test-email", async (req, res) => {
+    try {
+      const result = await sendEmail({
+        to: "t.unamka@yahoo.co.uk",
+        subject: "Test Email from CV Transformer",
+        html: `
+          <h1>Test Email</h1>
+          <p>This is a test email from CVTransformer.</p>If you received this, your email configuration is working correctly!</p>
+        `,
+      });
+
+      if (result) {
+        res.json({ message: "Test email sent successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to send test email" });
+      }
+    } catch (error: any) {
+      console.error("Test email error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Public view transformed CV
+  app.get("/api/cv/:id/view/public", async (req, res) => {
+    try {
+      const cvId = parseInt(req.params.id);
+      if (isNaN(cvId)) {
+        return res.status(400).send("Invalid CV ID");
+      }
+
+      const [cv] = await db.select().from(cvs).where(eq(cvs.id, cvId)).limit(1);
+
+      if (!cv) {
+        return res.status(404).send("CV not found");
+      }
+
+      const content = Buffer.from(cv.transformedContent || "", "base64");
+      res.send(content.toString());
+    } catch (error: any) {
+      console.error("Public view CV error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Get CV history
+  app.get("/api/cv/history", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const userCVs = await db.select().from(cvs).where(eq(cvs.userId, req.user.id)).orderBy(cvs.createdAt);
+
+      res.json(userCVs);
+    } catch (error: any) {
+      console.error("CV history error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Get subscription status
+  app.get("/api/subscription", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).send("Authentication required");
+      }
+
+      const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.userId, req.user.id)).limit(1);
+
+      res.json(subscription || null);
+    } catch (error: any) {
+      console.error("Subscription error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Update the verification endpoint to handle GET requests
+  app.get("/verify-email/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.verificationToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).send("Invalid verification token");
+      }
+
+      if (!user.verificationTokenExpiry || user.verificationTokenExpiry < new Date()) {
+        return res.status(400).send("Verification token has expired");
+      }
+
+      await db
+        .update(users)
+        .set({
+          emailVerified: true,
+          verificationToken: null,
+          verificationTokenExpiry: null,
+        })
+        .where(eq(users.id, user.id));
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).send("An error occurred during email verification");
+    }
+  });
+  // Add reset password endpoint to handle GET requests
+  app.get("/reset-password/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.resetToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).send("Invalid reset token");
+      }
+
+      if (!user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+        return res.status(400).send("Reset token has expired");
+      }
+
+      // If token is valid, return success
+      res.json({ message: "Token is valid", email: user.email });
+    } catch (error) {
+      console.error("Password reset token verification error:", error);
+      res.status(500).send("An error occurred during password reset verification");
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
+// Add subscription schema
+const updateSubscriptionSchema = z.object({
+  isPremium: z.boolean()
+});
+
+// Add to registerRoutes function after other admin routes
+app.put("/api/admin/users/:id/subscription", async (req, res) => {
+  try {
+    if (!req.isAuthenticated() || !req.user || 
+        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
+      return res.status(403).send("Access denied");
+    }
+
+    const userId = parseInt(req.params.id);
+    const { isPremium } = updateSubscriptionSchema.parse(req.body);
+
+    // Check if user exists
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!existingUser) {
+      return res.status(404).send("User not found");
+    }
+
+    // Update or create subscription
+    const [existingSub] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .limit(1);
+
+    const endDate = isPremium 
+      ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+      : new Date(); // Current date for ending subscription
+
+    if (existingSub) {
+      await db
+        .update(subscriptions)
+        .set({
+          status: isPremium ? "active" : "inactive",
+          endedAt: endDate
+        })
+        .where(eq(subscriptions.userId, userId));
+    } else if (isPremium) {
+      await db
+        .insert(subscriptions)
+        .values({
+          status: "active",
+          endedAt: endDate,
+          stripeCustomerId: null,
+          stripeSubscriptionId: null,
+          userId
+        });
+    }
+
+    // Log activity
+    await db.insert(activityLogs).values({
+      userId: req.user.id,
+      action: isPremium ? "activate_subscription" : "deactivate_subscription",
+      details: {
+        targetUserId: userId,
+        endDate: endDate.toISOString()
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Subscription ${isPremium ? "activated" : "deactivated"} successfully`
+    });
+  } catch (error: any) {
+    console.error("Update subscription error:", error);
+    res.status(500).send(error.message);
+  }
+});
