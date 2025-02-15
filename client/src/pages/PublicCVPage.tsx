@@ -88,12 +88,12 @@ export default function PublicCVPage() {
     }
   }
 
-  async function handleDownload(format: 'pdf' | 'docx') {
+  async function handleDownload() {
     if (!transformedCV) return;
 
     try {
       const response = await fetch(
-        `/api/cv/${transformedCV.id}/download/public?format=${format}`
+        `/api/cv/${transformedCV.id}/download/public?format=docx`
       );
       if (!response.ok) {
         throw new Error(await response.text());
@@ -103,7 +103,7 @@ export default function PublicCVPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `transformed_cv.${format}`;
+      a.download = "transformed_cv.docx";
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -205,7 +205,7 @@ export default function PublicCVPage() {
                     <div className="flex gap-2 mb-4">
                       <Button
                         variant="secondary"
-                        onClick={() => handleView()}
+                        onClick={handleView}
                         className="transition-all duration-200 hover:scale-[1.02]"
                       >
                         <Eye className="h-4 w-4 mr-1" />
@@ -213,19 +213,11 @@ export default function PublicCVPage() {
                       </Button>
                       <Button
                         variant="secondary"
-                        onClick={() => handleDownload('pdf')}
+                        onClick={handleDownload}
                         className="transition-all duration-200 hover:scale-[1.02]"
                       >
                         <Download className="h-4 w-4 mr-1" />
-                        Download PDF
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleDownload('docx')}
-                        className="transition-all duration-200 hover:scale-[1.02]"
-                      >
-                        <Download className="h-4 w-4 mr-1" />
-                        Download Word
+                        Download as Word
                       </Button>
                     </div>
 
