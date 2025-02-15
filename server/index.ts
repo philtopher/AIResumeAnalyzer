@@ -16,6 +16,17 @@ app.use((req, res, next) => {
 
 app.use(express.urlencoded({ extended: false }));
 
+// Add logging middleware to help debug environment variables
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'development') {
+    const envVars = Object.keys(process.env)
+      .filter(key => key.startsWith('VITE_'))
+      .map(key => `${key}: ${key.startsWith('VITE_STRIPE') ? '[HIDDEN]' : process.env[key]}`);
+    console.log('Available VITE_ environment variables:', envVars);
+  }
+  next();
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

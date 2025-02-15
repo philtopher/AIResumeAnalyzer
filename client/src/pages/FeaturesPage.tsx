@@ -44,7 +44,9 @@ import {
 // Initialize Stripe with proper error handling and debugging
 const stripePromise = (() => {
   // List all available environment variables (excluding sensitive data)
-  console.log('Available environment variables:', Object.keys(import.meta.env));
+  console.log('Available environment variables:', Object.keys(import.meta.env)
+    .filter(key => !key.includes('SECRET'))
+    .join(', '));
 
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
   if (!key) {
