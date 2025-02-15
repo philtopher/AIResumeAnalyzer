@@ -100,22 +100,7 @@ router.post('/create-payment-link', async (req, res) => {
       throw new Error('STRIPE_PRICE_ID is not configured');
     }
 
-    // Get the base URL from request origin or environment variable
-    const baseUrl = process.env.NODE_ENV === 'production'
-      ? process.env.APP_URL?.replace(/\/+$/, '')
-      : `${req.protocol}://${req.get('host')}`;
-
-    if (!baseUrl) {
-      throw new Error('Unable to determine application URL');
-    }
-
-    const successUrl = new URL('/upgrade', baseUrl);
-    successUrl.searchParams.set('payment', 'success');
-    successUrl.searchParams.set('userId', req.user.id.toString());
-
-    console.log('Success URL will be:', successUrl.toString());
-
-    // Create a payment link
+    // Create a payment link with Stripe's native success page
     const paymentLink = await stripe.paymentLinks.create({
       line_items: [
         {
@@ -123,12 +108,6 @@ router.post('/create-payment-link', async (req, res) => {
           quantity: 1,
         },
       ],
-      after_completion: {
-        type: 'redirect',
-        redirect: {
-          url: successUrl.toString(),
-        },
-      },
       metadata: {
         userId: req.user.id.toString(),
       },
