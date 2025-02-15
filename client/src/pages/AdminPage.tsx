@@ -28,17 +28,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Shield, Activity } from "lucide-react";
+import { Loader2, UserPlus, Shield, Activity, FileText, Mail } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { User, ActivityLog, CV, Contact } from "@db/schema";
 import AdminDashboardPage from "./AdminDashboardPage";
-import { Mail, FileText, UserX } from "lucide-react";
-
 
 type TabType = "dashboard" | "users" | "cvs" | "logs" | "contacts";
 
 export default function AdminPage() {
-  const { user, upgradeUser } = useUser();
+  const { user } = useUser();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [isAddingUser, setIsAddingUser] = useState(false);
@@ -47,17 +45,8 @@ export default function AdminPage() {
 
   const isSuperAdmin = user?.role === "super_admin";
 
-  const { data: users = [], isLoading: isLoadingUsers } = useQuery({
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
-    queryFn: async () => {
-      const response = await fetch("/api/admin/users", {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Failed to fetch users");
-      }
-      return response.json();
-    },
     enabled: isSuperAdmin || activeTab === "users",
   });
 
@@ -209,76 +198,10 @@ export default function AdminPage() {
     },
   });
 
-  const deleteUserMutation = useMutation({
-    mutationFn: async (userId: number) => {
-      const response = await fetch(`/api/admin/users/${userId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({
-        title: "Success",
-        description: "User deleted successfully",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateSubscriptionMutation = useMutation({
-    mutationFn: async ({ userId, isPremium }: { userId: number; isPremium: boolean }) => {
-      const response = await fetch(`/api/admin/users/${userId}/subscription`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isPremium }),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({
-        title: "Success",
-        description: "User subscription updated successfully",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   async function handleAddUser(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     addUserMutation.mutate(formData);
-  }
-
-  function handleDeleteUser(userId: number) {
-    if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
-      deleteUserMutation.mutate(userId);
-    }
   }
 
   if (!user || (user.role !== "super_admin" && user.role !== "sub_admin")) {
@@ -296,7 +219,13 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+      <nav className="border-b">
+        <div className="container mx-auto px-4 py-4">
+          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        </div>
+      </nav>
+
+      <main className="container mx-auto px-4 py-8">
         <Card>
           <CardHeader>
             <div className="flex justify-between items-center">
@@ -350,7 +279,7 @@ export default function AdminPage() {
                         <DialogHeader>
                           <DialogTitle>Add New User</DialogTitle>
                           <DialogDescription>
-                            Create a new user account with specified permissions.
+                            Create a new user or sub-admin account.
                           </DialogDescription>
                         </DialogHeader>
                         <form ref={formRef} onSubmit={handleAddUser} className="space-y-4">
@@ -417,20 +346,22 @@ export default function AdminPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>ID</TableHead>
                         <TableHead>Username</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Role</TableHead>
-                        <TableHead>Subscription</TableHead>
-                        <TableHead>Actions</TableHead>
+                        {isSuperAdmin && <TableHead>Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {users.map((user) => (
                         <TableRow key={user.id}>
+                          <TableCell>{user.id}</TableCell>
                           <TableCell>{user.username}</TableCell>
                           <TableCell>{user.email}</TableCell>
-                          <TableCell>
-                            {isSuperAdmin ? (
+                          <TableCell className="capitalize">{user.role}</TableCell>
+                          {isSuperAdmin && (
+                            <TableCell>
                               <Select
                                 value={user.role}
                                 onValueChange={(newRole) =>
@@ -449,39 +380,8 @@ export default function AdminPage() {
                                   <SelectItem value="sub_admin">Sub Admin</SelectItem>
                                 </SelectContent>
                               </Select>
-                            ) : (
-                              <span className="capitalize">{user.role}</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={user.isPremium ? "premium" : "free"}
-                              onValueChange={(value) =>
-                                updateSubscriptionMutation.mutate({
-                                  userId: user.id,
-                                  isPremium: value === "premium",
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="free">Free Plan</SelectItem>
-                                <SelectItem value="premium">Premium</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteUser(user.id)}
-                              disabled={user.role === "super_admin"}
-                            >
-                              <UserX className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -489,6 +389,7 @@ export default function AdminPage() {
                 )}
               </div>
             )}
+
             {activeTab === "cvs" && (
               <div className="space-y-6">
                 {isLoadingCVs ? (
@@ -547,6 +448,7 @@ export default function AdminPage() {
                 )}
               </div>
             )}
+
             {activeTab === "logs" && (
               <div className="space-y-6">
                 {isLoadingLogs ? (
@@ -581,6 +483,7 @@ export default function AdminPage() {
                 )}
               </div>
             )}
+
             {activeTab === "contacts" && (
               <div className="space-y-6">
                 {isLoadingContacts ? (
@@ -648,7 +551,7 @@ export default function AdminPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   );
 }

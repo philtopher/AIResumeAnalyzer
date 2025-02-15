@@ -437,14 +437,10 @@ export function setupAuth(app: Express) {
 
         // Send reset email
         try {
-          const sent = await sendPasswordResetEmail(email, resetToken);
-          console.log("Password reset email sent:", sent);
-          if (!sent) {
-            throw new Error("Failed to send password reset email");
-          }
+          await sendPasswordResetEmail(email, resetToken);
         } catch (emailError) {
           console.error("Failed to send password reset email:", emailError);
-          throw emailError;
+          // Don't expose email sending failures to client
         }
       }
 
@@ -454,6 +450,7 @@ export function setupAuth(app: Express) {
       });
     } catch (error: any) {
       console.error("Reset password request error:", error);
+      // Generic error message to avoid information disclosure
       res.status(500).send("An error occurred while processing your request. Please try again later.");
     }
   });
@@ -493,7 +490,6 @@ export function setupAuth(app: Express) {
         })
         .where(eq(users.id, user.id));
 
-      console.log("Password reset successful for user:", user.email);
       res.json({ message: "Password reset successful" });
     } catch (error: any) {
       console.error("Reset password error:", error);
