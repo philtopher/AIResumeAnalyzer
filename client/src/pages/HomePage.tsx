@@ -4,67 +4,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   FileText,
   Star,
-  Quote,
   HelpCircle,
   ChevronDown,
   Play,
   MessageCircle
 } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 
 export default function HomePage() {
-  const testimonials = [
-    {
-      name: "Sarah Johnson",
-      role: "Software Engineer",
-      company: "Tech Solutions Inc",
-      content: "The AI transformation made my CV stand out. Secured 3 interviews in my first week!",
-      rating: 5,
-    },
-    {
-      name: "Michael Chen",
-      role: "Marketing Manager",
-      company: "Global Brands",
-      content: "Incredible tool that helped me transition industries. The AI understood my transferable skills perfectly.",
-      rating: 5,
-    },
-    {
-      name: "Emma Williams",
-      role: "Project Manager",
-      company: "Construction Plus",
-      content: "The before/after difference was remarkable. Worth every penny!",
-      rating: 5,
-    },
-  ];
-
-  const faqs = [
-    {
-      question: "How does the CV transformation work?",
-      answer: "Our AI analyzes your existing CV and the target job description, then optimizes your content while maintaining accuracy. We use natural language processing to enhance your achievements and match them with job requirements.",
-    },
-    {
-      question: "Is my information secure?",
-      answer: "Yes! We take security seriously. Your CV is processed securely and automatically deleted after transformation. We never store personal data longer than necessary.",
-    },
-    {
-      question: "What if I'm not satisfied with the results?",
-      answer: "We offer a 14-day money-back guarantee if you're not happy with the transformation. Our AI provides multiple versions to choose from, and you can request adjustments.",
-    },
-    {
-      question: "Do you generate fake experience?",
-      answer: "Absolutely not. We strictly enhance and optimize your existing experience. Our AI is designed to maintain complete accuracy while improving the presentation of your actual achievements.",
-    },
-    {
-      question: "How long does the transformation take?",
-      answer: "The initial transformation takes just a few minutes. You can then review and download the optimized version immediately.",
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-background">
       <main>
@@ -154,55 +100,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Testimonials Section */}
-        <section className="py-20 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <h2 className="text-3xl font-bold text-center mb-12">
-              Trusted by Professionals
-            </h2>
-            <div className="grid md:grid-cols-3 gap-8">
-              {testimonials.map((testimonial, index) => (
-                <Card key={index}>
-                  <CardContent className="pt-6">
-                    <Quote className="w-8 h-8 text-primary/40 mb-4" />
-                    <p className="text-muted-foreground mb-4">{testimonial.content}</p>
-                    <div className="flex items-center gap-2 mb-2">
-                      {[...Array(testimonial.rating)].map((_, i) => (
-                        <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                      ))}
-                    </div>
-                    <p className="font-medium">{testimonial.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {testimonial.role} at {testimonial.company}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* FAQ Section */}
-        <section className="py-20 bg-muted/50 px-4">
-          <div className="container mx-auto max-w-3xl">
-            <h2 className="text-3xl font-bold text-center mb-12">
-              Frequently Asked Questions
-            </h2>
-            <Card>
-              <CardContent className="pt-6">
-                <Accordion type="single" collapsible>
-                  {faqs.map((faq, index) => (
-                    <AccordionItem key={index} value={`item-${index}`}>
-                      <AccordionTrigger>{faq.question}</AccordionTrigger>
-                      <AccordionContent>{faq.answer}</AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-
         {/* Service Limitations & Call to Action */}
         <section className="py-20 px-4">
           <div className="container mx-auto max-w-6xl text-center">
@@ -220,8 +117,6 @@ export default function HomePage() {
             </Link>
           </div>
         </section>
-
-        {/* Footer remains unchanged */}
       </main>
 
       <footer className="border-t py-12">

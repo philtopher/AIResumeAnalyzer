@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
-import FAQPage from "./pages/FAQPage";
 import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 
@@ -39,7 +38,6 @@ function Navigation() {
   const menuItems = [
     { label: "About", path: "/about" },
     { label: "How It Works", path: "/how-it-works" },
-    { label: "FAQ", path: "/faq" },
     { label: "Pricing & Plans", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
@@ -47,7 +45,7 @@ function Navigation() {
 
   const authenticatedItems = [
     { label: "Dashboard", path: "/dashboard" },
-    ...(isAdmin ? [{ label: "Admin Area", path: "/admin" }] : []),
+    ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
   ];
 
   return (
@@ -161,7 +159,6 @@ function App() {
           <Route path="/" component={HomePage} />
           <Route path="/about" component={AboutPage} />
           <Route path="/how-it-works" component={TutorialPage} />
-          <Route path="/faq" component={FAQPage} />
           <Route path="/features" component={FeaturesPage} />
           <Route path="/auth" component={AuthPage} />
           <Route path="/reset-password" component={ResetPasswordPage} />
