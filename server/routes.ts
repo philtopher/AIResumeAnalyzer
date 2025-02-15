@@ -512,6 +512,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const { email, username, password } = req.body;
 
+      // Log the subscription attempt
+      console.log('Creating subscription for:', email);
+
       // Create a customer with pending signup status and user data
       const customer = await stripe?.customers.create({
         email,
@@ -522,14 +525,18 @@ export function registerRoutes(app: Express): Server {
       });
 
       if (!customer) {
+        console.error('Failed to create Stripe customer');
         return res.status(500).json({error: "Failed to create Stripe customer"});
       }
 
       // Use environment variable for price ID
       const priceId = process.env.STRIPE_PRICE_ID;
       if (!priceId) {
+        console.error('Stripe price ID is not configured');
         return res.status(500).json({error: "Stripe price ID is not configured"});
       }
+
+      console.log('Using price ID:', priceId);
 
       // Create a subscription
       const subscription = await stripe?.subscriptions.create({
@@ -541,9 +548,13 @@ export function registerRoutes(app: Express): Server {
         metadata: {
           signup_pending: 'true'
         }
+      }).catch(error => {
+        console.error('Stripe subscription creation error:', error);
+        throw error;
       });
 
       if (!subscription) {
+        console.error('Failed to create Stripe subscription');
         return res.status(500).json({error: "Failed to create Stripe subscription"});
       }
 
@@ -903,7 +914,6 @@ export function registerRoutes(app: Express): Server {
         });
         analyticsData.memoryUsage = (1 - os.freememPercentage()) * 100;
         analyticsData.storageUsage = (os.totalmem() - os.freemem()) / os.totalmem() * 100;
-
         // Get active connections (estimate based on activity logs)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
         const [{ count: activeConnections }] = await db
