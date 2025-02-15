@@ -1698,6 +1698,32 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       res.status(500).send("An error occurred during email verification");
     }
   });
+  // Add reset password endpoint to handle GET requests
+  app.get("/reset-password/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.resetToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).send("Invalid reset token");
+      }
+
+      if (!user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+        return res.status(400).send("Reset token has expired");
+      }
+
+      // If token is valid, return success
+      res.json({ message: "Token is valid", email: user.email });
+    } catch (error) {
+      console.error("Password reset token verification error:", error);
+      res.status(500).send("An error occurred during password reset verification");
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

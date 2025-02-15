@@ -134,7 +134,7 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
           <p style="color: #666; font-size: 12px;">
             This is an automated message from CV Transformer. Please do not reply to this email.<br>
-            For security reasons, this reset link can only be used once.
+            For security reasons, this reset link can only be used once and will expire in 1 hour.
           </p>
         </div>
       </div>
