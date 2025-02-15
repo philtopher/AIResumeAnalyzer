@@ -23,9 +23,9 @@ export default function DashboardPage() {
   const [transformedContent, setTransformedContent] = useState<string>("");
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Consider admin users as having pro access
-  const hasPro = user?.role === "super_admin" || user?.role === "sub_admin" || subscription?.status === "active";
+  // Check for admin privileges
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
+  const hasPro = isAdmin || subscription?.status === "active";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -156,10 +156,13 @@ export default function DashboardPage() {
             </span>
             {isAdmin && (
               <Link href="/admin">
-                <Button variant="default">Admin Area</Button>
+                <Button variant="secondary" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Admin Dashboard
+                </Button>
               </Link>
             )}
-            {!hasPro && user?.role !== "super_admin" && user?.role !== "sub_admin" && (
+            {!hasPro && (
               <Link href="/features">
                 <Button variant="secondary">Upgrade to Pro</Button>
               </Link>
@@ -198,7 +201,10 @@ export default function DashboardPage() {
                     </label>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
-                    <span className="font-medium text-yellow-600">Note:</span> Your CV will be processed in real-time and automatically deleted after transformation. We do not store your CV permanently.
+                    <span className="font-medium text-yellow-600">Note:</span>{" "}
+                    Your CV will be processed in real-time and automatically
+                    deleted after transformation. We do not store your CV
+                    permanently.
                   </p>
                 </div>
 
@@ -282,13 +288,14 @@ export default function DashboardPage() {
                               </div>
                             )}
                           </div>
-                          {cv.id === transformedCV?.id && transformedContent && (
-                            <div className="bg-muted p-4 rounded-md mt-4">
-                              <pre className="whitespace-pre-wrap text-sm">
-                                {transformedContent}
-                              </pre>
-                            </div>
-                          )}
+                          {cv.id === transformedCV?.id &&
+                            transformedContent && (
+                              <div className="bg-muted p-4 rounded-md mt-4">
+                                <pre className="whitespace-pre-wrap text-sm">
+                                  {transformedContent}
+                                </pre>
+                              </div>
+                            )}
                         </CardContent>
                       </Card>
                     ))}
