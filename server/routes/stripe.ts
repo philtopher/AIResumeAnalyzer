@@ -24,6 +24,7 @@ router.post('/create-subscription', async (req, res) => {
 
   try {
     console.log('Creating subscription for user:', req.user.id);
+
     // Create or retrieve a customer
     let customer;
     const [existingSubscription] = await db

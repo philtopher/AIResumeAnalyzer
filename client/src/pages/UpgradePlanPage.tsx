@@ -84,6 +84,7 @@ export default function UpgradePlanPage() {
 
   useEffect(() => {
     if (user?.id) {
+      console.log('Fetching client secret...');
       fetch("/api/create-subscription", {
         method: "POST",
         headers: {
@@ -93,24 +94,35 @@ export default function UpgradePlanPage() {
       })
         .then(async (res) => {
           const data = await res.json();
+          console.log('Response received:', { status: res.status, data });
           if (!res.ok) {
             throw new Error(data.error || "Failed to initialize payment");
           }
           return data;
         })
         .then((data) => {
+          console.log('Setting client secret');
           setClientSecret(data.clientSecret);
         })
         .catch((error) => {
           console.error("Payment initialization error:", error);
           toast({
             title: "Error",
-            description: "Failed to initialize payment form. Please try again.",
+            description: error.message || "Failed to initialize payment form. Please try again.",
             variant: "destructive",
           });
         });
     }
   }, [user, toast]);
+
+  const appearance = {
+    theme: 'stripe' as const,
+    variables: {
+      colorPrimary: '#0f172a',
+      fontFamily: 'system-ui, sans-serif',
+      borderRadius: '0.5rem',
+    },
+  };
 
   if (isLoading) {
     return (
@@ -124,17 +136,11 @@ export default function UpgradePlanPage() {
     return <Redirect to="/auth" />;
   }
 
-  const appearance = {
-    theme: 'stripe' as const,
-    variables: {
-      colorPrimary: '#0f172a',
-    },
-  };
-
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-8">Upgrade to Pro Plan</h1>
       <div className="grid md:grid-cols-2 gap-8">
+        {/* Free Plan Card */}
         <Card>
           <CardHeader>
             <CardTitle>Free Plan</CardTitle>
@@ -158,6 +164,7 @@ export default function UpgradePlanPage() {
           </CardContent>
         </Card>
 
+        {/* Pro Plan Card */}
         <Card className="relative border-primary">
           <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm">
             Advanced Features
@@ -194,10 +201,10 @@ export default function UpgradePlanPage() {
               {clientSecret ? (
                 <Elements 
                   stripe={stripePromise} 
-                  options={{ 
+                  options={{
                     clientSecret,
                     appearance,
-                    loader: "auto"
+                    loader: 'always'
                   }}
                 >
                   <CheckoutForm />
