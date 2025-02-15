@@ -13,7 +13,6 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 
-// Initialize Stripe outside component to prevent multiple initializations
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 function CheckoutForm() {
@@ -81,13 +80,10 @@ function CheckoutForm() {
 export default function UpgradePlanPage() {
   const { user, isLoading } = useUser();
   const [clientSecret, setClientSecret] = useState<string>();
-  const [stripeError, setStripeError] = useState<string>();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Only fetch if we have a user and don't already have a client secret
-    if (user?.id && !clientSecret) {
-      console.log('Creating subscription for user:', user.id);
+    if (user?.id) {
       fetch("/api/create-subscription", {
         method: "POST",
         headers: {
@@ -103,16 +99,10 @@ export default function UpgradePlanPage() {
           return data;
         })
         .then((data) => {
-          console.log('Received client secret');
-          if (data.clientSecret) {
-            setClientSecret(data.clientSecret);
-          } else {
-            throw new Error("No client secret received");
-          }
+          setClientSecret(data.clientSecret);
         })
         .catch((error) => {
           console.error("Payment initialization error:", error);
-          setStripeError(error.message);
           toast({
             title: "Error",
             description: "Failed to initialize payment form. Please try again.",
@@ -120,7 +110,7 @@ export default function UpgradePlanPage() {
           });
         });
     }
-  }, [user, clientSecret, toast]);
+  }, [user, toast]);
 
   if (isLoading) {
     return (
@@ -145,7 +135,6 @@ export default function UpgradePlanPage() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-8">Upgrade to Pro Plan</h1>
       <div className="grid md:grid-cols-2 gap-8">
-        {/* Free Plan Card - No changes */}
         <Card>
           <CardHeader>
             <CardTitle>Free Plan</CardTitle>
@@ -169,7 +158,6 @@ export default function UpgradePlanPage() {
           </CardContent>
         </Card>
 
-        {/* Pro Plan Card */}
         <Card className="relative border-primary">
           <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm">
             Advanced Features
@@ -202,21 +190,8 @@ export default function UpgradePlanPage() {
               </div>
             </div>
 
-            {stripeError ? (
-              <div className="mt-6 text-center text-red-500">
-                <p>{stripeError}</p>
-                <Button 
-                  className="mt-2"
-                  onClick={() => {
-                    setStripeError(undefined);
-                    setClientSecret(undefined);
-                  }}
-                >
-                  Try Again
-                </Button>
-              </div>
-            ) : clientSecret ? (
-              <div className="mt-6">
+            <div className="mt-6">
+              {clientSecret ? (
                 <Elements 
                   stripe={stripePromise} 
                   options={{ 
@@ -227,12 +202,12 @@ export default function UpgradePlanPage() {
                 >
                   <CheckoutForm />
                 </Elements>
-              </div>
-            ) : (
-              <div className="mt-6">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-              </div>
-            )}
+              ) : (
+                <div className="flex justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
