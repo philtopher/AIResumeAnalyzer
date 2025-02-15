@@ -53,7 +53,7 @@ router.get('/verify-subscription/:userId', async (req, res) => {
         expand: ['data.customer'],
       });
 
-      const stripeSubscription = stripeSubscriptions.data.find(sub => 
+      const stripeSubscription = stripeSubscriptions.data.find(sub =>
         sub.metadata.userId === userId.toString()
       );
 
@@ -73,16 +73,16 @@ router.get('/verify-subscription/:userId', async (req, res) => {
     const isSubscribed = !!subscription && subscription.status === 'active';
     console.log('Subscription status:', { isSubscribed, userId });
 
-    res.json({ 
+    res.json({
       success: true,
       isSubscribed,
-      message: isSubscribed ? 'Subscription is active' : 'No active subscription found'
+      message: isSubscribed ? 'Subscription is active' : 'No active subscription found',
     });
   } catch (error) {
     console.error('Subscription verification error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to verify subscription status',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -100,8 +100,15 @@ router.post('/create-payment-link', async (req, res) => {
       throw new Error('STRIPE_PRICE_ID is not configured');
     }
 
-    // Ensure proper URL format
-    const baseUrl = process.env.APP_URL?.replace(/\/+$/, '') || '';
+    // Get the base URL from request origin or environment variable
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? process.env.APP_URL?.replace(/\/+$/, '')
+      : `${req.protocol}://${req.get('host')}`;
+
+    if (!baseUrl) {
+      throw new Error('Unable to determine application URL');
+    }
+
     const successUrl = new URL('/upgrade', baseUrl);
     successUrl.searchParams.set('payment', 'success');
     successUrl.searchParams.set('userId', req.user.id.toString());
@@ -131,13 +138,13 @@ router.post('/create-payment-link', async (req, res) => {
     res.json({ url: paymentLink.url });
   } catch (error: any) {
     console.error('Stripe payment link creation error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to create payment link'
+    res.status(500).json({
+      error: error.message || 'Failed to create payment link',
     });
   }
 });
 
-router.post('/webhook', express.raw({type: 'application/json'}), async (req, res) => {
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -184,6 +191,7 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
         });
 
         if (user?.email) {
+          //baseUrl is now available here from the create-payment-link route changes.
           await sendEmail({
             to: user.email,
             subject: 'Welcome to CV Transformer Pro!',
@@ -197,10 +205,10 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
                 <li>Interviewer LinkedIn Insights</li>
                 <li>Unlimited CV Downloads</li>
               </ul>
-              <p>Start exploring your new features now by visiting your <a href="${process.env.APP_URL?.replace(/\/+$/, '')}/dashboard">dashboard</a>.</p>
+              <p>Start exploring your new features now by visiting your <a href="${baseUrl}/dashboard">dashboard</a>.</p>
               <p>If you have any questions, our support team is here to help!</p>
               <p>Best regards,<br>CV Transformer Team</p>
-            `
+            `,
           });
           console.log('Confirmation email sent to:', user.email);
         }
