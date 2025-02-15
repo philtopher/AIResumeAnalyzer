@@ -654,7 +654,7 @@ export function registerRoutes(app: Express): Server {
                 email: customer.email!,
                 username: customer.metadata.username,
                 password: customer.metadata.hashedPassword,
-                role: 'user',
+                role: 'user', // Start with basic user role
                 emailVerified: false,
                 verificationToken: randomUUID(),
                 verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour expiry
@@ -667,12 +667,14 @@ export function registerRoutes(app: Express): Server {
                 role: newUser.role 
               });
 
-              // Create subscription record
+              // Create subscription record with proper end date tracking
               await db.insert(subscriptions).values({
                 userId: newUser.id,
                 stripeCustomerId: customer.id,
-                stripeSubscriptionId: '', // You'll need to add this
+                stripeSubscriptionId: subscription.id, // Store Stripe subscription ID
                 status: 'active',
+                createdAt: new Date(),
+                endedAt: new Date(subscription.current_period_end * 1000), // Convert UNIX timestamp to Date
               });
 
               console.log('Created subscription record for user:', newUser.id);

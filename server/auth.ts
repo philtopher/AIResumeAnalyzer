@@ -5,9 +5,9 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual, randomUUID } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, loginSchema, resetPasswordRequestSchema, resetPasswordSchema } from "@db/schema";
+import { users, insertUserSchema, loginSchema, resetPasswordRequestSchema, resetPasswordSchema, subscriptions } from "@db/schema";
 import { db } from "@db";
-import { eq } from "drizzle-orm";
+import { eq, and, gt } from "drizzle-orm";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 import { sendEmail } from "./email"; // Import sendEmail function
 
@@ -136,6 +136,24 @@ declare global {
   }
 }
 
+// Add this function to check subscription status
+async function checkSubscriptionStatus(userId: number) {
+  const [subscription] = await db
+    .select()
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.userId, userId),
+        eq(subscriptions.status, 'active'),
+        gt(subscriptions.endedAt, new Date()) // Check if subscription hasn't expired
+      )
+    )
+    .limit(1);
+
+  return !!subscription;
+}
+
+
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
@@ -207,6 +225,20 @@ export function setupAuth(app: Express) {
 
       if (!user) {
         return done(null, false);
+      }
+
+      // Check subscription status for existing users
+      const hasActiveSubscription = await checkSubscriptionStatus(user.id);
+
+      // If subscription expired, ensure user has basic access
+      if (!hasActiveSubscription) {
+        // Update role to 'user' if they don't have an active subscription
+        await db
+          .update(users)
+          .set({ role: 'user' })
+          .where(eq(users.id, user.id));
+
+        user.role = 'user';
       }
 
       // Convert nullable boolean to boolean for consistency
