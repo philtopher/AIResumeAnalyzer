@@ -11,7 +11,8 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2023-10-16'
+  apiVersion: '2023-10-16',
+  typescript: true,
 });
 
 const router = Router();
@@ -21,11 +22,8 @@ router.post('/create-subscription', async (req, res) => {
     return res.status(401).json({ error: 'You must be logged in to upgrade' });
   }
 
-  if (!req.user.emailVerified) {
-    return res.status(403).json({ error: 'Please verify your email first' });
-  }
-
   try {
+    console.log('Creating subscription for user:', req.user.id);
     // Create or retrieve a customer
     let customer;
     const [existingSubscription] = await db
@@ -36,6 +34,7 @@ router.post('/create-subscription', async (req, res) => {
 
     if (existingSubscription?.stripeCustomerId) {
       customer = await stripe.customers.retrieve(existingSubscription.stripeCustomerId);
+      console.log('Retrieved existing customer:', customer.id);
     } else {
       customer = await stripe.customers.create({
         email: req.user.email,
@@ -43,16 +42,18 @@ router.post('/create-subscription', async (req, res) => {
           userId: req.user.id.toString()
         }
       });
+      console.log('Created new customer:', customer.id);
+    }
+
+    if (!process.env.STRIPE_PRICE_ID) {
+      throw new Error('STRIPE_PRICE_ID is not configured');
     }
 
     // Create a subscription
+    console.log('Creating subscription with price ID:', process.env.STRIPE_PRICE_ID);
     const subscription = await stripe.subscriptions.create({
       customer: customer.id,
-      items: [
-        {
-          price: process.env.STRIPE_PRICE_ID,
-        },
-      ],
+      items: [{ price: process.env.STRIPE_PRICE_ID }],
       payment_behavior: 'default_incomplete',
       payment_settings: { save_default_payment_method: 'on_subscription' },
       expand: ['latest_invoice.payment_intent'],
@@ -64,14 +65,19 @@ router.post('/create-subscription', async (req, res) => {
     const invoice = subscription.latest_invoice as Stripe.Invoice;
     const payment_intent = invoice.payment_intent as Stripe.PaymentIntent;
 
+    if (!payment_intent?.client_secret) {
+      throw new Error('Failed to create payment intent');
+    }
+
+    console.log('Created subscription:', subscription.id);
+
     // Create or update subscription record
     if (existingSubscription) {
       await db.update(subscriptions)
         .set({
           stripeCustomerId: customer.id,
           stripeSubscriptionId: subscription.id,
-          status: 'pending',
-          updatedAt: new Date()
+          status: 'pending'
         })
         .where(eq(subscriptions.userId, req.user.id));
     } else {
@@ -87,9 +93,11 @@ router.post('/create-subscription', async (req, res) => {
     res.json({
       clientSecret: payment_intent.client_secret
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Stripe subscription creation error:', error);
-    res.status(500).json({ error: 'Failed to create subscription' });
+    res.status(500).json({ 
+      error: error.message || 'Failed to create subscription'
+    });
   }
 });
 
