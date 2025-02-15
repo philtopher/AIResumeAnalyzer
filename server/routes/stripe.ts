@@ -149,12 +149,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!sig || !endpointSecret) {
+    console.error('Missing stripe signature or webhook secret');
     return res.status(400).send('Missing stripe signature or webhook secret');
   }
 
+  let event: Stripe.Event;
+
   try {
     console.log('Received webhook event');
-    const event = stripe.webhooks.constructEvent(
+    event = stripe.webhooks.constructEvent(
       req.body,
       sig,
       endpointSecret
@@ -191,7 +194,16 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         });
 
         if (user?.email) {
-          //baseUrl is now available here from the create-payment-link route changes.
+          // Get the application URL based on environment
+          const baseUrl = process.env.NODE_ENV === 'production'
+            ? process.env.APP_URL?.replace(/\/+$/, '')
+            : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+
+          if (!baseUrl) {
+            throw new Error('Unable to determine application URL for email');
+          }
+
+          console.log('Sending confirmation email to:', user.email);
           await sendEmail({
             to: user.email,
             subject: 'Welcome to CV Transformer Pro!',
@@ -210,12 +222,16 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
               <p>Best regards,<br>CV Transformer Team</p>
             `,
           });
-          console.log('Confirmation email sent to:', user.email);
+          console.log('Confirmation email sent successfully to:', user.email);
+        } else {
+          console.warn('User email not found for userId:', userId);
         }
       } catch (emailError) {
         console.error('Failed to send confirmation email:', emailError);
-        // Continue even if email fails
+        // Continue even if email fails - don't block the webhook response
       }
+    } else {
+      console.log('Unhandled webhook event type:', event.type);
     }
 
     res.json({ received: true });
