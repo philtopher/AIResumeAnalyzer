@@ -36,6 +36,7 @@ import {
   UserX,
   Crown,
 } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
@@ -82,7 +83,7 @@ interface User {
   } | null;
 }
 
-export default function AdminDashboardPage() {
+function AdminDashboardPage() {
   const { toast } = useToast();
 
   // Fetch analytics data
@@ -133,6 +134,9 @@ export default function AdminDashboardPage() {
         title: "Success",
         description: "User deleted successfully",
       });
+
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -162,6 +166,9 @@ export default function AdminDashboardPage() {
         title: "Success",
         description: `Subscription ${action}d successfully`,
       });
+
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -191,6 +198,9 @@ export default function AdminDashboardPage() {
         title: "Success",
         description: "User role updated successfully",
       });
+
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -469,3 +479,5 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+
+export default AdminDashboardPage;
