@@ -1,14 +1,14 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { 
-  FileText, 
-  Star, 
+import {
+  FileText,
+  Star,
   Quote,
   HelpCircle,
   ChevronDown,
   Play,
-  MessageCircle 
+  MessageCircle
 } from "lucide-react";
 import {
   Accordion,
@@ -80,7 +80,7 @@ export default function HomePage() {
                   </span>
                 </h1>
                 <p className="text-xl text-muted-foreground mb-8">
-                  Our AI technology optimizes your CV for specific roles while maintaining complete accuracy. Get instant feedback and improve your chances of landing your dream job.
+                  Our advanced AI analyzes and enhances your professional experience, delivering role-optimized CVs that highlight your true potential while maintaining complete accuracy. Get instant feedback and improve your chances of landing your dream job.
                 </p>
                 <div className="flex gap-4">
                   <Link href="/public-cv">
