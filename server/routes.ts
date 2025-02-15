@@ -712,17 +712,12 @@ export function registerRoutes(app: Express): Server {
         anonymousUsers: 0,
         premiumUsers: 0,
         totalConversions: 0,
-        registeredConversions: 0,
-        anonymousConversions: 0,
         conversionRate: 0,
         cpuUsage: 0,
         memoryUsage: 0,
         storageUsage: 0,
         activeConnections: 0,
         systemMetricsHistory: [],
-        suspiciousActivities: [],
-        usersByLocation: [],
-        conversionsByLocation: []
       };
 
       try {
@@ -732,7 +727,7 @@ export function registerRoutes(app: Express): Server {
           .from(users);
         analyticsData.totalUsers = Number(totalUsers);
 
-        // Get registered vs anonymous users
+        // Get registered vs anonymous users (excluding demo users)
         const [{ count: registeredUsers }] = await db
           .select({ count: sql<number>`count(*)` })
           .from(users)
@@ -740,19 +735,12 @@ export function registerRoutes(app: Express): Server {
         analyticsData.registeredUsers = Number(registeredUsers);
         analyticsData.anonymousUsers = analyticsData.totalUsers - analyticsData.registeredUsers;
 
-        // Get premium users count
-        const [{ count: premiumUsers }] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(subscriptions)
-          .where(sql`status = 'active'`);
-        analyticsData.premiumUsers = Number(premiumUsers);
-
         // Get active users (last 24 hours)
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const [{ count: activeUsers }] = await db
-          .select({ count: sql<number>`count(distinct user_id)` })
+          .select({ count: sql<number>`count(distinct "userId")` })
           .from(activityLogs)
-          .where(sql`created_at > ${twentyFourHoursAgo}`);
+          .where(sql`"createdAt" > ${twentyFourHoursAgo}`);
         analyticsData.activeUsers = Number(activeUsers);
 
         // Get conversion metrics
@@ -761,41 +749,27 @@ export function registerRoutes(app: Express): Server {
           .from(cvs);
         analyticsData.totalConversions = Number(totalConversions);
 
-        // Get system metrics
-        analyticsData.cpuUsage = await new Promise<number>((resolve) => {
-          os.cpuUsage((value) => resolve(value * 100));
-        });
-        analyticsData.memoryUsage = (1 - os.freememPercentage()) * 100;
-        const totalStorage = os.totalmem();
-        const freeStorage = os.freemem();
-        analyticsData.storageUsage = ((totalStorage - freeStorage) / totalStorage) * 100;
-
-        // Get active connections (last 5 minutes)
-        const [{ count: activeConnections }] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(siteAnalytics)
-          .where(sql`created_at > ${new Date(Date.now() - 5 * 60 * 1000)}`);
-        analyticsData.activeConnections = Number(activeConnections);
-
         // Calculate conversion rate
         analyticsData.conversionRate = analyticsData.totalUsers > 0
           ? Number(((analyticsData.totalConversions / analyticsData.totalUsers) * 100).toFixed(1))
           : 0;
 
-        // Get system metrics history (last hour)
-        const systemMetricsHistory = await db
-          .select({
-            timestamp: sql<string>`to_char(created_at, 'HH24:MI')`,
-            cpuUsage: systemMetrics.cpuUsage,
-            memoryUsage: systemMetrics.memoryUsage,
-            storageUsage: systemMetrics.storageUsage,
-          })
-          .from(systemMetrics)
-          .where(sql`created_at > ${new Date(Date.now() - 60 * 60 * 1000)}`)
-          .orderBy(sql`created_at`);
-        analyticsData.systemMetricsHistory = systemMetricsHistory;
+        // Get system metrics
+        analyticsData.cpuUsage = await new Promise<number>((resolve) => {
+          os.cpuUsage((value) => resolve(value * 100));
+        });
+        analyticsData.memoryUsage = (1 - os.freememPercentage()) * 100;
+        analyticsData.storageUsage = (os.totalmem() - os.freemem()) / os.totalmem() * 100;
 
-        // Store current system metrics
+        // Get active connections (estimate based on activity logs)
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const [{ count: activeConnections }] = await db
+          .select({ count: sql<number>`count(distinct "userId")` })
+          .from(activityLogs)
+          .where(sql`"createdAt" > ${fiveMinutesAgo}`);
+        analyticsData.activeConnections = Number(activeConnections);
+
+        // Store current metrics
         await db.insert(systemMetrics).values({
           cpuUsage: analyticsData.cpuUsage,
           memoryUsage: analyticsData.memoryUsage,
@@ -803,15 +777,28 @@ export function registerRoutes(app: Express): Server {
           activeConnections: analyticsData.activeConnections,
         });
 
+        // Get metrics history
+        const metricsHistory = await db
+          .select({
+            timestamp: sql<string>`to_char("createdAt"::timestamp, 'HH24:MI')`,
+            cpuUsage: systemMetrics.cpuUsage,
+            memoryUsage: systemMetrics.memoryUsage,
+            storageUsage: systemMetrics.storageUsage,
+          })
+          .from(systemMetrics)
+          .where(sql`"createdAt" > ${new Date(Date.now() - 60 * 60 * 1000)}`)
+          .orderBy(sql`"createdAt"`);
+
+        analyticsData.systemMetricsHistory = metricsHistory;
+
+        res.json(analyticsData);
       } catch (dbError) {
         console.error("Database error in analytics:", dbError);
-        return res.status(500).send(`Database error: ${dbError.message}`);
+        throw new Error(`Database error: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`);
       }
-
-      res.json(analyticsData);
     } catch (error) {
       console.error("Admin analytics error:", error);
-      res.status(500).send(error.message);
+      res.status(500).send(error instanceof Error ? error.message : 'Unknown error occurred');
     }
   });
 
