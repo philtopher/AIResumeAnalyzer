@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
 import { db } from '@db';
-import { subscriptions } from '@db/schema';
+import { subscriptions, users } from '@db/schema';
 import { eq } from 'drizzle-orm';
 import express from 'express';
 import { sendEmail } from '../email';
-import { users } from '@db/schema';
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('STRIPE_SECRET_KEY must be set');
@@ -18,6 +17,77 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 const router = Router();
 
+// Explicitly make this route public - no auth check
+router.get('/verify-subscription/:userId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    console.log('Verifying subscription for user:', userId);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Check if the user exists
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+    if (!user) {
+      console.log('User not found:', userId);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if there's an active subscription in our database
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .limit(1);
+
+    console.log('Found subscription:', subscription);
+
+    // If we don't find a subscription in our database, check Stripe directly
+    if (!subscription) {
+      console.log('No subscription found in database, checking Stripe...');
+      const stripeSubscriptions = await stripe.subscriptions.list({
+        limit: 1,
+        status: 'active',
+        expand: ['data.customer'],
+      });
+
+      const stripeSubscription = stripeSubscriptions.data.find(sub => 
+        sub.metadata.userId === userId.toString()
+      );
+
+      if (stripeSubscription) {
+        console.log('Found active subscription in Stripe, creating database record');
+        await db.insert(subscriptions).values({
+          userId,
+          stripeCustomerId: stripeSubscription.customer as string,
+          stripeSubscriptionId: stripeSubscription.id,
+          status: 'active',
+          createdAt: new Date(),
+        });
+        return res.json({ success: true, isSubscribed: true });
+      }
+    }
+
+    const isSubscribed = !!subscription && subscription.status === 'active';
+    console.log('Subscription status:', { isSubscribed, userId });
+
+    res.json({ 
+      success: true,
+      isSubscribed,
+      message: isSubscribed ? 'Subscription is active' : 'No active subscription found'
+    });
+  } catch (error) {
+    console.error('Subscription verification error:', error);
+    res.status(500).json({ 
+      error: 'Failed to verify subscription status',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Protected route - requires authentication
 router.post('/create-payment-link', async (req, res) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ error: 'You must be logged in to upgrade' });
@@ -64,61 +134,6 @@ router.post('/create-payment-link', async (req, res) => {
     res.status(500).json({ 
       error: error.message || 'Failed to create payment link'
     });
-  }
-});
-
-// Add endpoint to verify subscription status
-router.get('/verify-subscription/:userId', async (req, res) => {
-  try {
-    const userId = parseInt(req.params.userId);
-    console.log('Verifying subscription for user:', userId);
-
-    if (isNaN(userId)) {
-      return res.status(400).json({ error: 'Invalid user ID' });
-    }
-
-    // Check if there's an active subscription in our database
-    const [subscription] = await db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
-      .limit(1);
-
-    console.log('Found subscription:', subscription);
-
-    // If we don't find a subscription in our database, check Stripe directly
-    if (!subscription) {
-      console.log('No subscription found in database, checking Stripe...');
-      const stripeSubscriptions = await stripe.subscriptions.list({
-        limit: 1,
-        status: 'active',
-        expand: ['data.customer'],
-      });
-
-      const stripeSubscription = stripeSubscriptions.data.find(sub => 
-        sub.metadata.userId === userId.toString()
-      );
-
-      if (stripeSubscription) {
-        console.log('Found active subscription in Stripe, creating database record');
-        await db.insert(subscriptions).values({
-          userId,
-          stripeCustomerId: stripeSubscription.customer as string,
-          stripeSubscriptionId: stripeSubscription.id,
-          status: 'active',
-          createdAt: new Date(),
-        });
-        return res.json({ success: true, isSubscribed: true });
-      }
-    }
-
-    res.json({ 
-      success: true,
-      isSubscribed: !!subscription && subscription.status === 'active'
-    });
-  } catch (error) {
-    console.error('Subscription verification error:', error);
-    res.status(500).json({ error: 'Failed to verify subscription status' });
   }
 });
 

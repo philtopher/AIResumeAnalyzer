@@ -173,11 +173,11 @@ function App() {
           <Route path="/contact" component={ContactPage} />
           <Route path="/privacy-policy" component={PrivacyPolicyPage} />
           <Route path="/terms-of-service" component={TermsOfServicePage} />
+          <Route path="/upgrade" component={UpgradePlanPage} />
           {user && (
             <>
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
-              <Route path="/upgrade" component={UpgradePlanPage} />
               {(user?.role === "super_admin" || user?.role === "sub_admin") && (
                 <Route path="/admin" component={AdminDashboardPage} />
               )}

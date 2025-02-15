@@ -12,6 +12,7 @@ export default function UpgradePlanPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
   const { toast } = useToast();
   const search = useSearch();
   const params = new URLSearchParams(search);
@@ -19,14 +20,18 @@ export default function UpgradePlanPage() {
   const paymentUserId = params.get('userId');
 
   useEffect(() => {
-    // Verify subscription status when payment=success is in URL
-    if (paymentStatus === 'success' && paymentUserId && user?.id.toString() === paymentUserId) {
-      console.log('Verifying payment success:', { paymentStatus, paymentUserId, userId: user?.id });
+    setVerificationError(null);
+
+    // Always verify if we have payment success parameters
+    if (paymentStatus === 'success' && paymentUserId) {
+      console.log('Verifying payment success for userId:', paymentUserId);
       setIsVerifying(true);
+
       fetch(`/api/verify-subscription/${paymentUserId}`)
-        .then(res => {
-          if (!res.ok) throw new Error('Failed to verify subscription');
-          return res.json();
+        .then(async res => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to verify subscription');
+          return data;
         })
         .then(data => {
           console.log('Verification response:', data);
@@ -36,13 +41,16 @@ export default function UpgradePlanPage() {
               title: "Upgrade Successful!",
               description: "Welcome to CV Transformer Pro! Check your email for confirmation.",
             });
+          } else {
+            throw new Error(data.message || "Subscription verification failed. Please contact support if you believe this is an error.");
           }
         })
         .catch(error => {
           console.error('Verification error:', error);
+          setVerificationError(error.message);
           toast({
             title: "Verification Error",
-            description: "Could not verify subscription status. Please contact support.",
+            description: error.message,
             variant: "destructive",
           });
         })
@@ -50,10 +58,17 @@ export default function UpgradePlanPage() {
           setIsVerifying(false);
         });
     }
-  }, [paymentStatus, paymentUserId, user, toast]);
+  }, [paymentStatus, paymentUserId, toast]);
 
   const handleUpgradeClick = async () => {
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to upgrade your account.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsProcessing(true);
     try {
@@ -70,7 +85,6 @@ export default function UpgradePlanPage() {
         throw new Error(data.error || "Failed to create payment link");
       }
 
-      // Redirect to Stripe's hosted payment page
       window.location.href = data.url;
     } catch (error) {
       console.error("Payment link creation error:", error);
@@ -91,20 +105,27 @@ export default function UpgradePlanPage() {
     );
   }
 
-  if (!user) {
-    return <Redirect to="/auth" />;
-  }
-
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-8">Upgrade to Pro Plan</h1>
+
+      {verificationError && (
+        <Alert variant="destructive" className="mb-8">
+          <AlertTitle>Verification Failed</AlertTitle>
+          <AlertDescription>{verificationError}</AlertDescription>
+        </Alert>
+      )}
 
       {isSubscribed && (
         <Alert className="mb-8">
           <AlertTitle>Pro Plan Active!</AlertTitle>
           <AlertDescription>
             Your subscription is active. You now have access to all Pro features.
-            Visit your <a href="/dashboard" className="font-medium underline">dashboard</a> to start using them!
+            {user ? (
+              <> Visit your <a href="/dashboard" className="font-medium underline">dashboard</a> to start using them!</>
+            ) : (
+              <> Please <a href="/auth" className="font-medium underline">log in</a> to access your Pro features.</>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -114,7 +135,7 @@ export default function UpgradePlanPage() {
         <Card>
           <CardHeader>
             <CardTitle>Free Plan</CardTitle>
-            <CardDescription>Your current plan</CardDescription>
+            <CardDescription>Basic features</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
