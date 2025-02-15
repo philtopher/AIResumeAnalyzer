@@ -24,6 +24,7 @@ import TermsOfServicePage from "./pages/TermsOfServicePage";
 import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import PrivacyDashboardPage from "./pages/PrivacyDashboardPage";
+import SuperAdminDashboardPage from "./pages/SuperAdminDashboardPage";
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -34,7 +35,8 @@ function Navigation() {
     setLocation("/");
   };
 
-  const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
+  const isSuperAdmin = user?.role === "super_admin";
+  const isAdmin = isSuperAdmin || user?.role === "sub_admin";
 
   const menuItems = [
     { label: "About", path: "/about" },
@@ -48,6 +50,7 @@ function Navigation() {
     { label: "Dashboard", path: "/dashboard" },
     { label: "Privacy Settings", path: "/privacy-dashboard" },
     ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
+    ...(isSuperAdmin ? [{ label: "Super Admin", path: "/super-admin" }] : []),
   ];
 
   return (
@@ -73,7 +76,7 @@ function Navigation() {
             <>
               {authenticatedItems.map((item) => (
                 <Link key={item.path} href={item.path}>
-                  <Button variant={item.path === "/admin" ? "default" : "ghost"}>
+                  <Button variant={item.path === "/super-admin" ? "default" : "ghost"}>
                     {item.label}
                   </Button>
                 </Link>
@@ -174,6 +177,9 @@ function App() {
               <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
               {(user?.role === "super_admin" || user?.role === "sub_admin") && (
                 <Route path="/admin" component={AdminDashboardPage} />
+              )}
+              {user?.role === "super_admin" && (
+                <Route path="/super-admin" component={SuperAdminDashboardPage} />
               )}
             </>
           )}
