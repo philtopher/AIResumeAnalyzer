@@ -386,6 +386,23 @@ function getWebhookUrl() {
 // Initialize Stripe with proper configuration
 
 
+async function hashAndCreateStripeCustomer(email: string, username: string, password: string) {
+  // Hash the password before storing
+  const hashedPassword = await hashPassword(password);
+
+  // Create a customer with pending signup status and user data
+  const customer = await stripe?.customers.create({
+    email,
+    metadata: {
+      signup_pending: 'true',
+      username, // Store username separately
+      hashedPassword // Store hashed password directly
+    }
+  });
+
+  return customer;
+}
+
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
@@ -515,17 +532,7 @@ export function registerRoutes(app: Express): Server {
       // Log the subscription attempt
       console.log('Creating subscription for:', email);
 
-      // Hash the password before storing
-      const hashedPassword = await hashPassword(password);
-
-      // Create a customer with pending signup status and user data
-      const customer = await stripe?.customers.create({
-        email,
-        metadata: {
-          signup_pending: 'true',
-          user_data: JSON.stringify({ username, password: hashedPassword })
-        }
-      });
+      const customer = await hashAndCreateStripeCustomer(email, username, password);
 
       if (!customer) {
         console.error('Failed to create Stripe customer');
@@ -575,7 +582,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update the webhook handler to use the hashed password
+  // Update the webhook handler with improved error handling and logging
   app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
     try {
       const sig = req.headers['stripe-signature']!;
@@ -601,62 +608,84 @@ export function registerRoutes(app: Express): Server {
       switch (event.type) {
         case 'payment_intent.succeeded':
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
+          console.log('Processing successful payment for customer:', paymentIntent.customer);
+
           // Get the customer details
           const customer = await stripe?.customers.retrieve(paymentIntent.customer as string);
+          console.log('Retrieved customer data:', {
+            email: customer?.email,
+            metadata: customer?.metadata,
+            status: 'signup_pending' in (customer?.metadata || {})
+          });
 
           if (customer && !customer.deleted && customer.metadata.signup_pending) {
-            const userData = JSON.parse(customer.metadata.user_data || '{}');
-
-            // Create user account with already hashed password
-            const [newUser] = await db.insert(users).values({
-              email: customer.email!,
-              username: userData.username,
-              password: userData.password, // Password is already hashed
-              role: 'user'
-            }).returning();
-
-            // Create subscription record
-            await db.insert(subscriptions).values({
-              userId: newUser.id,
-              stripeCustomerId: customer.id,
-              status: 'active',
-              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-            });
-
-            // Remove pending flag and user data from customer metadata
-            await stripe?.customers.update(customer.id, {
-              metadata: {
-                signup_pending: 'false',
-                user_data: ''
-              }
-            });
-
-            // Send welcome email
             try {
-              await sendEmail({
-                to: customer.email!,
-                subject: 'Welcome to CV Transformer Pro!',
-                html: `
-                  <h1>Welcome to CV Transformer Pro!</h1>
-                  <p>Thank you for subscribing to our premium service! Your account has been successfully created.</p>
-                  <h2>Your Account Details:</h2>
-                  <ul>
-                    <li>Username: ${userData.username}</li>
-                    <li>Email: ${customer.email}</li>
-                  </ul>
-                  <h2>Your Subscription Details:</h2>
-                  <ul>
-                    <li>Plan: Pro Account</li>
-                    <li>Price: £5/month</li>
-                    <li>Billing Period: Monthly</li>
-                  </ul>
-                  <p>You can now log in to your account using your username and password.</p>
-                  <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
-                `
+              // Create user account with hashed password from metadata
+              const [newUser] = await db.insert(users).values({
+                email: customer.email!,
+                username: customer.metadata.username,
+                password: customer.metadata.hashedPassword,
+                role: 'user',
+                emailVerified: true
+              }).returning();
+
+              console.log('Created new user:', { 
+                id: newUser.id, 
+                username: newUser.username,
+                email: newUser.email,
+                role: newUser.role 
               });
-            } catch (emailError) {
-              console.error('Failed to send welcome email:', emailError);
-              // Continue even if email fails
+
+              // Create subscription record
+              await db.insert(subscriptions).values({
+                userId: newUser.id,
+                stripeCustomerId: customer.id,
+                status: 'active',
+                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+              });
+
+              console.log('Created subscription record for user:', newUser.id);
+
+              // Remove sensitive data from customer metadata
+              await stripe?.customers.update(customer.id, {
+                metadata: {
+                  signup_pending: 'false',
+                  username: '',
+                  hashedPassword: ''
+                }
+              });
+
+              // Send welcome email
+              try {
+                await sendEmail({
+                  to: customer.email!,
+                  subject: 'Welcome to CV Transformer Pro!',
+                  html: `
+                    <h1>Welcome to CV Transformer Pro!</h1>
+                    <p>Thank you for subscribing to our premium service! Your account has been successfully created.</p>
+                    <h2>Your Account Details:</h2>
+                    <ul>
+                      <li>Username: ${newUser.username}</li>
+                      <li>Email: ${newUser.email}</li>
+                    </ul>
+                    <h2>Your Subscription Details:</h2>
+                    <ul>
+                      <li>Plan: Pro Account</li>
+                      <li>Price: £5/month</li>
+                      <li>Billing Period: Monthly</li>
+                    </ul>
+                    <p>You can now log in to your account using your username and password.</p>
+                    <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+                  `
+                });
+                console.log('Welcome email sent successfully');
+              } catch (emailError) {
+                console.error('Failed to send welcome email:', emailError);
+                // Continue even if email fails
+              }
+            } catch (error) {
+              console.error('Error processing webhook user creation:', error);
+              throw error;
             }
           }
           break;
@@ -666,9 +695,9 @@ export function registerRoutes(app: Express): Server {
           if (failedPaymentIntent.customer) {
             // Get customer and notify about failed payment
             const customer = await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
-            if (customer && !customer.deleted) {
+            if (customer && !customer.deleted && customer.email) {
               await sendEmail({
-                to: customer.email!,
+                to: customer.email,
                 subject: 'Payment Failed',
                 html: `
                   <h1>Payment Failed</h1>
