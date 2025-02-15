@@ -26,16 +26,17 @@ router.post('/create-payment-link', async (req, res) => {
   try {
     console.log('Creating payment link for user:', req.user.id);
 
-    // Create or get the price
     if (!process.env.STRIPE_PRICE_ID) {
       throw new Error('STRIPE_PRICE_ID is not configured');
     }
 
-    // Ensure proper URL format without double slashes
-    const baseUrl = process.env.APP_URL ? process.env.APP_URL.replace(/\/+$/, '') : '';
-    const successUrl = `${baseUrl}/upgrade?payment=success&userId=${req.user.id}`;
+    // Ensure proper URL format
+    const baseUrl = process.env.APP_URL?.replace(/\/+$/, '') || '';
+    const successUrl = new URL('/upgrade', baseUrl);
+    successUrl.searchParams.set('payment', 'success');
+    successUrl.searchParams.set('userId', req.user.id.toString());
 
-    console.log('Success URL will be:', successUrl);
+    console.log('Success URL will be:', successUrl.toString());
 
     // Create a payment link
     const paymentLink = await stripe.paymentLinks.create({
@@ -48,7 +49,7 @@ router.post('/create-payment-link', async (req, res) => {
       after_completion: {
         type: 'redirect',
         redirect: {
-          url: successUrl,
+          url: successUrl.toString(),
         },
       },
       metadata: {
