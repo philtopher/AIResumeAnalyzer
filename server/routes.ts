@@ -545,82 +545,57 @@ export function registerRoutes(app: Express): Server {
   // Add webhook handler for Stripe events
   app.post("/api/webhook", async (req, res) => {
     try {
-      console.log('Received webhook event');
       const sig = req.headers['stripe-signature']!;
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
 
-      // Log headers for debugging
-      console.log('Webhook Headers:', JSON.stringify(req.headers, null, 2));
-
-      let event;
-
-      try {
-        event = stripe.webhooks.constructEvent(
-          req.body,
-          sig,
-          process.env.STRIPE_WEBHOOK_SECRET!
-        );
-        console.log('Webhook event constructed successfully:', event.type);
-      } catch (err: any) {
-        console.error('Webhook signature verification failed:', err.message);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-      }
-
-      // Handle the event
       switch (event.type) {
         case 'customer.subscription.created':
           const subscription = event.data.object as Stripe.Subscription;
-          console.log('Processing subscription:', subscription.id);
-
           const customer = await stripe.customers.retrieve(subscription.customer as string);
-          console.log('Retrieved customer:', customer.id);
 
           if (customer.metadata.signup_pending === 'true') {
-            console.log('Sending welcome email to new subscriber');
-            try {
-              await sendEmail({
-                to: customer.email!,
-                subject: 'Welcome to CV Transformer Pro!',
-                html: `
-                  <h1>Welcome to CV Transformer Pro!</h1>
-                  <p>Thank you for subscribing to our premium service!</p>
-                  <h2>Your Subscription Details:</h2>
-                  <ul>
-                    <li>Plan: Pro Account</li>
-                    <li>Price: £5/month</li>
-                    <li>Billing Period: Monthly</li>
-                  </ul>
-                  <h2>Important Links:</h2>
-                  <ul>
-                    <li><a href="${process.env.APP_URL}/terms-of-service">Terms of Service</a></li>
-                    <li><a href="${process.env.APP_URL}/privacy-policy">Privacy Policy</a></li>
-                  </ul>
-                  <p>You can manage your subscription through your account dashboard.</p>
-                `
-              });
-              console.log('Welcome email sent successfully');
-            } catch (emailError) {
-              console.error('Failed to send welcome email:', emailError);
-              // Don't throw error, continue processing
-            }
+            // Send welcome email
+            await sendEmail({
+              to: customer.email!,
+              from: 'support@cvtransformer.com',
+              subject: 'Welcome to CV Transformer Pro!',
+              html: `
+                <h1>Welcome to CV Transformer Pro!</h1>
+                <p>Thank you for subscribing to our premium service!</p>
+                <h2>Your Subscription Details:</h2>
+                <ul>
+                  <li>Plan: Pro Account</li>
+                  <li>Price: £5/month</li>
+                  <li>Billing Period: Monthly</li>
+                </ul>
+                <h2>Important Links:</h2>
+                <ul>
+                  <li><a href="${process.env.APP_URL}/terms-of-service">Terms of Service</a></li>
+                  <li><a href="${process.env.APP_URL}/privacy-policy">Privacy Policy</a></li>
+                </ul>
+                <h2>Managing Your Subscription:</h2>
+                <p>To cancel your subscription or request a refund:</p>
+                <ol>
+                  <li>Log in to your account</li>
+                  <li>Go to Settings > Subscription</li>
+                  <li>Click "Cancel Subscription"</li>
+                </ol>
+                <p>You can also contact our support team at support@cvtransformer.com</p>
+                <p>Note: Refunds are available within 14 days of subscription start.</p>
+              `
+            });
           }
           break;
-
-        // Handle test webhook event
-        case 'webhook_test':
-          console.log('Received test webhook event');
-          break;
-
-        default:
-          console.log(`Unhandled event type: ${event.type}`);
       }
 
       res.json({ received: true });
     } catch (error: any) {
       console.error('Webhook error:', error);
-      res.status(400).json({ 
-        error: error.message,
-        tip: "If testing locally, make sure to use the Stripe CLI or correct webhook signing secret"
-      });
+      res.status(400).json({ error: error.message });
     }
   });
 
@@ -915,7 +890,7 @@ export function registerRoutes(app: Express): Server {
           os.cpuUsage((value) => resolve((value || 0) * 100));
         });
         analyticsData.memoryUsage = (1 - os.freememPercentage()) * 100;
-        analyticsData.storageUsage = (os.totalmem() - os.freemem()) / os.totalmem()* 100;
+        analyticsData.storageUsage = (os.totalmem() - os.freemem()) / os.totalmem() * 100;
 
         // Get active connections (estimate based on activity logs)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
