@@ -41,8 +41,15 @@ import {
   CreditCard,
 } from "lucide-react";
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// Initialize Stripe with proper error handling
+const stripePromise = (() => {
+  const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+  if (!key) {
+    console.error('Stripe publishable key is missing');
+    return null;
+  }
+  return loadStripe(key);
+})();
 
 const signupSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -308,6 +315,17 @@ const PricingPlanContent = () => {
 
 // Main page component
 export default function PricingPlansPage() {
+  if (!stripePromise) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold">Payment System Unavailable</h2>
+          <p className="text-muted-foreground">Please try again later.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-12">
