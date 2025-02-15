@@ -47,11 +47,11 @@ export async function sendEmail(options: {
       },
       trackingSettings: {
         clickTracking: {
-          enable: false,
-          enableText: false
+          enable: true,
+          enableText: true
         },
         openTracking: {
-          enable: false
+          enable: true
         },
         subscriptionTracking: {
           enable: false
@@ -59,10 +59,6 @@ export async function sendEmail(options: {
         ganalytics: {
           enable: false
         }
-      },
-      asm: {
-        groupId: 0,
-        groupsToDisplay: []
       }
     };
 
@@ -108,7 +104,8 @@ export async function sendEmail(options: {
 }
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
-  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+  // Get the base URL, defaulting to Replit URL if APP_URL is not set
+  const baseUrl = process.env.APP_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
   const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
   const currentTime = new Date().toLocaleString();
 
@@ -122,15 +119,14 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
         <h1 style="color: #2563eb; margin-bottom: 20px;">Password Reset Request</h1>
         <p>You requested to reset your password on ${currentTime}. Click the link below to reset it:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;" data-clicktracking="off">
+          <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             Reset Password
           </a>
         </div>
         <p style="margin-bottom: 20px;">This link will expire in 1 hour for security reasons.</p>
         <p style="margin-bottom: 20px;">If the button doesn't work, copy and paste this URL into your browser:</p>
-        <p style="background: #f5f5f5; padding: 10px; word-break: break-all;"><span data-clicktracking="off">${resetUrl}</span></p>
+        <p style="background: #f5f5f5; padding: 10px; word-break: break-all;">${resetUrl}</p>
         <p style="color: #666;">If you didn't request this password reset, please ignore this email or contact support if you have concerns.</p>
-        <p style="color: #666;">Direct link (no tracking): <a href="${resetUrl}" style="color: #2563eb; text-decoration: underline;" data-clicktracking="off">${resetUrl}</a></p>
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
           <p style="color: #666; font-size: 12px;">
             This is an automated message from CV Transformer. Please do not reply to this email.<br>
