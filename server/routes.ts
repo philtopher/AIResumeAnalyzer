@@ -773,7 +773,23 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).send("Access denied");
       }
 
-      const allUsers = await db.select().from(users).orderBy(desc(users.created_at));
+      const allUsers = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          role: users.role,
+          emailVerified: users.emailVerified,
+          createdAt: users.createdAt,
+          subscription: {
+            status: subscriptions.status,
+            endedAt: subscriptions.endedAt
+          }
+        })
+        .from(users)
+        .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
+        .orderBy(desc(users.createdAt));
+
       res.json(allUsers);
     } catch (error: any) {
       console.error("Admin get users error:", error);
@@ -781,51 +797,129 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Create new user (super admin only)
-  app.post("/api/admin/users", async (req, res) => {
+  // Delete user (super admin only)
+  app.delete("/api/admin/users/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user || req.user.role !== "super_admin") {
         return res.status(403).send("Access denied");
       }
 
-      const result = addUserSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(result.error.message);
-      }
+      const userId = parseInt(req.params.id);
 
-      const { username, email, password, role } = result.data;
-
-      // Check if username already exists
-      const [existingUser] = await db
+      // Prevent deleting super admin accounts
+      const [userToDelete] = await db
         .select()
         .from(users)
-        .where(eq(users.username, username))
+        .where(eq(users.id, userId))
         .limit(1);
 
-      if (existingUser) {
-        return res.status(400).send("Username already exists");
+      if (!userToDelete) {
+        return res.status(404).send("User not found");
       }
 
-      const [newUser] = await db.insert(users).values({
-        username,
-        email,
-        password, // Note: In production, this should be hashed
-        role,
-      }).returning();
+      if (userToDelete.role === "super_admin") {
+        return res.status(403).send("Cannot delete super admin accounts");
+      }
+
+      // Delete user's subscription first
+      await db
+        .delete(subscriptions)
+        .where(eq(subscriptions.userId, userId));
+
+      // Delete user
+      await db
+        .delete(users)
+        .where(eq(users.id, userId));
 
       // Log activity
       await db.insert(activityLogs).values({
-        user_id: req.user.id,
-        action: "create_user",
-        details: { createdUserId: newUser.id, role },
+        userId: req.user.id,
+        action: "delete_user",
+        details: { deletedUserId: userId }
       });
 
-      res.json(newUser);
+      res.json({ message: "User deleted successfully" });
     } catch (error: any) {
-      console.error("Admin create user error:", error);
+      console.error("Admin delete user error:", error);
       res.status(500).send(error.message);
     }
   });
+
+  // Update user subscription status (super admin only)
+  app.post("/api/admin/users/:id/subscription", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "super_admin") {
+        return res.status(403).send("Access denied");
+      }
+
+      const userId = parseInt(req.params.id);
+      const { action } = req.body;
+
+      if (!["activate", "deactivate"].includes(action)) {
+        return res.status(400).send("Invalid action. Use 'activate' or 'deactivate'");
+      }
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      // Calculate subscription end date (1 month from now for activation)
+      const endDate = action === "activate" 
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        : new Date(); // Immediate end for deactivation
+
+      // Update or create subscription
+      const [existingSubscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, userId))
+        .limit(1);
+
+      if (existingSubscription) {
+        await db
+          .update(subscriptions)
+          .set({
+            status: action === "activate" ? "active" : "inactive",
+            endedAt: endDate
+          })
+          .where(eq(subscriptions.userId, userId));
+      } else if (action === "activate") {
+        await db
+          .insert(subscriptions)
+          .values({
+            userId: userId,
+            status: "active",
+            endedAt: endDate,
+            stripeCustomerId: null,
+            stripeSubscriptionId: null
+          });
+      }
+
+      // Log activity
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: `${action}_subscription`,
+        details: { 
+          targetUserId: userId,
+          endDate: endDate.toISOString()
+        }
+      });
+
+      res.json({ 
+        message: `Subscription ${action === "activate" ? "activated" : "deactivated"} successfully`,
+        endDate
+      });
+    } catch (error: any) {
+      console.error("Admin update subscription error:", error);
+      res.status(500).send(error.message);
+    }    }
+  );
 
   // Update user role (super admin only)
   app.put("/api/admin/users/:id/role", async (req, res) => {
@@ -834,13 +928,12 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).send("Access denied");
       }
 
-      const result = updateUserRoleSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(result.error.message);
-      }
-
       const userId = parseInt(req.params.id);
-      const { role } = result.data;
+      const { role } = req.body;
+
+      if (!["user", "sub_admin", "super_admin"].includes(role)) {
+        return res.status(400).send("Invalid role");
+      }
 
       // Check if user exists
       const [existingUser] = await db
@@ -853,9 +946,9 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).send("User not found");
       }
 
-      // Prevent modifying super_admin accounts
-      if (existingUser.role === "super_admin") {
-        return res.status(403).send("Cannot modify super admin accounts");
+      // Prevent modifying other super_admin accounts
+      if (existingUser.role === "super_admin" && userId !== req.user.id) {
+        return res.status(403).send("Cannot modify other super admin accounts");
       }
 
       const [updatedUser] = await db
@@ -866,12 +959,19 @@ export function registerRoutes(app: Express): Server {
 
       // Log activity
       await db.insert(activityLogs).values({
-        user_id: req.user.id,
+        userId: req.user.id,
         action: "update_user_role",
-        details: { updatedUserId: userId, oldRole: existingUser.role, newRole: role },
+        details: { 
+          updatedUserId: userId, 
+          oldRole: existingUser.role, 
+          newRole: role 
+        }
       });
 
-      res.json(updatedUser);
+      res.json({
+        message: "User role updated successfully",
+        user: updatedUser
+      });
     } catch (error: any) {
       console.error("Admin update user role error:", error);
       res.status(500).send(error.message);
@@ -889,7 +989,7 @@ export function registerRoutes(app: Express): Server {
       const logs = await db
         .select()
         .from(activityLogs)
-        .orderBy(desc(activityLogs.created_at))
+        .orderBy(desc(activityLogs.createdAt))
         .limit(100);
 
       res.json(logs);
@@ -917,7 +1017,7 @@ export function registerRoutes(app: Express): Server {
       const suspiciousReason = null;
 
       await db.insert(siteAnalytics).values({
-        user_id: req.user?.id,
+        userId: req.user?.id,
         ipAddress: ip as string,
         locationCountry: geo?.country|| 'Unknown',
         locationCity: geo?.city || 'Unknown',
@@ -1061,8 +1161,8 @@ export function registerRoutes(app: Express): Server {
       const pendingCVs = await db
         .select()
         .from(cvs)
-        .where(eq(cvs.needs_approval, true))
-        .orderBy(desc(cvs.created_at));
+        .where(eq(cvs.needsApproval, true))
+        .orderBy(desc(cvs.createdAt));
 
       res.json(pendingCVs);
     } catch (error: any) {
@@ -1100,16 +1200,16 @@ export function registerRoutes(app: Express): Server {
       const [updatedCV] = await db
         .update(cvs)
         .set({
-          approval_status: status,
-          approval_comment: comment,
-          approved_by: req.user.id,
+          approvalStatus: status,
+          approvalComment: comment,
+          approvedBy: req.user.id,
         })
         .where(eq(cvs.id, cvId))
         .returning();
 
       // Log activity
       await db.insert(activityLogs).values({
-        user_id: req.user.id,
+        userId: req.user.id,
         action: "cv_approval",
         details: { cvId, status, comment },
       });
@@ -1188,12 +1288,12 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       }
 
       const [cv] = await db.insert(cvs).values({
-        user_id: userId,
-        original_filename: file.originalname,
-        file_content: fileContent,
-        transformed_content: Buffer.from(transformedContent).toString("base64"),
-        target_role: targetRole,
-        job_description: jobDescription,
+        userId: userId,
+        originalFilename: file.originalname,
+        fileContent: fileContent,
+        transformedContent: Buffer.from(transformedContent).toString("base64"),
+        targetRole: targetRole,
+        jobDescription: jobDescription,
         score: evaluation.score,
         feedback: evaluation.feedback,
       }).returning();
@@ -1263,12 +1363,12 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       const evaluation = evaluateCV(transformedContent, jobDescription);
 
       const [cv] = await db.insert(cvs).values({
-        user_id: req.user.id,
-        original_filename: file.originalname,
-        file_content: fileContent,
-        transformed_content: Buffer.from(transformedContent).toString("base64"),
-        target_role: targetRole,
-        job_description: jobDescription,
+        userId: req.user.id,
+        originalFilename: file.originalname,
+        fileContent: fileContent,
+        transformedContent: Buffer.from(transformedContent).toString("base64"),
+        targetRole: targetRole,
+        jobDescription: jobDescription,
         score: evaluation.score,
         feedback: evaluation.feedback,
       }).returning();
@@ -1299,11 +1399,11 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       }
 
       // Verify ownership
-      if (cv.user_id !== req.user.id) {
+      if (cv.userId !== req.user.id) {
         return res.status(403).send("Access denied");
       }
 
-      const content = Buffer.from(cv.transformed_content || "", "base64");
+      const content = Buffer.from(cv.transformedContent || "", "base64");
       res.send(content.toString());
     } catch (error: any) {
       console.error("Get CV content error:", error);
@@ -1329,11 +1429,11 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       }
 
       // Verify ownership
-      if (cv.user_id !== req.user.id) {
+      if (cv.userId !== req.user.id) {
         return res.status(403).send("Access denied");
       }
 
-      const content = Buffer.from(cv.transformed_content || "", "base64").toString();
+      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
       const sections = content.split("\n\n").filter(Boolean);
 
       // Create Word document
@@ -1404,7 +1504,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformed_content || "", "base64");
+      const content = Buffer.from(cv.transformedContent || "", "base64");
       res.send(content.toString());
     } catch (error: any) {
       console.error("Get CV content error:", error);
@@ -1430,7 +1530,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformed_content || "", "base64").toString();
+      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
       const sections = content.split("\n\n").filter(Boolean);
 
       // Create Word document
@@ -1524,7 +1624,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformed_content || "", "base64");
+      const content = Buffer.from(cv.transformedContent || "", "base64");
       res.send(content.toString());
     } catch (error: any) {
       console.error("Public view CV error:", error);
@@ -1539,7 +1639,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(401).send("Authentication required");
       }
 
-      const userCVs = await db.select().from(cvs).where(eq(cvs.user_id, req.user.id)).orderBy(cvs.created_at);
+      const userCVs = await db.select().from(cvs).where(eq(cvs.userId, req.user.id)).orderBy(cvs.createdAt);
 
       res.json(userCVs);
     } catch (error: any) {
@@ -1555,7 +1655,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(401).send("Authentication required");
       }
 
-      const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.user_id, req.user.id)).limit(1);
+      const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.userId, req.user.id)).limit(1);
 
       res.json(subscription || null);
     } catch (error: any) {
