@@ -797,6 +797,38 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add new endpoint after the existing admin routes
+  app.get("/api/admin/superadmins", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "super_admin") {
+        return res.status(403).send("Access denied");
+      }
+
+      const superAdmins = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          role: users.role,
+          emailVerified: users.emailVerified,
+          createdAt: users.createdAt,
+          subscription: {
+            status: subscriptions.status,
+            endedAt: subscriptions.endedAt
+          }
+        })
+        .from(users)
+        .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
+        .where(eq(users.role, "super_admin"))
+        .orderBy(desc(users.createdAt));
+
+      res.json(superAdmins);
+    } catch (error: any) {
+      console.error("Get super admins error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
   // Delete user (super admin only)
   app.delete("/api/admin/users/:id", async (req, res) => {
     try {
@@ -918,8 +950,8 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error("Admin update subscription error:", error);
       res.status(500).send(error.message);
-    }    }
-  );
+    }
+  });
 
   // Update user role (super admin only)
   app.put("/api/admin/users/:id/role", async (req, res) => {
