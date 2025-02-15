@@ -496,7 +496,7 @@ export function registerRoutes(app: Express): Server {
 
       // Log activity
       await db.insert(activityLogs).values({
-        userId: req.user.id,
+        user_id: req.user.id,
         action: "update_contact_status",
         details: { contactId, status },
       });
@@ -518,7 +518,7 @@ export function registerRoutes(app: Express): Server {
       const allContacts = await db
         .select()
         .from(contacts)
-        .orderBy(desc(contacts.createdAt));
+        .orderBy(desc(contacts.created_at));
 
       res.json(allContacts);
     } catch (error: any) {
@@ -536,7 +536,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).send("Access denied");
       }
 
-      const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+      const allUsers = await db.select().from(users).orderBy(desc(users.created_at));
       res.json(allUsers);
     } catch (error: any) {
       console.error("Admin get users error:", error);
@@ -578,7 +578,7 @@ export function registerRoutes(app: Express): Server {
 
       // Log activity
       await db.insert(activityLogs).values({
-        userId: req.user.id,
+        user_id: req.user.id,
         action: "create_user",
         details: { createdUserId: newUser.id, role },
       });
@@ -629,7 +629,7 @@ export function registerRoutes(app: Express): Server {
 
       // Log activity
       await db.insert(activityLogs).values({
-        userId: req.user.id,
+        user_id: req.user.id,
         action: "update_user_role",
         details: { updatedUserId: userId, oldRole: existingUser.role, newRole: role },
       });
@@ -652,7 +652,7 @@ export function registerRoutes(app: Express): Server {
       const logs = await db
         .select()
         .from(activityLogs)
-        .orderBy(desc(activityLogs.createdAt))
+        .orderBy(desc(activityLogs.created_at))
         .limit(100);
 
       res.json(logs);
@@ -680,14 +680,14 @@ export function registerRoutes(app: Express): Server {
       const suspiciousReason = null;
 
       await db.insert(siteAnalytics).values({
-        userId: req.user?.id,
-        ipAddress: ip as string,
-        locationCountry: geo?.country || 'Unknown',
-        locationCity: geo?.city || 'Unknown',
-        userAgent: parsed.ua,
-        pageVisited: req.path,
-        isSuspicious,
-        suspiciousReason,
+        user_id: req.user?.id,
+        ip_address: ip as string,
+        location_country: geo?.country || 'Unknown',
+        location_city: geo?.city || 'Unknown',
+        user_agent: parsed.ua,
+        page_visited: req.path,
+        is_suspicious: isSuspicious,
+        suspicious_reason: suspiciousReason,
       });
 
       next();
@@ -738,9 +738,9 @@ export function registerRoutes(app: Express): Server {
         // Get active users (last 24 hours)
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const [{ count: activeUsers }] = await db
-          .select({ count: sql<number>`count(distinct "userId")` })
+          .select({ count: sql<number>`count(distinct user_id)` })
           .from(activityLogs)
-          .where(sql`"createdAt" > ${twentyFourHoursAgo}`);
+          .where(sql`created_at > ${twentyFourHoursAgo}`);
         analyticsData.activeUsers = Number(activeUsers);
 
         // Get conversion metrics
@@ -764,32 +764,35 @@ export function registerRoutes(app: Express): Server {
         // Get active connections (estimate based on activity logs)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
         const [{ count: activeConnections }] = await db
-          .select({ count: sql<number>`count(distinct "userId")` })
+          .select({ count: sql<number>`count(distinct user_id)` })
           .from(activityLogs)
-          .where(sql`"createdAt" > ${fiveMinutesAgo}`);
+          .where(sql`created_at > ${fiveMinutesAgo}`);
         analyticsData.activeConnections = Number(activeConnections);
-
-        // Store current metrics
-        await db.insert(systemMetrics).values({
-          cpuUsage: analyticsData.cpuUsage,
-          memoryUsage: analyticsData.memoryUsage,
-          storageUsage: analyticsData.storageUsage,
-          activeConnections: analyticsData.activeConnections,
-        });
 
         // Get metrics history
         const metricsHistory = await db
           .select({
-            timestamp: sql<string>`to_char("createdAt"::timestamp, 'HH24:MI')`,
-            cpuUsage: systemMetrics.cpuUsage,
-            memoryUsage: systemMetrics.memoryUsage,
-            storageUsage: systemMetrics.storageUsage,
+            timestamp: sql<string>`to_char(timestamp, 'HH24:MI')`,
+            cpuUsage: systemMetrics.cpu_usage,
+            memoryUsage: systemMetrics.memory_usage,
+            storageUsage: systemMetrics.storage_usage,
           })
           .from(systemMetrics)
-          .where(sql`"createdAt" > ${new Date(Date.now() - 60 * 60 * 1000)}`)
-          .orderBy(sql`"createdAt"`);
+          .where(sql`timestamp > ${new Date(Date.now() - 60 * 60 * 1000)}`)
+          .orderBy(sql`timestamp`);
 
         analyticsData.systemMetricsHistory = metricsHistory;
+
+        // Store current metrics
+        await db.insert(systemMetrics).values({
+          cpu_usage: analyticsData.cpuUsage,
+          memory_usage: analyticsData.memoryUsage,
+          storage_usage: analyticsData.storageUsage,
+          active_connections: analyticsData.activeConnections,
+          timestamp: new Date(),
+          response_time: 0,
+          error_count: 0,
+        });
 
         res.json(analyticsData);
       } catch (dbError) {
@@ -813,8 +816,8 @@ export function registerRoutes(app: Express): Server {
       const pendingCVs = await db
         .select()
         .from(cvs)
-        .where(eq(cvs.needsApproval, true))
-        .orderBy(desc(cvs.createdAt));
+        .where(eq(cvs.needs_approval, true))
+        .orderBy(desc(cvs.created_at));
 
       res.json(pendingCVs);
     } catch (error: any) {
@@ -852,16 +855,16 @@ export function registerRoutes(app: Express): Server {
       const [updatedCV] = await db
         .update(cvs)
         .set({
-          approvalStatus: status,
-          approvalComment: comment,
-          approvedBy: req.user.id,
+          approval_status: status,
+          approval_comment: comment,
+          approved_by: req.user.id,
         })
         .where(eq(cvs.id, cvId))
         .returning();
 
       // Log activity
       await db.insert(activityLogs).values({
-        userId: req.user.id,
+        user_id: req.user.id,
         action: "cv_approval",
         details: { cvId, status, comment },
       });
@@ -894,7 +897,7 @@ export function registerRoutes(app: Express): Server {
       const { latest: latestEmployment, previous: previousEmployments } = await extractEmployments(textContent);
       const transformedEmployment = await transformEmployment(latestEmployment, targetRole, jobDescription);
 
-      // Extract and adapt skills
+      // Extractand adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
       const adaptedSkills = adaptSkills(currentSkills);
 
@@ -941,12 +944,12 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       }
 
       const [cv] = await db.insert(cvs).values({
-        userId,
-        originalFilename: file.originalname,
-        fileContent,
-        transformedContent: Buffer.from(transformedContent).toString("base64"),
-        targetRole,
-        jobDescription,
+        user_id: userId,
+        original_filename: file.originalname,
+        file_content: fileContent,
+        transformed_content: Buffer.from(transformedContent).toString("base64"),
+        target_role: targetRole,
+        job_description: jobDescription,
         score: evaluation.score,
         feedback: evaluation.feedback,
       }).returning();
@@ -1016,12 +1019,12 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       const evaluation = evaluateCV(transformedContent, jobDescription);
 
       const [cv] = await db.insert(cvs).values({
-        userId: req.user.id,
-        originalFilename: file.originalname,
-        fileContent,
-        transformedContent: Buffer.from(transformedContent).toString("base64"),
-        targetRole,
-        jobDescription,
+        user_id: req.user.id,
+        original_filename: file.originalname,
+        file_content: fileContent,
+        transformed_content: Buffer.from(transformedContent).toString("base64"),
+        target_role: targetRole,
+        job_description: jobDescription,
         score: evaluation.score,
         feedback: evaluation.feedback,
       }).returning();
@@ -1052,11 +1055,11 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       }
 
       // Verify ownership
-      if (cv.userId !== req.user.id) {
+      if (cv.user_id !== req.user.id) {
         return res.status(403).send("Access denied");
       }
 
-      const content = Buffer.from(cv.transformedContent || "", "base64");
+      const content = Buffer.from(cv.transformed_content || "", "base64");
       res.send(content.toString());
     } catch (error: any) {
       console.error("Get CV content error:", error);
@@ -1082,11 +1085,11 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       }
 
       // Verify ownership
-      if (cv.userId !== req.user.id) {
+      if (cv.user_id !== req.user.id) {
         return res.status(403).send("Access denied");
       }
 
-      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
+      const content = Buffer.from(cv.transformed_content || "", "base64").toString();
       const sections = content.split("\n\n").filter(Boolean);
 
       // Create Word document
@@ -1157,7 +1160,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformedContent || "", "base64");
+      const content = Buffer.from(cv.transformed_content || "", "base64");
       res.send(content.toString());
     } catch (error: any) {
       console.error("Get CV content error:", error);
@@ -1183,7 +1186,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
+      const content = Buffer.from(cv.transformed_content || "", "base64").toString();
       const sections = content.split("\n\n").filter(Boolean);
 
       // Create Word document
@@ -1277,7 +1280,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(404).send("CV not found");
       }
 
-      const content = Buffer.from(cv.transformedContent || "", "base64");
+      const content = Buffer.from(cv.transformed_content || "", "base64");
       res.send(content.toString());
     } catch (error: any) {
       console.error("Public view CV error:", error);
@@ -1292,7 +1295,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(401).send("Authentication required");
       }
 
-      const userCVs = await db.select().from(cvs).where(eq(cvs.userId, req.user.id)).orderBy(cvs.createdAt);
+      const userCVs = await db.select().from(cvs).where(eq(cvs.user_id, req.user.id)).orderBy(cvs.created_at);
 
       res.json(userCVs);
     } catch (error: any) {
@@ -1308,7 +1311,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(401).send("Authentication required");
       }
 
-      const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.userId, req.user.id)).limit(1);
+      const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.user_id, req.user.id)).limit(1);
 
       res.json(subscription || null);
     } catch (error: any) {
