@@ -41,13 +41,14 @@ import {
   CreditCard,
 } from "lucide-react";
 
-// Initialize Stripe with proper error handling
+// Initialize Stripe with proper error handling and debugging
 const stripePromise = (() => {
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
   if (!key) {
-    console.error('Stripe publishable key is missing');
+    console.error('Stripe publishable key is missing. Available env vars:', import.meta.env);
     return null;
   }
+  console.log('Initializing Stripe with key prefix:', key.substring(0, 7));
   return loadStripe(key);
 })();
 
