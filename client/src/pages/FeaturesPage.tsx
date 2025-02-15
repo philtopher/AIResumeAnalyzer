@@ -16,10 +16,58 @@ import {
   BarChart,
   Clock,
   Check,
+  X,
 } from "lucide-react";
 
+const FreePlanContent = () => {
+  return (
+    <Card className="relative overflow-hidden">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-6 w-6" />
+          Free Plan
+        </CardTitle>
+        <CardDescription>
+          Get started with basic features
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Check className="h-5 w-5 text-green-500" />
+            <span>Basic CV transformation</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="h-5 w-5 text-green-500" />
+            <span>View transformed CVs in browser</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="h-5 w-5 text-green-500" />
+            <span>Basic keyword optimization</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <X className="h-5 w-5 text-muted-foreground" />
+            <span className="text-muted-foreground">Download transformed CVs</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <X className="h-5 w-5 text-muted-foreground" />
+            <span className="text-muted-foreground">Organization insights</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <X className="h-5 w-5 text-muted-foreground" />
+            <span className="text-muted-foreground">Advanced CV analysis</span>
+          </div>
+        </div>
 
-const PricingPlanContent = () => {
+        <Button variant="outline" className="w-full">
+          Start Free
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
+const ProPlanContent = () => {
   return (
     <Card className="border-primary relative overflow-hidden">
       <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm">
@@ -78,7 +126,10 @@ export default function PricingPlansPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-12">
-        <PricingPlanContent />
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <FreePlanContent />
+          <ProPlanContent />
+        </div>
       </main>
     </div>
   );
