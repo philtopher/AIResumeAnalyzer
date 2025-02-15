@@ -202,6 +202,34 @@ function AdminDashboardPage() {
     }
   };
 
+  const sendTestWelcomeEmail = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/stripe/test-send-welcome-email/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send welcome email');
+      }
+
+      toast({
+        title: "Email Sent",
+        description: "Welcome email has been sent successfully!",
+      });
+    } catch (error) {
+      console.error('Email sending error:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send welcome email",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoadingAnalytics || isLoadingUsers) {
     return (
       <div className="p-6 space-y-4">
@@ -270,13 +298,23 @@ function AdminDashboardPage() {
                         <td className="px-4 py-3 text-sm">
                           <div className="flex gap-2">
                             {user.subscription?.status === "active" ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleUpdateSubscription(user.id, "deactivate")}
-                              >
-                                Remove Pro
-                              </Button>
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleUpdateSubscription(user.id, "deactivate")}
+                                >
+                                  Remove Pro
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => sendTestWelcomeEmail(user.id)}
+                                >
+                                  <Send className="h-4 w-4 mr-1" />
+                                  Test Welcome Email
+                                </Button>
+                              </>
                             ) : (
                               <Button
                                 variant="outline"

@@ -3,7 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
-import { Loader2, Menu, FileText } from "lucide-react";
+import { Loader2, Menu, FileText, Shield } from "lucide-react";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -50,9 +50,12 @@ function Navigation() {
   const authenticatedItems = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Privacy Settings", path: "/privacy-dashboard" },
-    { label: "Upgrade to Pro", path: "/upgrade" },
-    ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
-    ...(isSuperAdmin ? [{ label: "Super Admin", path: "/super-admin" }] : []),
+    ...(user?.subscription?.status !== "active" ? [{ label: "Upgrade to Pro", path: "/upgrade" }] : []),
+  ];
+
+  const adminItems = [
+    ...(isAdmin ? [{ label: "User Management", path: "/admin", icon: <Shield className="h-4 w-4 mr-2" /> }] : []),
+    ...(isSuperAdmin ? [{ label: "System Admin", path: "/super-admin", icon: <Shield className="h-4 w-4 mr-2" /> }] : []),
   ];
 
   return (
@@ -78,7 +81,13 @@ function Navigation() {
             <>
               {authenticatedItems.map((item) => (
                 <Link key={item.path} href={item.path}>
-                  <Button variant={item.path === "/super-admin" ? "default" : "ghost"}>
+                  <Button variant="ghost">{item.label}</Button>
+                </Link>
+              ))}
+              {adminItems.map((item) => (
+                <Link key={item.path} href={item.path}>
+                  <Button variant="default" className="flex items-center">
+                    {item.icon}
                     {item.label}
                   </Button>
                 </Link>
@@ -122,6 +131,18 @@ function Navigation() {
                       className="cursor-pointer"
                     >
                       {item.label}
+                    </DropdownMenuItem>
+                  ))}
+                  {adminItems.map((item) => (
+                    <DropdownMenuItem
+                      key={item.path}
+                      onClick={() => setLocation(item.path)}
+                      className="cursor-pointer font-medium"
+                    >
+                      <div className="flex items-center">
+                        {item.icon}
+                        {item.label}
+                      </div>
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuItem
