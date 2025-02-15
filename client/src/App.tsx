@@ -25,6 +25,7 @@ import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import PrivacyDashboardPage from "./pages/PrivacyDashboardPage";
 import SuperAdminDashboardPage from "./pages/SuperAdminDashboardPage";
+import UpgradePlanPage from "./pages/UpgradePlanPage";
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -49,6 +50,7 @@ function Navigation() {
   const authenticatedItems = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Privacy Settings", path: "/privacy-dashboard" },
+    ...(user?.emailVerified ? [{ label: "Upgrade to Pro", path: "/upgrade" }] : []),
     ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
     ...(isSuperAdmin ? [{ label: "Super Admin", path: "/super-admin" }] : []),
   ];
@@ -175,6 +177,9 @@ function App() {
             <>
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
+              {user.emailVerified && (
+                <Route path="/upgrade" component={UpgradePlanPage} />
+              )}
               {(user?.role === "super_admin" || user?.role === "sub_admin") && (
                 <Route path="/admin" component={AdminDashboardPage} />
               )}
