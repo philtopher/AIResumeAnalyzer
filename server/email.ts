@@ -5,17 +5,13 @@ if (!process.env.SENDGRID_API_KEY) {
   throw new Error("SENDGRID_API_KEY environment variable must be set");
 }
 
-// Set SendGrid API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Get sender email from environment variable
 if (!process.env.SENDGRID_FROM_EMAIL) {
   throw new Error("SENDGRID_FROM_EMAIL environment variable must be set");
 }
 
 const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
-
-// Maximum retry attempts for failed emails
 const MAX_RETRY_ATTEMPTS = 3;
 
 export async function sendEmail(options: {
@@ -51,7 +47,7 @@ export async function sendEmail(options: {
       },
       trackingSettings: {
         clickTracking: {
-          enable: true
+          enable: false // Disable click tracking for all emails
         },
         openTracking: {
           enable: true
@@ -88,7 +84,6 @@ export async function sendEmail(options: {
       stack: error.stack
     });
 
-    // Retry logic for failed attempts
     if (retryCount < MAX_RETRY_ATTEMPTS) {
       console.log(`Retrying email send. Attempt ${retryCount + 2} of ${MAX_RETRY_ATTEMPTS + 1}`);
       return sendEmail({
@@ -102,7 +97,8 @@ export async function sendEmail(options: {
 }
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
-  const resetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+  const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
   const currentTime = new Date().toLocaleString();
 
   return sendEmail({
@@ -113,12 +109,12 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
         <h1 style="color: #2563eb; margin-bottom: 20px;">Password Reset Request</h1>
         <p>You requested to reset your password on ${currentTime}. Click the button below to reset it:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" 
-             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+          <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             Reset Password
           </a>
         </div>
         <p style="margin-bottom: 20px;">This link will expire in 1 hour for security reasons.</p>
+        <p style="margin-bottom: 20px;">If the button doesn't work, copy and paste this URL into your browser: ${resetUrl}</p>
         <p style="color: #666;">If you didn't request this password reset, please ignore this email or contact support if you have concerns.</p>
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
           <p style="color: #666; font-size: 12px;">
@@ -132,8 +128,11 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
 }
 
 export async function sendVerificationEmail(email: string, verificationToken: string) {
-  const verificationUrl = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+  const verificationUrl = `${baseUrl}/verify-email/${verificationToken}`;
   const currentTime = new Date().toLocaleString();
+
+  console.log('Sending verification email with URL:', verificationUrl);
 
   return sendEmail({
     to: email,
@@ -143,12 +142,12 @@ export async function sendVerificationEmail(email: string, verificationToken: st
         <h1 style="color: #2563eb; margin-bottom: 20px;">Welcome to CV Transformer!</h1>
         <p>Thank you for registering on ${currentTime}. Please verify your email address by clicking the button below:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${verificationUrl}" 
-             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+          <a href="${verificationUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             Verify Email Address
           </a>
         </div>
         <p style="margin-bottom: 20px;">This link will expire in 24 hours for security reasons.</p>
+        <p style="margin-bottom: 20px;">If the button doesn't work, copy and paste this URL into your browser: ${verificationUrl}</p>
         <p style="color: #666;">If you didn't create an account with CV Transformer, please ignore this email.</p>
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
           <p style="color: #666; font-size: 12px;">
