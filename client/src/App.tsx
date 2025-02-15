@@ -36,7 +36,7 @@ function Navigation() {
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
 
   const menuItems = [
-    { label: "About CV Transformer", path: "/tutorial" },
+    { label: "About", path: "/about" },
     { label: "FAQ", path: "/faq" },
     { label: "Features", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
@@ -158,7 +158,7 @@ function AuthenticatedApp() {
       <main className="flex-1">
         <Switch>
           <Route path="/" component={HomePage} />
-          <Route path="/tutorial" component={TutorialPage} />
+          <Route path="/about" component={TutorialPage} />
           <Route path="/faq" component={FAQPage} />
           <Route path="/features" component={FeaturesPage} />
           <Route path="/auth" component={AuthPage} />
@@ -170,7 +170,7 @@ function AuthenticatedApp() {
           {(!user && window.location.pathname !== "/reset-password" &&
             window.location.pathname !== "/" &&
             window.location.pathname !== "/features" &&
-            window.location.pathname !== "/tutorial" &&
+            window.location.pathname !== "/about" &&
             window.location.pathname !== "/faq" &&
             window.location.pathname !== "/public-cv" &&
             window.location.pathname !== "/contact" &&
