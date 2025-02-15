@@ -132,6 +132,9 @@ declare global {
       emailVerified: boolean;
       resetToken?: string | null;
       resetTokenExpiry?: Date | null;
+      subscriptions?: {
+        status: string;
+      } | null;
     }
   }
 }
@@ -183,9 +186,11 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        // Join with subscriptions table to get subscription info
         const [user] = await db
           .select()
           .from(users)
+          .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
           .where(eq(users.username, username))
           .limit(1);
 
@@ -198,9 +203,13 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid username or password." });
         }
 
+        // Check if user has an active subscription
+        const hasActiveSubscription = user.subscriptions && user.subscriptions.status === 'active';
+
         // Convert user to match Express.User interface
         const userForAuth = {
           ...user,
+          role: hasActiveSubscription ? 'pro_user' : user.role,
           emailVerified: true, // Force email verified to true
         };
 
