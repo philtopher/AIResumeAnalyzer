@@ -107,7 +107,7 @@ export default function HomePage() {
               Start Your Career Transformation
             </h2>
             <p className="text-xl text-muted-foreground mb-4">
-              Join thousands of professionals who have improved their job applications
+              Stand out from hundreds of thousands of applicants with an AI-optimized CV that highlights your true potential
             </p>
             <p className="text-sm text-muted-foreground mb-8 max-w-2xl mx-auto">
               Note: While our AI significantly improves your CV's impact, results may vary based on your experience and target role. We enhance real experience only - we never generate fake credentials or experience.
