@@ -40,14 +40,14 @@ function Navigation() {
     { label: "About", path: "/about" },
     { label: "How It Works", path: "/how-it-works" },
     { label: "FAQ", path: "/faq" },
-    { label: "Pricing & Plans", path: "/features" }, // Updated label
+    { label: "Pricing & Plans", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
   ];
 
   const authenticatedItems = [
     { label: "Dashboard", path: "/dashboard" },
-    ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
+    ...(isAdmin ? [{ label: "Admin Area", path: "/admin" }] : []),
   ];
 
   return (
@@ -73,7 +73,9 @@ function Navigation() {
             <>
               {authenticatedItems.map((item) => (
                 <Link key={item.path} href={item.path}>
-                  <Button variant="ghost">{item.label}</Button>
+                  <Button variant={item.path === "/admin" ? "default" : "ghost"}>
+                    {item.label}
+                  </Button>
                 </Link>
               ))}
               <Button onClick={handleLogout} variant="ghost">
