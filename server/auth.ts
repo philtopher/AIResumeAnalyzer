@@ -194,57 +194,27 @@ export function setupAuth(app: Express) {
           .where(eq(users.username, username))
           .limit(1);
 
-        console.log("[Auth Debug] Found user:", {
-          username: user?.username,
-          role: user?.role,
-          hasSubscription: !!user?.subscriptions,
-          subscriptionStatus: user?.subscriptions?.status
-        });
-
         if (!user) {
-          console.log("[Auth Debug] No user found for username:", username);
           return done(null, false, { message: "Invalid username or password." });
         }
 
         const isMatch = await comparePasswords(password, user.password);
         if (!isMatch) {
-          console.log("[Auth Debug] Password mismatch for user:", username);
           return done(null, false, { message: "Invalid username or password." });
         }
 
         // Check if user has an active subscription
         const hasActiveSubscription = user.subscriptions && user.subscriptions.status === 'active';
-        console.log("[Auth Debug] Subscription status:", {
-          hasActiveSubscription,
-          subscriptionStatus: user.subscriptions?.status
-        });
 
         // Convert user to match Express.User interface
         const userForAuth = {
-          id: user.id,
-          username: user.username,
-          email: user.email,
+          ...user,
           role: hasActiveSubscription ? 'pro_user' : user.role,
-          password: user.password,
-          createdAt: user.createdAt,
-          emailVerified: true,
-          verificationToken: user.verificationToken,
-          verificationTokenExpiry: user.verificationTokenExpiry,
-          resetToken: user.resetToken,
-          resetTokenExpiry: user.resetTokenExpiry,
-          subscriptions: user.subscriptions
+          emailVerified: true, // Force email verified to true
         };
-
-        console.log("[Auth Debug] Created auth user object:", {
-          id: userForAuth.id,
-          username: userForAuth.username,
-          role: userForAuth.role,
-          subscriptionStatus: userForAuth.subscriptions?.status
-        });
 
         return done(null, userForAuth);
       } catch (err) {
-        console.error("[Auth Debug] Authentication error:", err);
         return done(err);
       }
     })
