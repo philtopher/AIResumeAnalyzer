@@ -27,6 +27,7 @@ import { UAParser } from 'ua-parser-js';
 import Stripe from 'stripe';
 import express from 'express';
 import { hashPassword } from "./auth";
+import {randomUUID} from 'crypto';
 
 // Add proper Stripe initialization with error handling
 const stripe = (() => {
@@ -654,7 +655,9 @@ export function registerRoutes(app: Express): Server {
                 username: customer.metadata.username,
                 password: customer.metadata.hashedPassword,
                 role: 'user',
-                emailVerified: true
+                emailVerified: false,
+                verificationToken: randomUUID(),
+                verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour expiry
               }).returning();
 
               console.log('Created new user:', { 
@@ -668,8 +671,8 @@ export function registerRoutes(app: Express): Server {
               await db.insert(subscriptions).values({
                 userId: newUser.id,
                 stripeCustomerId: customer.id,
+                stripeSubscriptionId: '', // You'll need to add this
                 status: 'active',
-                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
               });
 
               console.log('Created subscription record for user:', newUser.id);
@@ -683,14 +686,16 @@ export function registerRoutes(app: Express): Server {
                 }
               });
 
-              // Send welcome email
+              // Send welcome email using the reliable approach
               try {
                 await sendEmail({
                   to: customer.email!,
                   subject: 'Welcome to CV Transformer Pro!',
                   html: `
                     <h1>Welcome to CV Transformer Pro!</h1>
-                    <p>Thank you for subscribing to our premium service! Your account has been successfully created.</p>
+                    <p>Thank you for subscribing to our premium service! Please verify your email address by clicking the link below:</p>
+                    <a href="${process.env.APP_URL || 'http://localhost:3000'}/verify-email/${newUser.verificationToken}">Verify Email</a>
+                    <p>Your account has been successfully created with premium features enabled.</p>
                     <h2>Your Account Details:</h2>
                     <ul>
                       <li>Username: ${newUser.username}</li>
@@ -702,8 +707,9 @@ export function registerRoutes(app: Express): Server {
                       <li>Price: £5/month</li>
                       <li>Billing Period: Monthly</li>
                     </ul>
-                    <p>You can now log in to your account using your username and password.</p>
+                    <p>Your verification link will expire in 1 hour. Please verify your email to ensure full access to all features.</p>
                     <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+                    <p>Best regards,<br>CV Transformer Team</p>
                   `
                 });
                 console.log('Welcome email sent successfully');
@@ -730,6 +736,8 @@ export function registerRoutes(app: Express): Server {
                 html: `
                   <h1>Payment Failed</h1>
                   <p>We were unable to process your payment for CV Transformer Pro. Please try again or update your payment method.</p>
+                  <p>If you need assistance, please contact our support team.</p>
+                  <p>Best regards,<br>CV Transformer Team</p>
                 `
               });
             }

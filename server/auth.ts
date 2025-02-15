@@ -221,7 +221,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Update registration endpoint to include email confirmation
+  // Update registration endpoint to use reliable email sending
   app.post("/api/register", async (req, res, next) => {
     try {
       const result = insertUserSchema.safeParse(req.body);
@@ -264,22 +264,24 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           email,
           role: "user",
-          emailVerified: false, // Set emailVerified to false initially.
-          verificationToken: randomUUID(), // Generate verification token
-          verificationTokenExpiry: new Date(Date.now() + 3600000), // Token expires in 1 hour
+          emailVerified: false,
+          verificationToken: randomUUID(),
+          verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
         })
         .returning();
 
-      // Send welcome email with verification link.
+      // Send welcome email with verification link using the reliable email sending approach
       try {
         await sendEmail({
           to: email,
           subject: 'Welcome to CV Transformer!',
           html: `
             <h1>Welcome to CV Transformer!</h1>
-            <p>Thank you for registering! Please verify your email address by clicking the link below:</p>
-            <a href="http://localhost:3000/api/verify-email/${newUser.verificationToken}">Verify Email</a>
-            <p>If you did not request this, please ignore this email.</p>
+            <p>Thank you for registering with CV Transformer! Please verify your email address by clicking the link below:</p>
+            <a href="${process.env.APP_URL || 'http://localhost:3000'}/verify-email/${newUser.verificationToken}">Verify Email</a>
+            <p>This verification link will expire in 1 hour.</p>
+            <p>If you did not request this registration, please ignore this email.</p>
+            <p>Best regards,<br>CV Transformer Team</p>
           `
         });
       } catch (emailError) {
@@ -299,7 +301,7 @@ export function setupAuth(app: Express) {
             username: newUser.username,
             email: newUser.email,
             role: newUser.role,
-            emailVerified: false, // Ensure emailVerified is false until verification.
+            emailVerified: false,
           },
         });
       });
