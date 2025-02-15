@@ -95,13 +95,15 @@ export default function UpgradePlanPage() {
         },
         credentials: "include",
       })
-        .then((res) => {
+        .then(async (res) => {
+          const data = await res.json();
           if (!res.ok) {
-            throw new Error("Failed to initialize payment");
+            throw new Error(data.error || "Failed to initialize payment");
           }
-          return res.json();
+          return data;
         })
         .then((data) => {
+          console.log('Received client secret');
           if (data.clientSecret) {
             setClientSecret(data.clientSecret);
           } else {
@@ -120,7 +122,6 @@ export default function UpgradePlanPage() {
     }
   }, [user, clientSecret, toast]);
 
-  // Only show loading state when initially loading user data
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -129,7 +130,6 @@ export default function UpgradePlanPage() {
     );
   }
 
-  // If no user is logged in, redirect to auth
   if (!user) {
     return <Redirect to="/auth" />;
   }
@@ -144,9 +144,9 @@ export default function UpgradePlanPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-8">Upgrade to Pro Plan</h1>
-
       <div className="grid md:grid-cols-2 gap-8">
-        <Card className="relative">
+        {/* Free Plan Card - No changes */}
+        <Card>
           <CardHeader>
             <CardTitle>Free Plan</CardTitle>
             <CardDescription>Your current plan</CardDescription>
@@ -169,6 +169,7 @@ export default function UpgradePlanPage() {
           </CardContent>
         </Card>
 
+        {/* Pro Plan Card */}
         <Card className="relative border-primary">
           <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm">
             Advanced Features
