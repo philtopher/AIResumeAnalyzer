@@ -26,7 +26,7 @@ import geoip from 'geoip-lite';
 import { UAParser } from 'ua-parser-js';
 import Stripe from 'stripe';
 import express from 'express';
-
+import { hashPassword } from "./auth";
 
 // Add proper Stripe initialization with error handling
 const stripe = (() => {
@@ -515,12 +515,15 @@ export function registerRoutes(app: Express): Server {
       // Log the subscription attempt
       console.log('Creating subscription for:', email);
 
+      // Hash the password before storing
+      const hashedPassword = await hashPassword(password);
+
       // Create a customer with pending signup status and user data
       const customer = await stripe?.customers.create({
         email,
         metadata: {
           signup_pending: 'true',
-          user_data: JSON.stringify({ username, password })
+          user_data: JSON.stringify({ username, password: hashedPassword })
         }
       });
 
@@ -572,7 +575,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update the webhook handler to properly sync subscription status
+  // Update the webhook handler to use the hashed password
   app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
     try {
       const sig = req.headers['stripe-signature']!;
@@ -591,9 +594,8 @@ export function registerRoutes(app: Express): Server {
       }
 
       if (!event) {
-          return res.status(400).send("Invalid webhook event");
+        return res.status(400).send("Invalid webhook event");
       }
-
 
       // Handle the event
       switch (event.type) {
@@ -605,11 +607,11 @@ export function registerRoutes(app: Express): Server {
           if (customer && !customer.deleted && customer.metadata.signup_pending) {
             const userData = JSON.parse(customer.metadata.user_data || '{}');
 
-            // Create user account
+            // Create user account with already hashed password
             const [newUser] = await db.insert(users).values({
               email: customer.email!,
               username: userData.username,
-              password: userData.password, // Note: Should be hashed in production
+              password: userData.password, // Password is already hashed
               role: 'user'
             }).returning();
 
@@ -630,20 +632,32 @@ export function registerRoutes(app: Express): Server {
             });
 
             // Send welcome email
-            await sendEmail({
-              to: customer.email!,
-              subject: 'Welcome to CV Transformer Pro!',
-              html: `
-                <h1>Welcome to CV Transformer Pro!</h1>
-                <p>Thank you for subscribing to our premium service!</p>
-                <h2>Your Subscription Details:</h2>
-                <ul>
-                  <li>Plan: Pro Account</li>
-                  <li>Price: £5/month</li>
-                  <li>Billing Period: Monthly</li>
-                </ul>
-              `
-            });
+            try {
+              await sendEmail({
+                to: customer.email!,
+                subject: 'Welcome to CV Transformer Pro!',
+                html: `
+                  <h1>Welcome to CV Transformer Pro!</h1>
+                  <p>Thank you for subscribing to our premium service! Your account has been successfully created.</p>
+                  <h2>Your Account Details:</h2>
+                  <ul>
+                    <li>Username: ${userData.username}</li>
+                    <li>Email: ${customer.email}</li>
+                  </ul>
+                  <h2>Your Subscription Details:</h2>
+                  <ul>
+                    <li>Plan: Pro Account</li>
+                    <li>Price: £5/month</li>
+                    <li>Billing Period: Monthly</li>
+                  </ul>
+                  <p>You can now log in to your account using your username and password.</p>
+                  <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+                `
+              });
+            } catch (emailError) {
+              console.error('Failed to send welcome email:', emailError);
+              // Continue even if email fails
+            }
           }
           break;
 

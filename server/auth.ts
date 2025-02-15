@@ -11,33 +11,40 @@ import { eq } from "drizzle-orm";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 
 const scryptAsync = promisify(scrypt);
+
+// Export the password hashing function
+export async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
+}
+
+// Export password comparison function
+export async function comparePasswords(supplied: string, stored: string) {
+  try {
+    const [hashedPassword, salt] = stored.split(".");
+    if (!hashedPassword || !salt) return false;
+
+    const hashBuffer = Buffer.from(hashedPassword, "hex");
+    const suppliedHash = (await scryptAsync(supplied, salt, 64)) as Buffer;
+
+    return timingSafeEqual(hashBuffer, suppliedHash);
+  } catch (error) {
+    console.error("Password comparison error:", error);
+    return false;
+  }
+}
+
 const crypto = {
-  hash: async (password: string) => {
-    const salt = randomBytes(16).toString("hex");
-    const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-    return `${buf.toString("hex")}.${salt}`;
-  },
-  compare: async (supplied: string, stored: string) => {
-    try {
-      const [hashedPassword, salt] = stored.split(".");
-      if (!hashedPassword || !salt) return false;
-
-      const hashBuffer = Buffer.from(hashedPassword, "hex");
-      const suppliedHash = (await scryptAsync(supplied, salt, 64)) as Buffer;
-
-      return timingSafeEqual(hashBuffer, suppliedHash);
-    } catch (error) {
-      console.error("Password comparison error:", error);
-      return false;
-    }
-  },
+  hash: hashPassword,
+  compare: comparePasswords,
 };
 
 // Create an async function to set up the admin user
 async function createOrUpdateAdmin() {
   try {
     const adminPassword = "Admin123!";
-    const hashedPassword = await crypto.hash(adminPassword);
+    const hashedPassword = await hashPassword(adminPassword);
 
     // Check if admin exists
     const [existingAdmin] = await db
@@ -76,7 +83,7 @@ async function createOrUpdateAdmin() {
 // Update the admin password update function
 export async function updateAdminPassword() {
   try {
-    const hashedPassword = await crypto.hash("apqMcH]#qL83");
+    const hashedPassword = await hashPassword("apqMcH]#qL83");
     const [existingAdmin] = await db
       .select()
       .from(users)
@@ -121,7 +128,7 @@ declare global {
       createdAt: Date;
       verificationToken: string | null;
       verificationTokenExpiry: Date | null;
-      emailVerified: boolean; // This expects a boolean
+      emailVerified: boolean;
       resetToken?: string | null;
       resetTokenExpiry?: Date | null;
     }
@@ -167,7 +174,7 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid username or password." });
         }
 
-        const isMatch = await crypto.compare(password, user.password);
+        const isMatch = await comparePasswords(password, user.password);
         if (!isMatch) {
           return done(null, false, { message: "Invalid username or password." });
         }
@@ -246,7 +253,7 @@ export function setupAuth(app: Express) {
       }
 
       // Hash the password
-      const hashedPassword = await crypto.hash(password);
+      const hashedPassword = await hashPassword(password);
 
       const [newUser] = await db
         .insert(users)
@@ -419,7 +426,7 @@ export function setupAuth(app: Express) {
       }
 
       // Update password and clear reset token
-      const hashedPassword = await crypto.hash(password);
+      const hashedPassword = await hashPassword(password);
       await db
         .update(users)
         .set({
