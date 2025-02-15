@@ -82,13 +82,8 @@ export default function UpgradePlanPage() {
   const { user, isLoading } = useUser();
   const [clientSecret, setClientSecret] = useState<string>();
 
-  // Redirect if user is not logged in or email is not verified
-  if (!isLoading && (!user || !user.emailVerified)) {
-    return <Redirect to="/auth" />;
-  }
-
   useEffect(() => {
-    if (user?.emailVerified) {
+    if (user?.id) {
       // Create a payment intent when the page loads
       fetch("/api/create-subscription", {
         method: "POST",
@@ -109,7 +104,8 @@ export default function UpgradePlanPage() {
     }
   }, [user]);
 
-  if (isLoading || !clientSecret) {
+  // Only show loading state when initially loading user data
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -117,8 +113,13 @@ export default function UpgradePlanPage() {
     );
   }
 
+  // If no user is logged in, redirect to auth
+  if (!user) {
+    return <Redirect to="/auth" />;
+  }
+
   const appearance = {
-    theme: 'stripe',
+    theme: 'stripe' as const,
     variables: {
       colorPrimary: '#0f172a',
     },
@@ -184,7 +185,7 @@ export default function UpgradePlanPage() {
               </div>
             </div>
 
-            {clientSecret && (
+            {clientSecret ? (
               <div className="mt-6">
                 <Elements 
                   stripe={stripePromise} 
@@ -195,6 +196,10 @@ export default function UpgradePlanPage() {
                 >
                   <CheckoutForm />
                 </Elements>
+              </div>
+            ) : (
+              <div className="mt-6">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto" />
               </div>
             )}
           </CardContent>
