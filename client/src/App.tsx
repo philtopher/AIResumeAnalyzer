@@ -8,7 +8,6 @@ import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
-import AdminPage from "./pages/AdminPage";
 import FeaturesPage from "./pages/FeaturesPage";
 import PublicCVPage from "./pages/PublicCVPage";
 import TutorialPage from "./pages/TutorialPage";
@@ -23,7 +22,7 @@ import {
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import FAQPage from "./pages/FAQPage";
-import AboutPage from "./pages/AboutPage"; // Import the new AboutPage component
+import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 
 function Navigation() {
@@ -100,11 +99,6 @@ function Navigation() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 mt-2">
-              {user && (
-                <DropdownMenuItem disabled className="font-medium">
-                  {user.username}
-                </DropdownMenuItem>
-              )}
               {menuItems.map((item) => (
                 <DropdownMenuItem
                   key={item.path}
@@ -114,22 +108,24 @@ function Navigation() {
                   {item.label}
                 </DropdownMenuItem>
               ))}
-              {user && authenticatedItems.map((item) => (
-                <DropdownMenuItem
-                  key={item.path}
-                  onClick={() => setLocation(item.path)}
-                  className="cursor-pointer"
-                >
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
               {user ? (
-                <DropdownMenuItem
-                  onClick={handleLogout}
-                  className="cursor-pointer text-red-500 hover:text-red-600"
-                >
-                  Logout
-                </DropdownMenuItem>
+                <>
+                  {authenticatedItems.map((item) => (
+                    <DropdownMenuItem
+                      key={item.path}
+                      onClick={() => setLocation(item.path)}
+                      className="cursor-pointer"
+                    >
+                      {item.label}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="cursor-pointer text-red-500 hover:text-red-600"
+                  >
+                    Logout
+                  </DropdownMenuItem>
+                </>
               ) : (
                 <DropdownMenuItem
                   onClick={() => setLocation("/auth")}
@@ -146,7 +142,7 @@ function Navigation() {
   );
 }
 
-function AuthenticatedApp() {
+function App() {
   const { user, isLoading } = useUser();
 
   if (isLoading) {
@@ -173,18 +169,7 @@ function AuthenticatedApp() {
           <Route path="/contact" component={ContactPage} />
           <Route path="/privacy-policy" component={PrivacyPolicyPage} />
           <Route path="/terms-of-service" component={TermsOfServicePage} />
-          {(!user && window.location.pathname !== "/reset-password" &&
-            window.location.pathname !== "/" &&
-            window.location.pathname !== "/features" &&
-            window.location.pathname !== "/about" &&
-            window.location.pathname !== "/how-it-works" &&
-            window.location.pathname !== "/faq" &&
-            window.location.pathname !== "/public-cv" &&
-            window.location.pathname !== "/contact" &&
-            window.location.pathname !== "/privacy-policy" &&
-            window.location.pathname !== "/terms-of-service") ? (
-            <Route component={AuthPage} />
-          ) : (
+          {user && (
             <>
               <Route path="/dashboard" component={DashboardPage} />
               {(user?.role === "super_admin" || user?.role === "sub_admin") && (
@@ -212,10 +197,10 @@ function NotFound() {
   );
 }
 
-export default function App() {
+export default function Root() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthenticatedApp />
+      <App />
       <Toaster />
     </QueryClientProvider>
   );
