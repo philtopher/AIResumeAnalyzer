@@ -23,6 +23,7 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
+import PrivacyDashboardPage from "./pages/PrivacyDashboardPage";
 
 function Navigation() {
   const { user, logout } = useUser();
@@ -45,6 +46,7 @@ function Navigation() {
 
   const authenticatedItems = [
     { label: "Dashboard", path: "/dashboard" },
+    { label: "Privacy Settings", path: "/privacy-dashboard" },
     ...(isAdmin ? [{ label: "Admin", path: "/admin" }] : []),
   ];
 
@@ -169,6 +171,7 @@ function App() {
           {user && (
             <>
               <Route path="/dashboard" component={DashboardPage} />
+              <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
               {(user?.role === "super_admin" || user?.role === "sub_admin") && (
                 <Route path="/admin" component={AdminDashboardPage} />
               )}

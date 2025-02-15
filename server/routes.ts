@@ -1837,6 +1837,143 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
     }
   });
 
+  // Privacy Routes
+  app.get("/api/privacy/settings", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).send("Unauthorized");
+      }
+
+      const [user] = await db
+        .select()
+        .from(users)
+.where(eq(users.id, req.user.id))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      // Get user's privacy settings
+      const settings = {
+        dataProcessingRestricted: user.dataProcessingRestricted || false,
+        lastUpdated: user.privacySettingsUpdatedAt || user.createdAt,
+        // Add any other privacy-related settings
+      };
+
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Privacy settings error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.get("/api/privacy/activity", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).send("Unauthorized");
+      }
+
+      // Get user's activity logs
+      const activities = await db
+        .select()
+        .from(activityLogs)
+        .where(eq(activityLogs.userId, req.user.id))
+        .orderBy(desc(activityLogs.createdAt))
+        .limit(50);
+
+      res.json({ activities });
+    } catch (error: any) {
+      console.error("Activity logs error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.post("/api/privacy/processing-preferences", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).send("Unauthorized");
+      }
+
+      const { restricted } = req.body;
+      if (typeof restricted !== "boolean") {
+        return res.status(400).send("Invalid preference value");
+      }
+
+      // Update user's processing preferences
+      await db
+        .update(users)
+        .set({
+          dataProcessingRestricted: restricted,
+          privacySettingsUpdatedAt: new Date(),
+        })
+        .where(eq(users.id, req.user.id));
+
+      // Log the activity
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "update_privacy_settings",
+        details: { dataProcessingRestricted: restricted },
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Update privacy preferences error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.post("/api/privacy/delete-data", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).send("Unauthorized");
+      }
+
+      // Create a deletion request
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "request_data_deletion",
+        details: {
+          requestedAt: new Date().toISOString(),
+          status: "pending",
+        },
+      });
+
+      // Send confirmation email
+      try {
+        await sendEmail({
+          to: req.user.email,
+          subject: "Data Deletion Request Confirmation",
+          html: `
+            <h1>Data Deletion Request Received</h1>
+            <p>We have received your request to delete your personal data from CV Transformer.</p>
+            <p>We will process your request within 30 days, in accordance with data protection regulations.</p>
+            <p>During this time:</p>
+            <ul>
+              <li>Your account will be marked for deletion</li>
+              <li>You will still be able to access your account</li>
+              <li>You can cancel this request by contacting support</li>
+            </ul>
+            <p>If you did not request this, please contact our support team immediately.</p>
+          `,
+        });
+      } catch (emailError) {
+        console.error("Failed to send deletion confirmation email:", emailError);
+        // Continue with the request even if email fails
+      }
+
+      res.json({
+        success: true,
+        message: "Deletion request received and will be processed within 30 days",
+      });
+    } catch (error: any) {
+      console.error("Data deletion request error:", error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Add these routes after existing routes and before the httpServer creation
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -3,7 +3,7 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import * as z from 'zod';
 
-// User table definition
+// User table definition with added privacy fields
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
@@ -11,13 +11,18 @@ export const users = pgTable("users", {
   email: text("email").unique().notNull(),
   role: text("role", { enum: ['user', 'sub_admin', 'super_admin'] }).default("user").notNull(),
   emailVerified: boolean("email_verified").default(false),
-  verificationToken: text("verification_token"), // Added to match Express.User interface
-  verificationTokenExpiry: timestamp("verification_token_expiry"), // Added to match Express.User interface
+  verificationToken: text("verification_token"),
+  verificationTokenExpiry: timestamp("verification_token_expiry"),
   emailVerificationToken: text("email_verification_token"),
   emailVerificationExpiry: timestamp("email_verification_expiry"),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // New privacy-related fields
+  dataProcessingRestricted: boolean("data_processing_restricted").default(false),
+  privacySettingsUpdatedAt: timestamp("privacy_settings_updated_at"),
+  dataDeletionRequestedAt: timestamp("data_deletion_requested_at"),
+  dataDeletionStatus: text("data_deletion_status", { enum: ['none', 'pending', 'processing', 'completed'] }).default('none'),
 });
 
 // Update subscription table with proper end date tracking
@@ -100,11 +105,22 @@ export const contacts = pgTable("contacts", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Data deletion requests table
+export const dataDeletionRequests = pgTable("data_deletion_requests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  status: text("status", { enum: ['pending', 'processing', 'completed', 'cancelled'] }).default("pending").notNull(),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+});
+
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   subscriptions: many(subscriptions),
   cvs: many(cvs),
   activityLogs: many(activityLogs),
+  deletionRequests: many(dataDeletionRequests),
 }));
 
 export const subscriptionRelations = relations(subscriptions, ({ one }) => ({
@@ -128,6 +144,13 @@ export const cvRelations = relations(cvs, ({ one }) => ({
 export const activityLogRelations = relations(activityLogs, ({ one }) => ({
   user: one(users, {
     fields: [activityLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const dataDeletionRequestsRelations = relations(dataDeletionRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [dataDeletionRequests.userId],
     references: [users.id],
   }),
 }));
@@ -158,6 +181,8 @@ export const insertSiteAnalyticsSchema = createInsertSchema(siteAnalytics);
 export const selectSiteAnalyticsSchema = createSelectSchema(siteAnalytics);
 export const insertSystemMetricsSchema = createInsertSchema(systemMetrics);
 export const selectSystemMetricsSchema = createSelectSchema(systemMetrics);
+export const insertDataDeletionRequestSchema = createInsertSchema(dataDeletionRequests);
+export const selectDataDeletionRequestSchema = createSelectSchema(dataDeletionRequests);
 
 // Export types
 export type User = typeof users.$inferSelect;
@@ -176,6 +201,8 @@ export type SiteAnalytics = typeof siteAnalytics.$inferSelect;
 export type InsertSiteAnalytics = typeof siteAnalytics.$inferInsert;
 export type SystemMetrics = typeof systemMetrics.$inferSelect;
 export type InsertSystemMetrics = typeof systemMetrics.$inferInsert;
+export type DataDeletionRequest = typeof dataDeletionRequests.$inferSelect;
+export type InsertDataDeletionRequest = typeof dataDeletionRequests.$inferInsert;
 
 // Authentication schemas
 export const loginSchema = z.object({
