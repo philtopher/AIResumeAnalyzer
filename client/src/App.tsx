@@ -26,7 +26,7 @@ import AdminDashboardPage from "./pages/AdminDashboardPage";
 import PrivacyDashboardPage from "./pages/PrivacyDashboardPage";
 import SuperAdminDashboardPage from "./pages/SuperAdminDashboardPage";
 import UpgradePlanPage from "./pages/UpgradePlanPage";
-import MetricsPage from "./pages/MetricsPage"; // Import MetricsPage
+import MetricsPage from "./pages/MetricsPage";
 
 // Add type for user subscription
 type User = {
@@ -71,21 +71,9 @@ function Navigation() {
     authenticatedItems.push({ label: "Upgrade to Pro", path: "/upgrade" });
   }
 
-  // Add admin items if user is admin/super admin
+  // Add admin link if user is admin/super admin
   if (isAdmin) {
-    authenticatedItems.push(
-      { label: "User Management", path: "/admin", icon: <Shield className="h-4 w-4 mr-2" /> },
-      { label: "Metrics", path: "/metrics", icon: <Activity className="h-4 w-4 mr-2" /> }
-    );
-  }
-
-  // Add super admin items
-  if (isSuperAdmin) {
-    authenticatedItems.push({
-      label: "System Admin",
-      path: "/super-admin",
-      icon: <Shield className="h-4 w-4 mr-2" />,
-    });
+    authenticatedItems.push({ label: "Admin", path: "/admin" });
   }
 
   return (
@@ -111,11 +99,7 @@ function Navigation() {
             <>
               {authenticatedItems.map((item) => (
                 <Link key={item.path} href={item.path}>
-                  <Button
-                    variant={item.icon ? "default" : "ghost"}
-                    className={item.icon ? "flex items-center" : ""}
-                  >
-                    {item.icon}
+                  <Button variant="ghost">
                     {item.label}
                   </Button>
                 </Link>
@@ -156,12 +140,9 @@ function Navigation() {
                     <DropdownMenuItem
                       key={item.path}
                       onClick={() => setLocation(item.path)}
-                      className={`cursor-pointer ${item.icon ? "font-medium" : ""}`}
+                      className="cursor-pointer"
                     >
-                      <div className="flex items-center">
-                        {item.icon}
-                        {item.label}
-                      </div>
+                      {item.label}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuItem
