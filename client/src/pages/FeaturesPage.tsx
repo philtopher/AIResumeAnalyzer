@@ -260,7 +260,7 @@ const ProPlanContent = () => {
           Pro Plan
         </CardTitle>
         <CardDescription>
-          £5/month - Unlock premium features
+          £5/month - Unlock premium features and interview insights
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -275,19 +275,23 @@ const ProPlanContent = () => {
           </div>
           <div className="flex items-center gap-2">
             <Check className="h-5 w-5 text-green-500" />
-            <span>Organization insights from web scraping</span>
+            <span>Deep organization insights and company culture analysis</span>
           </div>
           <div className="flex items-center gap-2">
             <Check className="h-5 w-5 text-green-500" />
-            <span>Detailed CV scoring and analysis</span>
+            <span>Detailed CV scoring with industry-specific feedback</span>
           </div>
           <div className="flex items-center gap-2">
             <Check className="h-5 w-5 text-green-500" />
-            <span>Full CV generation option</span>
+            <span>Interview preparation insights and likely questions</span>
           </div>
           <div className="flex items-center gap-2">
             <Check className="h-5 w-5 text-green-500" />
-            <span>Unlimited transformations</span>
+            <span>Real-time interview updates as your date approaches</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="h-5 w-5 text-green-500" />
+            <span>Unlimited transformations with AI-powered optimization</span>
           </div>
         </div>
 

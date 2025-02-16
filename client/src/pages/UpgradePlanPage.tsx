@@ -221,7 +221,7 @@ export default function UpgradePlanPage() {
           </div>
           <CardHeader>
             <CardTitle>Pro Plan</CardTitle>
-            <CardDescription>£5/month - Unlock premium features</CardDescription>
+            <CardDescription>£5/month - Unlock premium features and interview insights</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -235,15 +235,23 @@ export default function UpgradePlanPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Employer competitor analysis</span>
+                <span>Comprehensive employer and competitor analysis</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Interviewer LinkedIn insights</span>
+                <span>Personalized interview question predictions</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Advanced CV scoring and analysis</span>
+                <span>Real-time updates on company culture and interview style</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                <span>Advanced CV scoring with industry benchmarks</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                <span>Interview preparation timeline with custom insights</span>
               </div>
             </div>
 
