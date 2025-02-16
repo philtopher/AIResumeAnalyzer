@@ -14,6 +14,9 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
+      if (req.method === 'POST' && path === '/api/send-pro-confirmation') {
+        log('Pro confirmation request body:', req.body);
+      }
     }
   });
 
@@ -39,6 +42,8 @@ app.get("/api/health", (_req, res) => {
 (async () => {
   try {
     await updateAdminPassword();
+
+    // Register API routes before setting up Vite/static files
     const server = registerRoutes(app);
 
     // Set up Vite or serve static files based on environment

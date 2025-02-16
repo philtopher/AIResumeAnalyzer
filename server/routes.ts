@@ -921,8 +921,7 @@ export function registerRoutes(app: Express): Server {
           .set({
             status: action === "activate" ? "active" : "inactive",
             endedAt: endDate
-          })
-          .where(eq(subscriptions.userId.userId, userId));
+          })          .where(eq(subscriptions.userId.userId, userId));
       } else if (action === "activate") {
         await db
           .insert(subscriptions)
@@ -1917,246 +1916,83 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
     }
   });
 
-  app.post("/api/cv/transform/public", upload.single('file'), async (req, res) => {
+  // Add this new endpoint after the existing endpoints
+  app.post("/api/send-pro-confirmation", async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).send("No file uploaded");
+      const { email, username } = req.body;
+
+      if (!email || !username) {
+        return res.status(400).json({
+          success: false,
+          message: "Email and username are required"
+        });
       }
 
-      const { targetRole, jobDescription } = req.body;
-      if (!targetRole || !jobDescription) {
-        return res.status(400).send("Missing required fields");
-      }
-
-      // Extract text content from uploaded CV
-      const textContent = await extractTextContent(req.file);
-
-      // Extract employments from CV
-      const employments = await extractEmployments(textContent);
-
-      // Transform the CV content
-      const transformedEmployment = await transformEmployment(
-        employments.latest,
-        targetRole,
-        jobDescription
-      );
-
-      // Transform professional summary
-      const transformedSummary = await transformProfessionalSummary(
-        textContent,
-        targetRole,
-        jobDescription
-      );
-
-      // Evaluate CV and get feedback
-      const evaluation = evaluateCV(transformedEmployment, jobDescription);
-
-      // Store transformed CV in database
-      const [cv] = await db.insert(cvs).values({
-        originalContent: textContent,
-        transformedContent: `${transformedSummary}\n\n${transformedEmployment}`,
-        feedback: evaluation.feedback,
-        targetRole,
-        score: evaluation.score,
-        status: 'completed'
-      }).returning();
-
-      res.json(cv);
-    } catch (error: any) {
-      console.error("CV transformation error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.get("/api/cv/:id/content/public", async (req, res) => {
-    try {
-      const [cv] = await db
-        .select()
-        .from(cvs)
-        .where(eq(cvs.id, parseInt(req.params.id)))
-        .limit(1);
-
-      if (!cv) {
-        return res.status(404).send("CV not found");
-      }
-
-      res.send(cv.transformedContent);
-    } catch (error: any) {
-      console.error("Get CV content error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.get("/api/cv/:id/download/public", async (req, res) => {
-    try {
-      const [cv] = await db
-        .select()
-        .from(cvs)
-        .where(eq(cvs.id, parseInt(req.params.id)))
-        .limit(1);
-
-      if (!cv) {
-        return res.status(404).send("CV not found");
-      }
-
-      const doc = new Document({
-        sections: [{
-          properties: {},
-          children: [
-            new Paragraph({
-              children: [new TextRun(cv.transformedContent)]
-            })
-          ]
-        }]
-      });
-
-      const buffer = await Packer.toBuffer(doc);
-
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      res.setHeader("Content-Disposition", "attachment; filename=transformed_cv.docx");
-      res.send(buffer);
-    } catch (error: any) {
-      console.error("Download CV error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Privacy Routes
-  app.get("/api/privacy/settings", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).send("Unauthorized");
-      }
-
+      // Verify user has an active subscription
       const [user] = await db
         .select()
         .from(users)
-        .where(eq(users.id, req.user.id))
+        .where(eq(users.email, email))
         .limit(1);
 
       if (!user) {
-        return res.status(404).send("User not found");
-      }
-
-      // Get user's privacy settings
-      const settings = {
-        dataProcessingRestricted: user.dataProcessingRestricted || false,
-        lastUpdated: user.privacySettingsUpdatedAt || user.createdAt,
-        // Add any other privacy-related settings
-      };
-
-      res.json(settings);
-    } catch (error: any) {
-      console.error("Privacy settings error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.get("/api/privacy/activity", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).send("Unauthorized");
-      }
-
-      // Get user's activity logs
-      const activities = await db
-        .select()
-        .from(activityLogs)
-        .where(eq(activityLogs.userId, req.user.id))
-        .orderBy(desc(activityLogs.createdAt))
-        .limit(50);
-
-      res.json({ activities });
-    } catch (error: any) {
-      console.error("Activity logs error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.post("/api/privacy/processing-preferences", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).send("Unauthorized");
-      }
-
-      const { restricted } = req.body;
-      if (typeof restricted !== "boolean") {
-        return res.status(400).send("Invalid preference value");
-      }
-
-      // Update user's processing preferences
-      await db
-        .update(users)
-        .set({
-          dataProcessingRestricted: restricted,
-          privacySettingsUpdatedAt: new Date(),
-        })
-        .where(eq(users.id, req.user.id));
-
-      // Log the activity
-      await db.insert(activityLogs).values({
-        userId: req.user.id,
-        action: "update_privacy_settings",
-        details: { dataProcessingRestricted: restricted },
-      });
-
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Update privacy preferences error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.post("/api/privacy/delete-data", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).send("Unauthorized");
-      }
-
-      // Create a deletion request
-      await db.insert(activityLogs).values({
-        userId: req.user.id,
-        action: "request_data_deletion",
-        details: {
-          requestedAt: new Date().toISOString(),
-          status: "pending",
-        },
-      });
-
-      // Send confirmation email
-      try {
-        await sendEmail({
-          to: req.user.email,
-          subject: "Data Deletion Request Confirmation",
-          html: `
-            <h1>Data Deletion Request Received</h1>
-            <p>We have received your request to delete your personal data from CV Transformer.</p>
-            <p>We will process your request within 30 days, in accordance with data protection regulations.</p>
-            <p>During this time:</p>
-            <ul>
-              <li>Your account will be marked for deletion</li>
-              <li>You will still be able to access your account</li>
-              <li>You can cancel this request by contacting support</li>
-            </ul>
-            <p>If you did not request this, please contact our support team immediately.</p>
-          `,
+        return res.status(404).json({
+          success: false,
+          message: "User not found"
         });
-      } catch (emailError) {
-        console.error("Failed to send deletion confirmation email:", emailError);
-        // Continue with the request even if email fails
       }
+
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, user.id))
+        .limit(1);
+
+      if (!subscription || subscription.status !== 'active') {
+        return res.status(400).json({
+          success: false,
+          message: "No active subscription found"
+        });
+      }
+
+      // Send welcome email using SendGrid
+      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+      await sendEmail({
+        to: email,
+        subject: 'Welcome to CV Transformer Pro!',
+        html: `
+          <h1>Welcome to CV Transformer Pro!</h1>
+          <p>Thank you for subscribing to our premium service!</p>
+          <h2>Your Account Details:</h2>
+          <ul>
+            <li>Username: ${username}</li>
+            <li>Email: ${email}</li>
+          </ul>
+          <h2>Your Pro Plan Benefits:</h2>
+          <ul>
+            <li>Download transformed CVs</li>
+            <li>Organization insights from web scraping</li>
+            <li>Detailed CV scoring and analysis</li>
+            <li>Full CV generation option</li>
+            <li>Unlimited transformations</li>
+          </ul>
+          <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+          <p>Best regards,<br>CV Transformer Team</p>
+        `
+      });
 
       res.json({
         success: true,
-        message: "Deletion request received and will be processed within 30 days",
+        message: "Pro Plan confirmation email sent successfully"
       });
-    } catch (error: any) {
-      console.error("Data deletion request error:", error);
-      res.status(500).send(error.message);
+    } catch (error) {
+      console.error('Error sending pro confirmation email:', error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to send confirmation email"
+      });
     }
   });
-
-  // Add these routes after existing routes and before the httpServer creation
 
   // Register Stripe routes
   app.use('/api', stripeRouter);
