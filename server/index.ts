@@ -5,27 +5,6 @@ import { updateAdminPassword } from "./auth";
 
 const app = express();
 
-// Raw body parsing for Stripe webhooks must come before JSON parsing
-app.use((req, res, next) => {
-  if (req.originalUrl === "/api/webhook") {
-    next();
-  } else {
-    express.json()(req, res, next);
-  }
-});
-
-app.use(express.urlencoded({ extended: false }));
-
-// Add health check endpoint
-app.get("/", (_req, res) => {
-  res.status(200).send("OK");
-});
-
-// Handle 404 routes
-app.use((_req, res) => {
-  res.status(404).send("Not Found");
-});
-
 // Add logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
@@ -41,10 +20,38 @@ app.use((req, res, next) => {
   next();
 });
 
+// Raw body parsing for Stripe webhooks must come before JSON parsing
+app.use((req, res, next) => {
+  if (req.originalUrl === "/api/webhook") {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
+app.use(express.urlencoded({ extended: false }));
+
+// Add health check endpoint with specific path
+app.get("/api/health", (_req, res) => {
+  res.status(200).send("OK");
+});
+
 (async () => {
   try {
     await updateAdminPassword();
     const server = registerRoutes(app);
+
+    // Set up Vite or serve static files based on environment
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
+    // Handle 404 routes - must come after all other routes
+    app.use((_req, res) => {
+      res.status(404).send("Not Found");
+    });
 
     // Global error handler
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -54,15 +61,9 @@ app.use((req, res, next) => {
       res.status(status).json({ message });
     });
 
-    if (app.get("env") === "development") {
-      await setupVite(app, server);
-    } else {
-      serveStatic(app);
-    }
-
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
-      log(`Server is running on port 5000`);
+      log(`Server is running on port ${PORT}`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
