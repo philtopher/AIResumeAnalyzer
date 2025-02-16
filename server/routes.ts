@@ -1062,7 +1062,7 @@ export function registerRoutes(app: Express): Server {
 
       // Create PDF document
       const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage();
+      let page = pdfDoc.addPage();
       const { width, height } = page.getSize();
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const fontSize = 12;
