@@ -921,10 +921,9 @@ export function registerRoutes(app: Express): Server {
       if (existingSubscription) {
         await db
           .update(subscriptions)
-          .set({
-            status: action === "activate" ? "active" : "inactive",
+          .set({          status: action === "activate" ? "active" : "inactive",
             endedAt: endDate
-                    })          .where(eq(subscriptions.userId.userId, userId));
+                    })          .where(eq(subscriptions.userId, userId));
       } else if (action === "activate") {
         await db
           .insert(subscriptions)
@@ -1833,14 +1832,12 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
   // Update the verification endpoint to handle GET requests
   app.get("/verify-email/:token", async (req, res) => {
-    try {
-      const { token } = req.params;
+    try {const { token } = req.params;
 
       const [user] = await db
         .select()
         .from(users)
-        .where(eq(users.verificationToken, token))
-        .limit(1);
+        .where(eq(users.verificationToken, token))        .limit(1);
 
       if (!user) {
         return res.status(400).send("Invalid verification token");
@@ -2030,7 +2027,33 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
     });
   }
 
-  // Add the route handler for manual pro upgrades
+  // Add the batch confirmation route inside registerRoutes
+  app.post("/api/send-pro-confirmations", async (req, res) => {
+    try {
+      // Get all active Pro Plan users
+      const activeSubscriptions = await db
+        .select({
+          email: users.email,
+          username: users.username
+        })
+        .from(users)
+        .innerJoin(subscriptions, eq(users.id, subscriptions.userId))
+        .where(eq(subscriptions.status, 'active'));
+
+      // Send confirmation emails
+      await sendProPlanBatchConfirmation(activeSubscriptions);
+
+      res.json({ 
+        success: true, 
+        message: `Sent confirmation emails to ${activeSubscriptions.length} Pro Plan users` 
+      });
+    } catch (error) {
+      console.error('Failed to send batch confirmations:', error);
+      res.status(500).json({ error: "Failed to send confirmation emails" });
+    }
+  });
+
+  // Add this route handler for manual pro upgrades
   app.post("/api/manual-upgrade-confirmation", async (req, res) => {
     try {
       const { email, username } = req.body;
@@ -2047,4 +2070,58 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Helper function for batch confirmation (outside registerRoutes)
+async function sendProPlanBatchConfirmation(users: Array<{email: string, username: string}>) {
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvtransformer.com';
+
+  for (const user of users) {
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Your CV Transformer Pro Benefits',
+        html: `
+          <h1>Your CV Transformer Pro Benefits</h1>
+          <p>Dear ${user.username},</p>
+
+          <p>Thank you for being a valued Pro Plan member of CV Transformer! We want to remind you of all the exclusive benefits you have access to:</p>
+
+          <h2>Your Pro Plan Exclusive Features:</h2>
+          <ul>
+            <li><strong>Advanced CV Analysis:</strong> Get detailed scoring and feedback on your CV</li>
+            <li><strong>Organization Insights:</strong> Access deep company culture analysis and organizational fit assessment</li>
+            <li><strong>Interview Intelligence:</strong> 
+              <ul>
+                <li>Receive likely interview questions based on job descriptions</li>
+                <li>Get real-time updates and insights as your interview date approaches</li>
+                <li>Access company-specific interview preparation tips</li>
+              </ul>
+            </li>
+            <li><strong>Unlimited Transformations:</strong> Transform and optimize your CV as many times as needed</li>
+            <li><strong>Premium Support:</strong> Priority access to our support team</li>
+          </ul>
+
+          <h3>Interview Date Feature:</h3>
+          <p>Remember to update your interview date in the dashboard to receive enhanced insights about:</p>
+          <ul>
+            <li>Company culture and values</li>
+            <li>Recent company news and developments</li>
+            <li>Personalized interview preparation tips</li>
+            <li>Industry-specific technical questions</li>
+          </ul>
+
+          <p>Access all these features at your Pro Dashboard:</p>
+          <p><a href="${baseUrl}/dashboard">View Your Pro Dashboard</a></p>
+
+          <p>If you have any questions or need assistance, our premium support team is here to help!</p>
+
+          <p>Best regards,<br>CV Transformer Team</p>
+        `
+      });
+      console.log(`Sent Pro Plan confirmation to ${user.email}`);
+    } catch (error) {
+      console.error(`Failed to send confirmation to ${user.email}:`, error);
+    }
+  }
 }
