@@ -66,7 +66,9 @@ router.get('/verify-subscription/:userId', async (req, res) => {
           status: 'active',
           createdAt: new Date(),
         });
-        return res.json({ success: true, isSubscribed: true });
+        return res.json({ success: true, isSubscribed: true, error: null });
+      } else {
+        return res.json({ success: true, isSubscribed: false, message: "No active subscription found", error: null });
       }
     }
 
@@ -77,6 +79,7 @@ router.get('/verify-subscription/:userId', async (req, res) => {
       success: true,
       isSubscribed,
       message: isSubscribed ? 'Subscription is active' : 'No active subscription found',
+      error: null
     });
   } catch (error) {
     console.error('Subscription verification error:', error);
