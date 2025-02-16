@@ -8,10 +8,11 @@ import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
-import FeaturesPage from "./pages/FeaturesPage"; //This line was missing in the edited snippet, but needed.
+import FeaturesPage from "./pages/FeaturesPage";
 import PublicCVPage from "./pages/PublicCVPage";
 import TutorialPage from "./pages/TutorialPage";
 import ContactPage from "./pages/ContactPage";
+import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import { useUser } from "./hooks/use-user";
 import {
   DropdownMenu,
@@ -198,6 +199,7 @@ function App() {
           <Route path="/privacy-policy" component={PrivacyPolicyPage} />
           <Route path="/terms-of-service" component={TermsOfServicePage} />
           <Route path="/upgrade" component={UpgradePlanPage} />
+          <Route path="/payment-success" component={PaymentSuccessPage} />
           {user && (
             <>
               <Route path="/dashboard" component={DashboardPage} />

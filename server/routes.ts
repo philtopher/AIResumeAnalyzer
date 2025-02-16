@@ -921,7 +921,7 @@ export function registerRoutes(app: Express): Server {
           .set({
             status: action === "activate" ? "active" : "inactive",
             endedAt: endDate
-          })          .where(eq(subscriptions.userId.userId, userId));
+                    })          .where(eq(subscriptions.userId.userId, userId));
       } else if (action === "activate") {
         await db
           .insert(subscriptions)
