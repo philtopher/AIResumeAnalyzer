@@ -28,6 +28,7 @@ import PrivacyDashboardPage from "./pages/PrivacyDashboardPage";
 import SuperAdminDashboardPage from "./pages/SuperAdminDashboardPage";
 import UpgradePlanPage from "./pages/UpgradePlanPage";
 import MetricsPage from "./pages/MetricsPage";
+import AnalysisPage from "./pages/AnalysisPage";
 
 // Add type for user subscription
 type User = {
@@ -65,6 +66,11 @@ function Navigation() {
     { label: "Dashboard", path: "/dashboard" },
     { label: "Privacy Settings", path: "/privacy-dashboard" },
   ];
+
+  // Add Analysis link for Pro users
+  if (user?.subscription?.status === "active") {
+    authenticatedItems.push({ label: "Advanced Analysis", path: "/analysis" });
+  }
 
   // Add upgrade link if user is not pro
   if (user && user.subscription?.status !== "active") {
@@ -204,6 +210,7 @@ function App() {
             <>
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
+              <Route path="/analysis" component={AnalysisPage} />
             </>
           )}
           {isAdmin && (
