@@ -60,17 +60,26 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    const PORT = process.env.PORT || 5000;
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server is running on port ${PORT}`);
-    }).on('error', (error: any) => {
-      if (error.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use. Please try a different port or kill the existing process.`);
-      } else {
-        console.error('Server error:', error);
-      }
-      process.exit(1);
-    });
+    const PORT = process.env.PORT || 3000;
+    const MAX_RETRIES = 3;
+    let currentTry = 0;
+
+    const startServer = () => {
+      server.listen(PORT, "0.0.0.0", () => {
+        log(`Server is running on port ${PORT}`);
+      }).on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE' && currentTry < MAX_RETRIES) {
+          currentTry++;
+          console.log(`Port ${PORT} is busy, waiting for it to be available...`);
+          setTimeout(startServer, 1000);
+        } else {
+          console.error('Server error:', error);
+          process.exit(1);
+        }
+      });
+    };
+
+    startServer();
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
