@@ -16,17 +16,7 @@ app.use((req, res, next) => {
 
 app.use(express.urlencoded({ extended: false }));
 
-// Add health check endpoint
-app.get('/', (_req, res) => {
-  res.status(200).send('OK');
-});
-
-// Handle 404 routes
-app.use((_req, res) => {
-  res.status(404).send('Not Found');
-});
-
-// Add logging middleware
+// Add logging middleware first
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -39,6 +29,11 @@ app.use((req, res, next) => {
   });
 
   next();
+});
+
+// Add health check endpoint
+app.get('/health', (_req, res) => {
+  res.status(200).send('OK');
 });
 
 (async () => {
@@ -54,13 +49,24 @@ app.use((req, res, next) => {
       res.status(status).json({ message });
     });
 
-    if (app.get("env") === "development") {
+    // Setup Vite in development, serve static files in production
+    if (process.env.NODE_ENV === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    const PORT = 5000;
+    // Handle 404 routes - must come after static file handling
+    app.use((_req, res) => {
+      if (process.env.NODE_ENV === "production") {
+        // In production, return the index.html for client-side routing
+        res.sendFile("index.html", { root: "./dist/public" });
+      } else {
+        res.status(404).send('Not Found');
+      }
+    });
+
+    const PORT = process.env.PORT || 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server is running on port ${PORT}`);
     });
