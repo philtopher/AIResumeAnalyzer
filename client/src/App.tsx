@@ -28,7 +28,6 @@ import PrivacyDashboardPage from "./pages/PrivacyDashboardPage";
 import SuperAdminDashboardPage from "./pages/SuperAdminDashboardPage";
 import UpgradePlanPage from "./pages/UpgradePlanPage";
 import MetricsPage from "./pages/MetricsPage";
-import ProAnalysisPage from "./pages/ProAnalysisPage";
 
 // Add type for user subscription
 type User = {
@@ -205,9 +204,6 @@ function App() {
             <>
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
-              {user.subscription?.status === "active" && (
-                <Route path="/pro-analysis" component={ProAnalysisPage} />
-              )}
             </>
           )}
           {isAdmin && (
