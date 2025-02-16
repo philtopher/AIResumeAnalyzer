@@ -16,6 +16,16 @@ app.use((req, res, next) => {
 
 app.use(express.urlencoded({ extended: false }));
 
+// Add health check endpoint
+app.get('/', (_req, res) => {
+  res.status(200).send('OK');
+});
+
+// Handle 404 routes
+app.use((_req, res) => {
+  res.status(404).send('Not Found');
+});
+
 // Add logging middleware to help debug environment variables
 app.use((req, res, next) => {
   if (process.env.NODE_ENV === 'development') {
