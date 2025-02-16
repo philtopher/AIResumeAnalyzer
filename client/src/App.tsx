@@ -8,7 +8,7 @@ import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
-import FeaturesPage from "./pages/FeaturesPage";
+import FeaturesPage from "./pages/FeaturesPage"; //This line was missing in the edited snippet, but needed.
 import PublicCVPage from "./pages/PublicCVPage";
 import TutorialPage from "./pages/TutorialPage";
 import ContactPage from "./pages/ContactPage";
@@ -55,7 +55,6 @@ function Navigation() {
   const menuItems = [
     { label: "About", path: "/about" },
     { label: "How It Works", path: "/how-it-works" },
-    { label: "Features", path: "/features" },
     { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
   ];
