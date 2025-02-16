@@ -31,6 +31,9 @@ import {randomUUID} from 'crypto';
 import { format } from "date-fns";
 import stripeRouter from './routes/stripe';
 
+// Add after the existing imports
+import { sendEmail } from "./email";
+
 // Add proper Stripe initialization with error handling
 const stripe = (() => {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -1991,6 +1994,51 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         success: false,
         message: "Failed to send confirmation email"
       });
+    }
+  });
+
+  // Add this function after the existing email-related functions
+  async function sendProPlanConfirmationEmail(email: string, username: string) {
+    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvtransformer.com';
+
+    return await sendEmail({
+      to: email,
+      subject: 'Welcome to CV Transformer Pro!',
+      html: `
+        <h1>Welcome to CV Transformer Pro!</h1>
+        <p>Dear ${username},</p>
+        <p>Thank you for upgrading to CV Transformer Pro! Your account has been successfully upgraded with premium features enabled.</p>
+
+        <h2>Your Pro Plan Benefits:</h2>
+        <ul>
+          <li>Advanced CV analysis and scoring</li>
+          <li>Deep organizational insights and company culture analysis</li>
+          <li>Interview preparation insights and likely questions</li>
+          <li>Real-time interview updates as your interview date approaches</li>
+          <li>Unlimited transformations with AI-powered optimization</li>
+        </ul>
+
+        <p>Your Pro Plan subscription is now active and you have full access to all premium features.</p>
+
+        <p>To access your enhanced features, please visit:</p>
+        <p><a href="${baseUrl}/dashboard">Your Pro Dashboard</a></p>
+
+        <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+
+        <p>Best regards,<br>CV Transformer Team</p>
+      `
+    });
+  }
+
+  // Add the route handler for manual pro upgrades
+  app.post("/api/manual-upgrade-confirmation", async (req, res) => {
+    try {
+      const { email, username } = req.body;
+      await sendProPlanConfirmationEmail(email, username);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to send pro upgrade confirmation:', error);
+      res.status(500).json({ error: "Failed to send confirmation email" });
     }
   });
 
