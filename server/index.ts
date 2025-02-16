@@ -17,8 +17,12 @@ app.use((req, res, next) => {
 app.use(express.urlencoded({ extended: false }));
 
 // Add health check endpoint
+/*app.get('/', (_req, res) => {
+  res.status(200).send('OK');
+});*/
 app.get('/', (_req, res) => {
   res.status(200).send('OK');
+  // Ensure any async operations are not blocking here.
 });
 
 // Handle 404 routes
