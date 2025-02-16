@@ -187,10 +187,24 @@ const ProPlanContent = () => {
         throw new Error(paymentError.message);
       }
 
+      // Send confirmation email after successful payment
+      const emailResponse = await fetch("/api/send-pro-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: values.email,
+          username: values.username,
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        console.error("Failed to send confirmation email");
+      }
+
       // Payment successful
       toast({
         title: "Success!",
-        description: "Your account has been created. Please check your email for confirmation.",
+        description: "Your account has been created and Pro Plan activated. Please check your email for confirmation.",
       });
 
       // Reset form and clear card input

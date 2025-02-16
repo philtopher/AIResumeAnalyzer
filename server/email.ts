@@ -78,6 +78,46 @@ export async function sendEmail(options: {
   }
 }
 
+export async function sendProPlanConfirmationEmail(email: string, username: string) {
+  console.log('[SendGrid] Sending Pro Plan confirmation email to:', email);
+
+  return sendEmail({
+    to: email,
+    subject: "Welcome to CV Transformer Pro!",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #2563eb; margin-bottom: 20px;">Welcome to CV Transformer Pro!</h1>
+        <p>Dear ${username},</p>
+        <p>Thank you for upgrading to our Pro Plan! Your subscription has been successfully activated.</p>
+
+        <div style="background-color: #f8fafc; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <h2 style="color: #2563eb; margin-bottom: 15px;">Your Pro Features Include:</h2>
+          <ul style="list-style-type: none; padding: 0;">
+            <li style="margin-bottom: 10px;">✓ Download transformed CVs</li>
+            <li style="margin-bottom: 10px;">✓ Preview transformed CVs in browser</li>
+            <li style="margin-bottom: 10px;">✓ Organization insights from web scraping</li>
+            <li style="margin-bottom: 10px;">✓ Detailed CV scoring and analysis</li>
+            <li style="margin-bottom: 10px;">✓ Full CV generation option</li>
+            <li style="margin-bottom: 10px;">✓ Unlimited transformations</li>
+          </ul>
+        </div>
+
+        <p>Start exploring your new features now:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.APP_URL}/dashboard" 
+             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            Go to Dashboard
+          </a>
+        </div>
+
+        <p>If you have any questions or need assistance, our support team is here to help.</p>
+
+        <p>Best regards,<br>The CV Transformer Team</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendContactFormNotification(contactData: {
   name: string;
   email: string;
