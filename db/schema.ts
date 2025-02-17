@@ -115,32 +115,6 @@ export const dataDeletionRequests = pgTable("data_deletion_requests", {
   notes: text("notes"),
 });
 
-// Add milestone notifications table
-export const milestoneNotifications = pgTable("milestone_notifications", {
-  id: serial("id").primaryKey(),
-  type: text("type", {
-    enum: [
-      'registered_users',
-      'active_converters',
-      'power_users',
-      'pro_users'
-    ]
-  }).notNull(),
-  threshold: integer("threshold").notNull(),
-  notifiedAt: timestamp("notified_at").defaultNow().notNull(),
-  currentCount: integer("current_count").notNull(),
-});
-
-// Add conversion tracking to cvs table if not exists
-export const cvConversions = pgTable("cv_conversions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  ipAddress: text("ip_address"), // For tracking non-registered users
-  conversionCount: integer("conversion_count").notNull().default(0),
-  lastConvertedAt: timestamp("last_converted_at").defaultNow(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   subscriptions: many(subscriptions),
@@ -181,14 +155,6 @@ export const dataDeletionRequestsRelations = relations(dataDeletionRequests, ({ 
   }),
 }));
 
-export const cvConversionRelations = relations(cvConversions, ({ one }) => ({
-  user: one(users, {
-    fields: [cvConversions.userId],
-    references: [users.id],
-  }),
-}));
-
-
 // Create Zod schemas
 export const insertUserSchema = createInsertSchema(users).extend({
   password: z.string()
@@ -218,12 +184,6 @@ export const selectSystemMetricsSchema = createSelectSchema(systemMetrics);
 export const insertDataDeletionRequestSchema = createInsertSchema(dataDeletionRequests);
 export const selectDataDeletionRequestSchema = createSelectSchema(dataDeletionRequests);
 
-export const insertMilestoneNotificationSchema = createInsertSchema(milestoneNotifications);
-export const selectMilestoneNotificationSchema = createSelectSchema(milestoneNotifications);
-
-export const insertCvConversionSchema = createInsertSchema(cvConversions);
-export const selectCvConversionSchema = createSelectSchema(cvConversions);
-
 // Export types
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -243,12 +203,6 @@ export type SystemMetrics = typeof systemMetrics.$inferSelect;
 export type InsertSystemMetrics = typeof systemMetrics.$inferInsert;
 export type DataDeletionRequest = typeof dataDeletionRequests.$inferSelect;
 export type InsertDataDeletionRequest = typeof dataDeletionRequests.$inferInsert;
-
-export type MilestoneNotification = typeof milestoneNotifications.$inferSelect;
-export type InsertMilestoneNotification = typeof milestoneNotifications.$inferInsert;
-
-export type CvConversion = typeof cvConversions.$inferSelect;
-export type InsertCvConversion = typeof cvConversions.$inferInsert;
 
 // Authentication schemas
 export const loginSchema = z.object({
