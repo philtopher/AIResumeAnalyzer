@@ -378,15 +378,10 @@ const feedbackSchema = z.object({
 // Helper function to get webhook URL
 function getWebhookUrl() {
   if (process.env.NODE_ENV === 'production') {
-    return `${process.env.APP_URL}/api/webhook`;
+    return `https://cvanalyzer.repl.app/api/webhook`;
   }
   // For Replit development environment
-  const replitId = process.env.REPL_ID;
-  const replitOwner = process.env.REPL_OWNER;
-  const replitSlug = process.env.REPL_SLUG;
-
-  // Construct the Replit-specific URL
-  return `https://${replitSlug}.${replitOwner}.repl.co/api/webhook`;
+  return `https://cvanalyzer.repl.app/api/webhook`;
 }
 
 // Initialize Stripe with proper configuration
@@ -702,7 +697,7 @@ export function registerRoutes(app: Express): Server {
 
               // Send welcome email using the reliable approach
               try {
-                const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+                const baseUrl = 'https://cvanalyzer.repl.app';
                 await sendEmail({
                   to: customer.email!,
                   subject: 'Welcome to CV Transformer Pro!',
@@ -921,7 +916,7 @@ export function registerRoutes(app: Express): Server {
       if (existingSubscription) {
         await db
           .update(subscriptions)
-          .set({          status: action === "activate" ? "active" : "inactive",
+          .set({          status: action === "activate"? "active" : "inactive",
             endedAt: endDate
                     })          .where(eq(subscriptions.userId, userId));
       } else if (action === "activate") {
@@ -1871,7 +1866,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(403).send("Access denied");
       }
 
-      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.repl.app';
 
       await sendEmail({
         to: "t.unamka@yahoo.co.uk",
@@ -1956,7 +1951,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       }
 
       // Send welcome email using SendGrid
-      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.repl.app';
       await sendEmail({
         to: email,
         subject: 'Welcome to CV Transformer Pro!',
@@ -1996,7 +1991,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
   // Add this function after the existing email-related functions
   async function sendProPlanConfirmationEmail(email: string, username: string) {
-    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvtransformer.com';
+    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.repl.app';
 
     return await sendEmail({
       to: email,
@@ -2057,7 +2052,31 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
   app.post("/api/manual-upgrade-confirmation", async (req, res) => {
     try {
       const { email, username } = req.body;
-      await sendProPlanConfirmationEmail(email, username);
+      const baseUrl = 'https://cvanalyzer.repl.app';
+
+      // Send welcome email
+      await sendEmail({
+        to: email,
+        subject: 'Welcome to CV Transformer Pro!',
+        html: `
+          <h1>Welcome to CV Transformer Pro!</h1>
+          <p>Dear ${username},</p>
+          <p>Thank you for upgrading to CV Transformer Pro! Your account has been successfully upgraded with premium features enabled.</p>
+
+          <h2>Your Pro Plan Benefits:</h2>
+          <ul>
+            <li>Download transformed CVs</li>
+            <li>Organization insights from web scraping</li>
+            <li>Detailed CV scoring and analysis</li>
+            <li>Full CV generation option</li>
+            <li>Unlimited transformations</li>
+          </ul>
+
+          <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+          <p>Best regards,<br>CV Transformer Team</p>
+        `
+      });
+
       res.json({ success: true });
     } catch (error) {
       console.error('Failed to send pro upgrade confirmation:', error);
@@ -2074,7 +2093,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
 // Helper function for batch confirmation (outside registerRoutes)
 async function sendProPlanBatchConfirmation(users: Array<{email: string, username: string}>) {
-  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvtransformer.com';
+  const baseUrl = 'https://cvanalyzer.repl.app';
 
   for (const user of users) {
     try {
