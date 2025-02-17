@@ -378,10 +378,10 @@ const feedbackSchema = z.object({
 // Helper function to get webhook URL
 function getWebhookUrl() {
   if (process.env.NODE_ENV === 'production') {
-    return `https://cvanalyzer.repl.app/api/webhook`;
+    return `https://cvanalyzer.replit.app/api/webhook`;
   }
   // For Replit development environment
-  return `https://cvanalyzer.repl.app/api/webhook`;
+  return `https://cvanalyzer.replit.app/api/webhook`;
 }
 
 // Initialize Stripe with proper configuration
@@ -697,7 +697,7 @@ export function registerRoutes(app: Express): Server {
 
               // Send welcome email using the reliable approach
               try {
-                const baseUrl = 'https://cvanalyzer.repl.app';
+                const baseUrl = 'https://cvanalyzer.replit.app';
                 await sendEmail({
                   to: customer.email!,
                   subject: 'Welcome to CV Transformer Pro!',
@@ -1866,7 +1866,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(403).send("Access denied");
       }
 
-      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.repl.app';
+      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.replit.app';
 
       await sendEmail({
         to: "t.unamka@yahoo.co.uk",
@@ -1951,7 +1951,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       }
 
       // Send welcome email using SendGrid
-      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.repl.app';
+      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.replit.app';
       await sendEmail({
         to: email,
         subject: 'Welcome to CV Transformer Pro!',
@@ -1991,7 +1991,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
   // Add this function after the existing email-related functions
   async function sendProPlanConfirmationEmail(email: string, username: string) {
-    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.repl.app';
+    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvanalyzer.replit.app';
 
     return await sendEmail({
       to: email,
@@ -2052,7 +2052,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
   app.post("/api/manual-upgrade-confirmation", async (req, res) => {
     try {
       const { email, username } = req.body;
-      const baseUrl = 'https://cvanalyzer.repl.app';
+      const baseUrl = 'https://cvanalyzer.replit.app';
 
       // Send welcome email
       await sendEmail({
@@ -2093,7 +2093,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
 // Helper function for batch confirmation (outside registerRoutes)
 async function sendProPlanBatchConfirmation(users: Array<{email: string, username: string}>) {
-  const baseUrl = 'https://cvanalyzer.repl.app';
+  const baseUrl = 'https://cvanalyzer.replit.app';
 
   for (const user of users) {
     try {
