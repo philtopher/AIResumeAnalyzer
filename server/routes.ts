@@ -372,10 +372,10 @@ const feedbackSchema = z.object({
   message: z.string().min(10),
 });
 
-// Helper function to get webhook URL
+// Update getWebhookUrl function to use the correct production URL
 function getWebhookUrl() {
   // Always return the production URL since we're using it for both environments
-  return `https://cvanalyzer.replit.app/api/webhook`;
+  return `https://cvconverter.replit.app/api/webhook`;
 }
 
 async function hashAndCreateStripeCustomer(email: string, username: string, password: string) {
