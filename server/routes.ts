@@ -31,9 +31,6 @@ import {randomUUID} from 'crypto';
 import { format } from "date-fns";
 import stripeRouter from './routes/stripe';
 
-// Add after the existing imports
-import { sendEmail } from "./email";
-
 // Add proper Stripe initialization with error handling
 const stripe = (() => {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -377,15 +374,9 @@ const feedbackSchema = z.object({
 
 // Helper function to get webhook URL
 function getWebhookUrl() {
-  if (process.env.NODE_ENV === 'production') {
-    return `https://cvanalyzer.replit.app/api/webhook`;
-  }
-  // For Replit development environment
+  // Always return the production URL since we're using it for both environments
   return `https://cvanalyzer.replit.app/api/webhook`;
 }
-
-// Initialize Stripe with proper configuration
-
 
 async function hashAndCreateStripeCustomer(email: string, username: string, password: string) {
   // Hash the password before storing
@@ -621,18 +612,33 @@ export function registerRoutes(app: Express): Server {
   // Update the webhook handler with improved error handling and logging
   app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
     try {
-      const sig = req.headers['stripe-signature']!;
-      let event;
+      const sig = req.headers['stripe-signature'];
 
+      if (!sig) {
+        console.error('⚠️ Webhook Error: No Stripe signature found');
+        return res.status(400).send('No Stripe signature found');
+      }
+
+      if (!stripe) {
+        console.error('⚠️ Webhook Error: Stripe is not properly initialized');
+        return res.status(500).send('Stripe is not properly initialized');
+      }
+
+      if (!process.env.STRIPE_WEBHOOK_SECRET) {
+        console.error('⚠️ Webhook Error: STRIPE_WEBHOOK_SECRET is not set');
+        return res.status(500).send('Webhook secret is not configured');
+      }
+
+      let event;
       try {
-        event = stripe?.webhooks.constructEvent(
+        event = stripe.webhooks.constructEvent(
           req.body,
           sig,
-          process.env.STRIPE_WEBHOOK_SECRET!
+          process.env.STRIPE_WEBHOOK_SECRET
         );
-        console.log('Webhook received:', event.type);
+        console.log('✓ Webhook verified and received:', event.type);
       } catch (err: any) {
-        console.error(`⚠️ Webhook Error: ${err.message}`);
+        console.error(`⚠️ Webhook signature verification failed:`, err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
       }
 
@@ -678,10 +684,10 @@ export function registerRoutes(app: Express): Server {
               await db.insert(subscriptions).values({
                 userId: newUser.id,
                 stripeCustomerId: customer.id,
-                stripeSubscriptionId: subscription.id, // Store Stripe subscription ID
+                stripeSubscriptionId: event.data.object.metadata.subscriptionId, // Store Stripe subscription ID
                 status: 'active',
                 createdAt: new Date(),
-                endedAt: new Date(subscription.current_period_end * 1000), // Convert UNIX timestamp to Date
+                endedAt: new Date(event.data.object.subscription.current_period_end * 1000), // Convert UNIX timestamp to Date
               });
 
               console.log('Created subscription record for user:', newUser.id);
@@ -1826,7 +1832,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
   });
 
   // Update the verification endpoint to handle GET requests
-  app.get("/verify-email/:token", async (req, res) => {
+  app.get("/verify-email/:token", async (req, res) =>{
     try {const { token } = req.params;
 
       const [user] = await db
