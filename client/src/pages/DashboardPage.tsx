@@ -23,7 +23,8 @@ export default function DashboardPage() {
   const [transformedContent, setTransformedContent] = useState<string>("");
   const formRef = useRef<HTMLFormElement>(null);
 
-  const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
+  // Check for admin privileges - include 'admin' role
+  const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin" || user?.role === "admin";
   const hasPro = isAdmin || subscription?.status === "active";
 
   if (isLoadingSubscription) {
@@ -38,19 +39,40 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background">
       <nav className="border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            {isAdmin && (
+              <div className="flex items-center gap-2 ml-4">
+                <Link href="/admin/users">
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    User Management
+                  </Button>
+                </Link>
+                <Link href="/admin/metrics">
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <LineChart className="h-4 w-4" />
+                    Metrics Dashboard
+                  </Button>
+                </Link>
+                <Link href="/admin">
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Admin Panel
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            {isAdmin && (
+              <span className="text-sm px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                Admin Access
+              </span>
+            )}
             <span className="text-sm text-muted-foreground">
               Welcome, {user?.username}
             </span>
-            {isAdmin && (
-              <Link href="/admin">
-                <Button variant="secondary" className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Admin Dashboard
-                </Button>
-              </Link>
-            )}
             {!hasPro && (
               <Link href="/features">
                 <Button variant="secondary">Upgrade to Pro</Button>
@@ -59,33 +81,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </nav>
-
-      {/* New Admin Quick Access Section */}
-      {isAdmin && (
-        <div className="border-b bg-muted/50">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link href="/admin/users">
-                  <Button variant="ghost" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    User Management
-                  </Button>
-                </Link>
-                <Link href="/admin/metrics">
-                  <Button variant="ghost" className="flex items-center gap-2">
-                    <LineChart className="h-4 w-4" />
-                    Metrics Dashboard
-                  </Button>
-                </Link>
-              </div>
-              <span className="text-sm text-muted-foreground">
-                Admin Access Granted
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid md:grid-cols-2 gap-8">
