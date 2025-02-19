@@ -116,20 +116,10 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
       return getLatestDate(b) - getLatestDate(a);
     });
 
-    // Extract the complete sections as they appear in the original CV
-    const completeEmploymentSections = sortedSections.map(section => {
-      // Include any bullet points or additional information that follows
-      const sectionStart = content.indexOf(section);
-      const nextSectionStart = sortedSections.find(s => content.indexOf(s) > sectionStart + section.length);
-      if (nextSectionStart) {
-        return content.slice(sectionStart, content.indexOf(nextSectionStart)).trim();
-      }
-      return section.trim();
-    });
-
+    // Return the latest employment and all previous ones in their original format
     return {
-      latest: completeEmploymentSections[0],
-      previous: completeEmploymentSections.slice(1),
+      latest: sortedSections[0],
+      previous: sortedSections.slice(1),
     };
   } catch (error) {
     console.error("Error extracting employments:", error);
@@ -143,16 +133,14 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
 // Helper function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract dates, company, and current role from original employment
+    // Extract dates and company from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
     const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
-    const projectMatch = originalEmployment.match(/Project:?\s*(.*?)(?:\n|$)/i);
 
     const dateRange = dateMatch ? dateMatch[0] : "Present";
     const company = companyMatch ? companyMatch[1].trim() : "";
-    const project = projectMatch ? projectMatch[1].trim() : "";
 
-    // Extract achievements and responsibilities from original employment
+    // Extract bullet points from original employment
     const bulletPoints = originalEmployment
       .split('\n')
       .filter(line => /^[•-]/.test(line.trim()))
@@ -160,20 +148,19 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
 
     // Extract key terms from job description
     const keyTerms = jobDescription.toLowerCase().match(/\b\w+\b/g) || [];
-    const technicalTerms = new Set(keyTerms.filter(term => 
-      /^(react|node|python|java|azure|aws|cloud|api|docker|kubernetes|devops|agile|scrum|ci\/cd)/i.test(term)
+    const technicalSkills = new Set(keyTerms.filter(term => 
+      /\b(react|node|python|java|azure|aws|cloud|api|docker|kubernetes|devops|agile|scrum|ci\/cd|sql|nosql|javascript|typescript|mongodb|postgresql)\b/i.test(term)
     ));
 
-    // Transform achievements to align with target role while preserving metrics
+    // Transform achievements to align with target role
     const transformedAchievements = bulletPoints.map(achievement => {
       let transformed = achievement;
 
-      // Replace technology terms based on job description
-      Array.from(technicalTerms).forEach(tech => {
+      // Replace technical terms based on job description
+      Array.from(technicalSkills).forEach(tech => {
         const regex = new RegExp(`\\b${tech}\\b`, 'gi');
         if (!transformed.toLowerCase().includes(tech)) {
-          // Find a similar technical term to replace
-          const currentTech = transformed.match(/\b(AWS|Azure|GCP|React|Angular|Vue|Node|Python|Java|Docker|Kubernetes)\b/i);
+          const currentTech = transformed.match(/\b(AWS|Azure|GCP|React|Angular|Vue|Node|Python|Java|Docker|Kubernetes|MongoDB|PostgreSQL)\b/i);
           if (currentTech) {
             transformed = transformed.replace(currentTech[0], tech.charAt(0).toUpperCase() + tech.slice(1));
           }
@@ -183,32 +170,34 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
       return transformed;
     });
 
-    // Split achievements into sections
-    const achievements = transformedAchievements.slice(0, 4);
-
-    // Extract responsibilities from job description or use transformed achievements
+    // Extract key responsibilities from job description
     const responsibilities = jobDescription
-      .split(/\n|\./)
-      .filter(line => line.trim().length > 0)
-      .filter(line => /^[A-Z]/.test(line.trim()))
-      .slice(0, 5);
-
-    if (responsibilities.length < 5) {
-      responsibilities.push(...transformedAchievements.slice(4));
-    }
+      .split(/[.;\n]/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .filter(line => /^[A-Z]/.test(line))
+      .filter(line => 
+        !line.toLowerCase().includes("we are looking") && 
+        !line.toLowerCase().includes("you will") &&
+        !line.toLowerCase().includes("required") &&
+        !line.toLowerCase().includes("qualification")
+      )
+      .slice(0, 4);
 
     // Format the transformed employment section
-    return `
-${targetRole} (${dateRange})
-Project: ${project || `${targetRole} Implementation and Enhancement`}
+    const transformedSection = `
+${targetRole}
+${dateRange}${company ? ` at ${company}` : ''}
 
 Key Achievements:
-${achievements.map(achievement => `• ${achievement}`).join('\n')}
+${transformedAchievements.slice(0, 4).map(achievement => `• ${achievement}`).join('\n')}
 
-Responsibilities:
-${responsibilities.map(resp => `• ${resp.trim()}`).join('\n')}
+Key Responsibilities:
+${responsibilities.map(resp => `• ${resp}`).join('\n')}
+${transformedAchievements.slice(4, 6).map(achievement => `• ${achievement}`).join('\n')}
 `.trim();
 
+    return transformedSection;
   } catch (error) {
     console.error("Error transforming employment:", error);
     return originalEmployment;
@@ -231,7 +220,6 @@ async function transformProfessionalSummary(originalSummary: string, targetRole:
 
     // Create a dynamic summary based on target role and job description
     return `Results-driven ${targetRole} with over ${years} years of experience in ${keySkills.slice(0, 3).join(', ')}. Proven expertise in ${keySkills.slice(3, 6).join(', ')}. Demonstrated success in delivering high-quality solutions while maintaining best practices and industry standards. Strong collaborator with excellent communication skills and experience in cross-functional team leadership.`;
-
   } catch (error) {
     console.error("Error transforming professional summary:", error);
     return originalSummary;
@@ -932,7 +920,7 @@ export function registerRoutes(app: Express): Server {
           .update(subscriptions)
           .set({          status: action === "activate"? "active" : "inactive",
             endedAt: endDate
-                    })          .where(eq(subscriptions.userId, userId));
+          })          .where(eq(subscriptions.userId, userId));
       } else if (action === "activate") {
         await db
           .insert(subscriptions)
@@ -1830,7 +1818,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(401).send("Authentication required");
       }
 
-      const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.userId, req.user.id)).limit(1);
+      const [subscription] =await db.select().from(subscriptions).where(eq(subscriptions.userId, req.user.id)).limit(1);
 
       res.json(subscription || null);
     } catch (error: any) {
@@ -1873,6 +1861,52 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
   });
 
   // Add CV transformation routes after existing routes and before the httpServer creation
+
+  app.post("/api/cv/transform", async (req, res) => {
+    try {
+      const { content, targetRole, jobDescription } = req.body;
+
+      if (!content || !targetRole || !jobDescription) {
+        return res.status(400).json({
+          error: "Missing required fields: content, targetRole, and jobDescription are required"
+        });
+      }
+
+      // Extract employments from the CV content
+      const { latest, previous } = await extractEmployments(content);
+
+      // Transform only the latest employment
+      const transformedLatest = await transformEmployment(latest, targetRole, jobDescription);
+
+      // Combine transformed latest role with previous roles
+      const transformedCV = [
+        transformedLatest,
+        ...previous
+      ].join('\n\n');
+
+      // Store the transformed CV in the database
+      const [newCV] = await db.insert(cvs).values({
+        content: transformedCV,
+        originalContent: content,
+        targetRole,
+        userId: req.user?.id || null,
+        status: "completed",
+        createdAt: new Date(),
+      }).returning();
+
+      res.json({
+        success: true,
+        cvId: newCV.id,
+        content: transformedCV
+      });
+
+    } catch (error) {
+      console.error("CV transformation error:", error);
+      res.status(500).json({
+        error: "Failed to transform CV"
+      });
+    }
+  });
 
   app.post("/api/admin/send-access-link", async (req, res) => {
     try {
