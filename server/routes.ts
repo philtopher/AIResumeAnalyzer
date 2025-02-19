@@ -87,17 +87,18 @@ async function extractTextContent(file: Express.Multer.File): Promise<string> {
 // Helper function to extract employments
 async function extractEmployments(content: string): Promise<{ latest: string; previous: string[] }> {
   try {
-    // Split content into sections based on line breaks and employment markers
+    // Split content into sections based on employment markers
     const sections = content.split(/\n{2,}/);
 
-    // Find the sections that contain employment information
+    // Find sections that contain employment information using stronger patterns
     const employmentSections = sections.filter((section) => {
-      // Check for standard employment section markers
-      return /\b(19|20)\d{2}\b/.test(section) && // Has year
-        /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(section) && // Has month
-        (/\b(at|with|for)\b/i.test(section) || /\|/.test(section)) && // Employment prepositions or separator
-        (/\b(senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)\b/i.test(section) || // Job titles
-         /\b(responsible|managed|led|developed|implemented|designed|created)\b/i.test(section)); // Action verbs
+      return (
+        // Has date in format MMM YYYY - MMM YYYY or MMM YYYY - Present
+        /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i.test(section) &&
+        // Has company or role indicators
+        (/\b(?:at|with|for)\s+[A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?\b/i.test(section) ||
+         /\b(?:senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)\b/i.test(section))
+      );
     });
 
     if (employmentSections.length === 0) {
@@ -116,20 +117,35 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
       return getLatestDate(b) - getLatestDate(a);
     });
 
-    // Extract the complete sections as they appear in the original CV
-    const completeEmploymentSections = sortedSections.map(section => {
-      // Include any bullet points or additional information that follows
-      const sectionStart = content.indexOf(section);
-      const nextSectionStart = sortedSections.find(s => content.indexOf(s) > sectionStart + section.length);
-      if (nextSectionStart) {
-        return content.slice(sectionStart, content.indexOf(nextSectionStart)).trim();
-      }
-      return section.trim();
+    // Format previous roles consistently
+    const formattedPrevious = sortedSections.slice(1).map(section => {
+      // Extract role title and dates
+      const roleMatch = section.match(/\b(?:senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)[^,\n]*/i);
+      const dateMatch = section.match(/\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
+      const companyMatch = section.match(/(?:at|with|for)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/i);
+
+      const role = roleMatch ? roleMatch[0].trim() : "Role Not Found";
+      const dates = dateMatch ? dateMatch[0].trim() : "";
+      const company = companyMatch ? companyMatch[1].trim() : "";
+
+      // Extract bullet points
+      const bullets = section
+        .split('\n')
+        .filter(line => /^[•\-]/.test(line.trim()))
+        .map(point => point.replace(/^[•\-]\s*/, '').trim());
+
+      // Format the section
+      return `
+${role} (${dates})
+${company ? `at ${company}` : ""}
+
+${bullets.map(bullet => `• ${bullet}`).join('\n')}
+`.trim();
     });
 
     return {
-      latest: completeEmploymentSections[0],
-      previous: completeEmploymentSections.slice(1),
+      latest: sortedSections[0],
+      previous: formattedPrevious,
     };
   } catch (error) {
     console.error("Error extracting employments:", error);
@@ -141,7 +157,7 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
 }
 
 // Helper function to transform employment details
-async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
+async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string, previousRoles: string[]): Promise<string> {
   try {
     // Extract dates and company from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
@@ -178,6 +194,7 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
         .slice(0, 3)
     ];
 
+    // Combine transformed latest role with previous roles
     return `
 ${targetRole} (${dateRange})
 ${company ? `at ${company}` : ""}
@@ -187,6 +204,9 @@ ${achievements.map(achievement => `• ${achievement}`).join('\n')}
 
 Responsibilities:
 ${responsibilities.map(resp => `• ${resp}`).join('\n')}
+
+Previous Experience:
+${previousRoles.join('\n\n')}
 `.trim();
   } catch (error) {
     console.error("Error transforming employment:", error);
@@ -854,7 +874,7 @@ export function registerRoutes(app: Express): Server {
       res.json({ message: "User deleted successfully" });
     } catch (error: any) {
       console.error("Admin delete user error:", error);
-      res.status(500).send(error.message);
+      resstatus(500).send(error.message);
     }
   });
 
@@ -1363,87 +1383,64 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Public CV transformation endpoint
-  app.post("/api/cv/transform/public", upload.single("file"), async (req, res) => {
+  app.post("/api/cv/transform/public", upload.single("cv"), async (req, res) => {
     try {
-      const file = (req as any).file;
-      if (!file) {
+      if (!req.file) {
         return res.status(400).send("No file uploaded");
       }
 
-      const { targetRole, jobDescription } = (req as any).body;
+      const { targetRole, jobDescription } = req.body;
+
       if (!targetRole || !jobDescription) {
         return res.status(400).send("Target role and job description are required");
       }
 
       // Extract text content from the uploaded file
-      const textContent = await extractTextContent(file);
-      const fileContent = file.buffer.toString("base64");
+      const textContent = await extractTextContent(req.file);
 
-      // Extract employment history
-      const { latest: latestEmployment, previous: previousEmployments } = await extractEmployments(textContent);
-      const transformedEmployment = await transformEmployment(latestEmployment, targetRole, jobDescription);
+      // Extract employments and transform the latest one
+      const { latest, previous } = await extractEmployments(textContent);
+      const transformedEmployment = await transformEmployment(latest, targetRole, jobDescription, previous);
 
-      // Extractand adapt skills
-      const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
-
-      // Extract professional summary
+      // Transform professional summary
       const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
       const originalSummary = summaryMatch ? summaryMatch[1].trim() : "";
       const transformedSummary = await transformProfessionalSummary(originalSummary, targetRole, jobDescription);
 
-      // Format the transformed CV content
-      const transformedContent = `
-${targetRole.toUpperCase()}
+      // Extract and adapt skills
+      const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
+      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
 
+      // Generate the transformed CV content
+      const transformedContent = `
+Professional Summary
 ${transformedSummary}
 
-CORE SKILLS & TECHNOLOGIES
-${adaptedSkills.map((skill) => `• ${skill}`).join("\n")}
-
-WORK EXPERIENCE
+Professional Experience
 ${transformedEmployment}
 
-${previousEmployments.join("\n\n")}
-
-${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(section)) || ""}
+Technical Skills
+${adaptedSkills.join('\n')}
 `.trim();
 
-      // Gather companyinsights
-      const companyInsights = await gatherOrganizationalInsights(targetRole.split(" at ")[1] || "");
-
-      //// Evaluate the CV
-      const evaluation = evaluateCV(transformedContent, jobDescription);
-
-      // For public demo, store under a demo user
-      const [demoUser] = await db.select().from(users).where(eq(users.username, "demo")).limit(1);
-      let userId = demoUser?.id;
-
-      if (!userId) {
-        const [newDemoUser] = await db.insert(users).values({
-          username: "demo",
-          password: "demo",
-          email: "demo@example.com",
-          role: "demo",
-        }).returning();
-        userId = newDemoUser.id;
-      }
-
-      const [cv] = await db.insert(cvs).values({
-        userId: userId,
-        originalFilename: file.originalname,
-        fileContent: fileContent,
-        transformedContent: Buffer.from(transformedContent).toString("base64"),
-        targetRole: targetRole,
-        jobDescription: jobDescription,
-        score: evaluation.score,
-        feedback: evaluation.feedback,
+      // Store the transformed CV
+      const [newCV] = await db.insert(cvs).values({
+        content: transformedContent,
+        originalContent: textContent,
+        targetRole,
+        status: "public",
       }).returning();
 
-      res.json(cv);
+      res.json({
+        success: true,
+        cvId: newCV.id,
+      });
     } catch (error: any) {
-      console.error("Public transform CV error:", error);
-      res.status(500).send(error.message);
+      console.error("CV transformation error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
     }
   });
 
@@ -1470,7 +1467,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
       // Extract employment history
       const { latest: latestEmployment, previous: previousEmployments } = await extractEmployments(textContent);
-      const transformedEmployment = await transformEmployment(latestEmployment, targetRole, jobDescription);
+      const transformedEmployment = await transformEmployment(latestEmployment, targetRole, jobDescription, previousEmployments);
 
       // Extract and adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
