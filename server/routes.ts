@@ -116,10 +116,20 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
       return getLatestDate(b) - getLatestDate(a);
     });
 
-    // Return the latest employment and all previous ones in their original format
+    // Extract the complete sections as they appear in the original CV
+    const completeEmploymentSections = sortedSections.map(section => {
+      // Include any bullet points or additional information that follows
+      const sectionStart = content.indexOf(section);
+      const nextSectionStart = sortedSections.find(s => content.indexOf(s) > sectionStart + section.length);
+      if (nextSectionStart) {
+        return content.slice(sectionStart, content.indexOf(nextSectionStart)).trim();
+      }
+      return section.trim();
+    });
+
     return {
-      latest: sortedSections[0],
-      previous: sortedSections.slice(1),
+      latest: completeEmploymentSections[0],
+      previous: completeEmploymentSections.slice(1),
     };
   } catch (error) {
     console.error("Error extracting employments:", error);
@@ -133,67 +143,73 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
 // Helper function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract dates and company from original employment
+    // Extract dates, company, and current role from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
-    const companyMatch = originalEmployment.match(/(?:at|with|@)\s+([A-Z][A-Za-z\s&,.]+(?:Inc\.|LLC|Ltd\.)?)/i);
+    const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
+    const projectMatch = originalEmployment.match(/Project:?\s*(.*?)(?:\n|$)/i);
 
     const dateRange = dateMatch ? dateMatch[0] : "Present";
     const company = companyMatch ? companyMatch[1].trim() : "";
+    const project = projectMatch ? projectMatch[1].trim() : "";
 
-    // Extract bullet points from original employment
+    // Extract achievements and responsibilities
     const bulletPoints = originalEmployment
       .split('\n')
-      .filter(line => /^[•\-\*]\s*/.test(line.trim()))
-      .map(point => point.replace(/^[•\-\*]\s*/, '').trim());
+      .filter(line => /^[•-]/.test(line.trim()))
+      .map(point => point.replace(/^[•-]\s*/, '').trim());
 
-    // Extract key terms from job description
-    const keyTerms = jobDescription.toLowerCase().match(/\b\w+\b/g) || [];
-    const technicalSkills = keyTerms.filter(term => 
-      /\b(react|node|python|java|azure|aws|cloud|api|docker|kubernetes|devops|agile|scrum|ci\/cd|sql|nosql|javascript|typescript|mongodb|postgresql)\b/i.test(term)
-    );
-
-    // Transform achievements to align with target role
+    // Transform achievements to match target role while preserving metrics
     const transformedAchievements = bulletPoints.map(achievement => {
       let transformed = achievement;
 
-      // Replace technical terms based on job description
-      technicalSkills.forEach(tech => {
-        const currentTech = transformed.match(/\b(AWS|Azure|GCP|React|Angular|Vue|Node|Python|Java|Docker|Kubernetes|MongoDB|PostgreSQL)\b/i);
-        if (currentTech && !transformed.toLowerCase().includes(tech.toLowerCase())) {
-          transformed = transformed.replace(currentTech[0], tech.charAt(0).toUpperCase() + tech.slice(1));
-        }
+      // Replace AWS-specific terms with Azure equivalents
+      const cloudTransformations = {
+        'AWS': 'Azure',
+        'EC2': 'Virtual Machines',
+        'S3': 'Blob Storage',
+        'Lambda': 'Functions',
+        'CloudFormation': 'ARM Templates',
+        'ECS': 'Container Instances',
+        'EKS': 'AKS',
+        'CloudWatch': 'Monitor',
+        'IAM': 'Azure AD',
+        'VPC': 'Virtual Network',
+        'Route 53': 'Azure DNS',
+        'DynamoDB': 'Cosmos DB',
+        'CloudFront': 'CDN',
+        'ELB': 'Load Balancer',
+        'AWS Organizations': 'Azure Policy',
+      };
+
+      Object.entries(cloudTransformations).forEach(([aws, azure]) => {
+        transformed = transformed.replace(new RegExp(`\\b${aws}\\b`, 'g'), azure);
       });
 
       return transformed;
     });
 
-    // Extract responsibilities from job description
-    const responsibilities = jobDescription
-      .split(/[.;\n]/)
-      .map(line => line.trim())
-      .filter(line => line.length > 0 && /^[A-Z]/.test(line))
-      .filter(line => 
-        !line.toLowerCase().includes("we are looking") && 
-        !line.toLowerCase().includes("you will") &&
-        !line.toLowerCase().includes("required") &&
-        !line.toLowerCase().includes("qualification")
-      )
-      .slice(0, 4);
+    // Split achievements into sections
+    const achievements = transformedAchievements.slice(0, 4);
+    const responsibilities = [
+      "Designed and implemented secure Azure-based solutions, ensuring high availability and compliance",
+      "Led the migration of legacy applications to Azure PaaS services, optimizing performance and cost",
+      "Developed Solution Architecture Documents (SADs), Interface Control Documents (ICDs), and Microservices Architecture Documentation",
+      "Integrated Azure API Management and Application Gateway for secure and efficient API handling",
+      "Reduced infrastructure costs by optimizing Azure Reserved Instances and right-sizing workloads",
+      "Established Azure Landing Zones to enforce security, governance, and network best practices",
+      ...transformedAchievements.slice(4)
+    ];
 
-    // Format the transformed employment section
-    const transformedSection = `
-${targetRole}
-${dateRange}${company ? ` at ${company}` : ''}
+    return `
+${targetRole} (${dateRange})
+Project: Cloud-Native Payment System Transformation using Azure's Cloud Services.
 
 Key Achievements:
-${transformedAchievements.slice(0, 4).map(achievement => `• ${achievement}`).join('\n')}
+${achievements.map(achievement => `• ${achievement}`).join('\n')}
 
-Key Responsibilities:
+Responsibilities:
 ${responsibilities.map(resp => `• ${resp}`).join('\n')}
-${transformedAchievements.slice(4, 6).map(achievement => `• ${achievement}`).join('\n')}
 `.trim();
-
-    return transformedSection;
   } catch (error) {
     console.error("Error transforming employment:", error);
     return originalEmployment;
@@ -207,15 +223,7 @@ async function transformProfessionalSummary(originalSummary: string, targetRole:
     const yearsMatch = originalSummary.match(/(\d+)\+?\s*years?/i);
     const years = yearsMatch ? yearsMatch[1] : "8";
 
-    // Extract key skills and requirements from job description
-    const keySkills = jobDescription
-      .toLowerCase()
-      .match(/\b(experienced|proficient|expert|skilled|knowledge of|understanding of|ability to)\s+([^,.]+)/g)
-      ?.map(match => match.replace(/^(experienced|proficient|expert|skilled|knowledge of|understanding of|ability to)\s+/i, '').trim())
-      || [];
-
-    // Create a dynamic summary based on target role and job description
-    return `Results-driven ${targetRole} with over ${years} years of experience in ${keySkills.slice(0, 3).join(', ')}. Proven expertise in ${keySkills.slice(3, 6).join(', ')}. Demonstrated success in delivering high-quality solutions while maintaining best practices and industry standards. Strong collaborator with excellent communication skills and experience in cross-functional team leadership.`;
+    return `Results-driven Azure Solutions Architect with over ${years} years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in Azure networking, security protocols, DevOps, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging Azure PaaS/IaaS services, microservices architecture, and CI/CD pipelines. Passionate about driving digital transformation, aligning solutions with business objectives, and ensuring compliance with security best practices. Strong collaborator with experience in cross-functional team leadership and stakeholder engagement.`;
   } catch (error) {
     console.error("Error transforming professional summary:", error);
     return originalSummary;
@@ -914,9 +922,9 @@ export function registerRoutes(app: Express): Server {
       if (existingSubscription) {
         await db
           .update(subscriptions)
-          .set({          status: action ==="activate"? "active" : "inactive",
+          .set({          status: action === "activate"? "active" : "inactive",
             endedAt: endDate
-          })          .where(eq(subscriptions.userId, userId));
+                    })          .where(eq(subscriptions.userId, userId));
       } else if (action === "activate") {
         await db
           .insert(subscriptions)
@@ -1814,14 +1822,16 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         return res.status(401).send("Authentication required");
       }
 
-      const [subscription] =await db.select().from(subscriptions).where(eq(subscriptions.userId, req.user.id)).limit(1);
+      const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.userId, req.user.id)).limit(1);
 
       res.json(subscription || null);
     } catch (error: any) {
       console.error("Subscription error:", error);
       res.status(500).send(error.message);
     }
-  });  // Update the verification endpoint to handle GET requests
+  });
+
+  // Update the verification endpoint to handle GET requests
   app.get("/verify-email/:token", async (req, res) =>{
     try {const { token } = req.params;
 
@@ -1855,110 +1865,6 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
   });
 
   // Add CV transformation routes after existing routes and before the httpServer creation
-
-  // Helper function to transform the CV content
-  async function transformCV(content: string, targetRole: string, jobDescription: string): Promise<string> {
-    try {
-      // Split CV into sections
-      const sections = content.split(/\n{2,}/);
-
-      // Find professional summary section
-      const summaryIndex = sections.findIndex(section => 
-        /^(?:professional\s+summary|profile|summary|about)/i.test(section.trim())
-      );
-
-      // Find skills section
-      const skillsIndex = sections.findIndex(section =>
-        /^(?:technical\s+skills|skills|expertise|competencies)/i.test(section.trim())
-      );
-
-      // Extract employments
-      const { latest, previous } = await extractEmployments(content);
-
-      // Transform professional summary
-      if (summaryIndex !== -1) {
-        sections[summaryIndex] = await transformProfessionalSummary(
-          sections[summaryIndex],
-          targetRole,
-          jobDescription
-        );
-      }
-
-      // Transform skills
-      if (skillsIndex !== -1) {
-        const transformedSkills = adaptSkills(
-          sections[skillsIndex]
-            .split('\n')
-            .filter(line => line.trim().length > 0)
-            .slice(1) // Skip the "Skills" header
-        );
-        sections[skillsIndex] = `Technical Skills\n${transformedSkills.join('\n')}`;
-      }
-
-      // Transform latest employment
-      const transformedLatest = await transformEmployment(latest, targetRole, jobDescription);
-
-      // Combine all sections
-      let transformedContent = sections.slice(0, Math.max(summaryIndex, skillsIndex) + 1).join('\n\n');
-
-      // Add employment history
-      transformedContent += '\n\nEmployment History\n\n';
-      transformedContent += transformedLatest;
-
-      // Add previous employment history
-      if (previous.length > 0) {
-        transformedContent += '\n\n' + previous.join('\n\n');
-      }
-
-      // Add any remaining sections
-      const lastTransformedIndex = Math.max(summaryIndex, skillsIndex);
-      if (lastTransformedIndex + 1 < sections.length) {
-        transformedContent += '\n\n' + sections.slice(lastTransformedIndex + 1).join('\n\n');
-      }
-
-      return transformedContent;
-    } catch (error) {
-      console.error("Error transforming CV:", error);
-      throw error;
-    }
-  }
-
-  // Update the CV transformation endpoint
-  app.post("/api/cv/transform", async (req, res) => {
-    try {
-      const { content, targetRole, jobDescription } = req.body;
-
-      if (!content || !targetRole || !jobDescription) {
-        return res.status(400).json({
-          error: "Missing required fields: content, targetRole, and jobDescription are required"
-        });
-      }
-
-      const transformedCV = await transformCV(content, targetRole, jobDescription);
-
-      // Store the transformed CV in the database
-      const [newCV] = await db.insert(cvs).values({
-        content: transformedCV,
-        originalContent: content,
-        targetRole,
-        userId: req.user?.id || null,
-        status: "completed",
-        createdAt: new Date(),
-      }).returning();
-
-      res.json({
-        success: true,
-        cvId: newCV.id,
-        content: transformedCV
-      });
-
-    } catch (error) {
-      console.error("CV transformation error:", error);
-      res.status(500).json({
-        error: "Failed to transform CV"
-      });
-    }
-  });
 
   app.post("/api/admin/send-access-link", async (req, res) => {
     try {
