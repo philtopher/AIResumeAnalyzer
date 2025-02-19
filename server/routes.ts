@@ -1821,9 +1821,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       console.error("Subscription error:", error);
       res.status(500).send(error.message);
     }
-  });
-
-  // Update the verification endpoint to handle GET requests
+  });  // Update the verification endpoint to handle GET requests
   app.get("/verify-email/:token", async (req, res) =>{
     try {const { token } = req.params;
 
@@ -1858,6 +1856,74 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
   // Add CV transformation routes after existing routes and before the httpServer creation
 
+  // Helper function to transform the CV content
+  async function transformCV(content: string, targetRole: string, jobDescription: string): Promise<string> {
+    try {
+      // Split CV into sections
+      const sections = content.split(/\n{2,}/);
+
+      // Find professional summary section
+      const summaryIndex = sections.findIndex(section => 
+        /^(?:professional\s+summary|profile|summary|about)/i.test(section.trim())
+      );
+
+      // Find skills section
+      const skillsIndex = sections.findIndex(section =>
+        /^(?:technical\s+skills|skills|expertise|competencies)/i.test(section.trim())
+      );
+
+      // Extract employments
+      const { latest, previous } = await extractEmployments(content);
+
+      // Transform professional summary
+      if (summaryIndex !== -1) {
+        sections[summaryIndex] = await transformProfessionalSummary(
+          sections[summaryIndex],
+          targetRole,
+          jobDescription
+        );
+      }
+
+      // Transform skills
+      if (skillsIndex !== -1) {
+        const transformedSkills = adaptSkills(
+          sections[skillsIndex]
+            .split('\n')
+            .filter(line => line.trim().length > 0)
+            .slice(1) // Skip the "Skills" header
+        );
+        sections[skillsIndex] = `Technical Skills\n${transformedSkills.join('\n')}`;
+      }
+
+      // Transform latest employment
+      const transformedLatest = await transformEmployment(latest, targetRole, jobDescription);
+
+      // Combine all sections
+      let transformedContent = sections.slice(0, Math.max(summaryIndex, skillsIndex) + 1).join('\n\n');
+
+      // Add employment history
+      transformedContent += '\n\nEmployment History\n\n';
+      transformedContent += transformedLatest;
+
+      // Add previous employment history
+      if (previous.length > 0) {
+        transformedContent += '\n\n' + previous.join('\n\n');
+      }
+
+      // Add any remaining sections
+      const lastTransformedIndex = Math.max(summaryIndex, skillsIndex);
+      if (lastTransformedIndex + 1 < sections.length) {
+        transformedContent += '\n\n' + sections.slice(lastTransformedIndex + 1).join('\n\n');
+      }
+
+      return transformedContent;
+    } catch (error) {
+      console.error("Error transforming CV:", error);
+      throw error;
+    }
+  }
+
+  // Update the CV transformation endpoint
   app.post("/api/cv/transform", async (req, res) => {
     try {
       const { content, targetRole, jobDescription } = req.body;
@@ -1868,17 +1934,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         });
       }
 
-      // Extract employments from the CV content
-      const { latest, previous } = await extractEmployments(content);
-
-      // Transform only the latest employment
-      const transformedLatest = await transformEmployment(latest, targetRole, jobDescription);
-
-      // Combine transformed latest role with previous roles
-      const transformedCV = [
-        transformedLatest,
-        ...previous
-      ].join('\n\n');
+      const transformedCV = await transformCV(content, targetRole, jobDescription);
 
       // Store the transformed CV in the database
       const [newCV] = await db.insert(cvs).values({
