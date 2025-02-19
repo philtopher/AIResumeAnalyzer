@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Download, Eye, Settings } from "lucide-react";
+import { Loader2, Upload, Download, Eye, Settings, Users, LineChart } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 export default function DashboardPage() {
@@ -23,119 +23,8 @@ export default function DashboardPage() {
   const [transformedContent, setTransformedContent] = useState<string>("");
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Check for admin privileges
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin";
   const hasPro = isAdmin || subscription?.status === "active";
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!file) return;
-
-    setIsProcessing(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append(
-      "targetRole",
-      (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value
-    );
-    formData.append(
-      "jobDescription",
-      (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement)
-        .value
-    );
-
-    try {
-      const response = await fetch("/api/cv/transform", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const result = await response.json();
-      setTransformedCV(result);
-
-      // Get the transformed content for display
-      const contentResponse = await fetch(`/api/cv/${result.id}/content`);
-      if (contentResponse.ok) {
-        const content = await contentResponse.text();
-        setTransformedContent(content);
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["/api/cv/history"] });
-
-      toast({
-        title: "CV Transformed Successfully",
-        description: "Your CV has been updated for the target role.",
-      });
-
-      // Clear form
-      setFile(null);
-      if (formRef.current) {
-        formRef.current.reset();
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  }
-
-  async function handleDownload(cvId: number) {
-    try {
-      const response = await fetch(`/api/cv/${cvId}/download`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "transformed_cv.docx";
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  }
-
-  async function handleView(cvId: number) {
-    try {
-      const response = await fetch(`/api/cv/${cvId}/content`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const content = await response.text();
-      setTransformedContent(content);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  }
 
   if (isLoadingSubscription) {
     return (
@@ -171,6 +60,33 @@ export default function DashboardPage() {
         </div>
       </nav>
 
+      {/* New Admin Quick Access Section */}
+      {isAdmin && (
+        <div className="border-b bg-muted/50">
+          <div className="container mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Link href="/admin/users">
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    User Management
+                  </Button>
+                </Link>
+                <Link href="/admin/metrics">
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    <LineChart className="h-4 w-4" />
+                    Metrics Dashboard
+                  </Button>
+                </Link>
+              </div>
+              <span className="text-sm text-muted-foreground">
+                Admin Access Granted
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="container mx-auto px-4 py-8">
         <div className="grid md:grid-cols-2 gap-8">
           <Card>
@@ -179,7 +95,6 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-                {/* File upload section with warning message */}
                 <div className="space-y-2">
                   <Label htmlFor="cv">Upload CV (PDF or DOCX)</Label>
                   <div className="border rounded-md p-4">
@@ -308,4 +223,112 @@ export default function DashboardPage() {
       </main>
     </div>
   );
+}
+
+async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  e.preventDefault();
+  if (!file) return;
+
+  setIsProcessing(true);
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append(
+    "targetRole",
+    (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value
+  );
+  formData.append(
+    "jobDescription",
+    (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement)
+      .value
+  );
+
+  try {
+    const response = await fetch("/api/cv/transform", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const result = await response.json();
+    setTransformedCV(result);
+
+    const contentResponse = await fetch(`/api/cv/${result.id}/content`);
+    if (contentResponse.ok) {
+      const content = await contentResponse.text();
+      setTransformedContent(content);
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ["/api/cv/history"] });
+
+    toast({
+      title: "CV Transformed Successfully",
+      description: "Your CV has been updated for the target role.",
+    });
+
+    setFile(null);
+    if (formRef.current) {
+      formRef.current.reset();
+    }
+  } catch (error: any) {
+    toast({
+      title: "Error",
+      description: error.message,
+      variant: "destructive",
+    });
+  } finally {
+    setIsProcessing(false);
+  }
+}
+
+async function handleDownload(cvId: number) {
+  try {
+    const response = await fetch(`/api/cv/${cvId}/download`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "transformed_cv.docx";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error: any) {
+    toast({
+      title: "Error",
+      description: error.message,
+      variant: "destructive",
+    });
+  }
+}
+
+async function handleView(cvId: number) {
+  try {
+    const response = await fetch(`/api/cv/${cvId}/content`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const content = await response.text();
+    setTransformedContent(content);
+  } catch (error: any) {
+    toast({
+      title: "Error",
+      description: error.message,
+      variant: "destructive",
+    });
+  }
 }
