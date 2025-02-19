@@ -135,7 +135,7 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
   try {
     // Extract dates and company from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
-    const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
+    const companyMatch = originalEmployment.match(/(?:at|with|@)\s+([A-Z][A-Za-z\s&,.]+(?:Inc\.|LLC|Ltd\.)?)/i);
 
     const dateRange = dateMatch ? dateMatch[0] : "Present";
     const company = companyMatch ? companyMatch[1].trim() : "";
@@ -143,39 +143,35 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
     // Extract bullet points from original employment
     const bulletPoints = originalEmployment
       .split('\n')
-      .filter(line => /^[•-]/.test(line.trim()))
-      .map(point => point.replace(/^[•-]\s*/, '').trim());
+      .filter(line => /^[•\-\*]\s*/.test(line.trim()))
+      .map(point => point.replace(/^[•\-\*]\s*/, '').trim());
 
     // Extract key terms from job description
     const keyTerms = jobDescription.toLowerCase().match(/\b\w+\b/g) || [];
-    const technicalSkills = new Set(keyTerms.filter(term => 
+    const technicalSkills = keyTerms.filter(term => 
       /\b(react|node|python|java|azure|aws|cloud|api|docker|kubernetes|devops|agile|scrum|ci\/cd|sql|nosql|javascript|typescript|mongodb|postgresql)\b/i.test(term)
-    ));
+    );
 
     // Transform achievements to align with target role
     const transformedAchievements = bulletPoints.map(achievement => {
       let transformed = achievement;
 
       // Replace technical terms based on job description
-      Array.from(technicalSkills).forEach(tech => {
-        const regex = new RegExp(`\\b${tech}\\b`, 'gi');
-        if (!transformed.toLowerCase().includes(tech)) {
-          const currentTech = transformed.match(/\b(AWS|Azure|GCP|React|Angular|Vue|Node|Python|Java|Docker|Kubernetes|MongoDB|PostgreSQL)\b/i);
-          if (currentTech) {
-            transformed = transformed.replace(currentTech[0], tech.charAt(0).toUpperCase() + tech.slice(1));
-          }
+      technicalSkills.forEach(tech => {
+        const currentTech = transformed.match(/\b(AWS|Azure|GCP|React|Angular|Vue|Node|Python|Java|Docker|Kubernetes|MongoDB|PostgreSQL)\b/i);
+        if (currentTech && !transformed.toLowerCase().includes(tech.toLowerCase())) {
+          transformed = transformed.replace(currentTech[0], tech.charAt(0).toUpperCase() + tech.slice(1));
         }
       });
 
       return transformed;
     });
 
-    // Extract key responsibilities from job description
+    // Extract responsibilities from job description
     const responsibilities = jobDescription
       .split(/[.;\n]/)
       .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .filter(line => /^[A-Z]/.test(line))
+      .filter(line => line.length > 0 && /^[A-Z]/.test(line))
       .filter(line => 
         !line.toLowerCase().includes("we are looking") && 
         !line.toLowerCase().includes("you will") &&
@@ -918,7 +914,7 @@ export function registerRoutes(app: Express): Server {
       if (existingSubscription) {
         await db
           .update(subscriptions)
-          .set({          status: action === "activate"? "active" : "inactive",
+          .set({          status: action ==="activate"? "active" : "inactive",
             endedAt: endDate
           })          .where(eq(subscriptions.userId, userId));
       } else if (action === "activate") {
