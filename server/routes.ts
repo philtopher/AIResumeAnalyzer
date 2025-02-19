@@ -152,37 +152,32 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
     const company = companyMatch ? companyMatch[1].trim() : "";
     const project = projectMatch ? projectMatch[1].trim() : "";
 
-    // Extract achievements and responsibilities
+    // Extract achievements and responsibilities from original employment
     const bulletPoints = originalEmployment
       .split('\n')
       .filter(line => /^[•-]/.test(line.trim()))
       .map(point => point.replace(/^[•-]\s*/, '').trim());
 
-    // Transform achievements to match target role while preserving metrics
+    // Extract key terms from job description
+    const keyTerms = jobDescription.toLowerCase().match(/\b\w+\b/g) || [];
+    const technicalTerms = new Set(keyTerms.filter(term => 
+      /^(react|node|python|java|azure|aws|cloud|api|docker|kubernetes|devops|agile|scrum|ci\/cd)/i.test(term)
+    ));
+
+    // Transform achievements to align with target role while preserving metrics
     const transformedAchievements = bulletPoints.map(achievement => {
       let transformed = achievement;
 
-      // Replace AWS-specific terms with Azure equivalents
-      const cloudTransformations = {
-        'AWS': 'Azure',
-        'EC2': 'Virtual Machines',
-        'S3': 'Blob Storage',
-        'Lambda': 'Functions',
-        'CloudFormation': 'ARM Templates',
-        'ECS': 'Container Instances',
-        'EKS': 'AKS',
-        'CloudWatch': 'Monitor',
-        'IAM': 'Azure AD',
-        'VPC': 'Virtual Network',
-        'Route 53': 'Azure DNS',
-        'DynamoDB': 'Cosmos DB',
-        'CloudFront': 'CDN',
-        'ELB': 'Load Balancer',
-        'AWS Organizations': 'Azure Policy',
-      };
-
-      Object.entries(cloudTransformations).forEach(([aws, azure]) => {
-        transformed = transformed.replace(new RegExp(`\\b${aws}\\b`, 'g'), azure);
+      // Replace technology terms based on job description
+      Array.from(technicalTerms).forEach(tech => {
+        const regex = new RegExp(`\\b${tech}\\b`, 'gi');
+        if (!transformed.toLowerCase().includes(tech)) {
+          // Find a similar technical term to replace
+          const currentTech = transformed.match(/\b(AWS|Azure|GCP|React|Angular|Vue|Node|Python|Java|Docker|Kubernetes)\b/i);
+          if (currentTech) {
+            transformed = transformed.replace(currentTech[0], tech.charAt(0).toUpperCase() + tech.slice(1));
+          }
+        }
       });
 
       return transformed;
@@ -190,26 +185,30 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
 
     // Split achievements into sections
     const achievements = transformedAchievements.slice(0, 4);
-    const responsibilities = [
-      "Designed and implemented secure Azure-based solutions, ensuring high availability and compliance",
-      "Led the migration of legacy applications to Azure PaaS services, optimizing performance and cost",
-      "Developed Solution Architecture Documents (SADs), Interface Control Documents (ICDs), and Microservices Architecture Documentation",
-      "Integrated Azure API Management and Application Gateway for secure and efficient API handling",
-      "Reduced infrastructure costs by optimizing Azure Reserved Instances and right-sizing workloads",
-      "Established Azure Landing Zones to enforce security, governance, and network best practices",
-      ...transformedAchievements.slice(4)
-    ];
 
+    // Extract responsibilities from job description or use transformed achievements
+    const responsibilities = jobDescription
+      .split(/\n|\./)
+      .filter(line => line.trim().length > 0)
+      .filter(line => /^[A-Z]/.test(line.trim()))
+      .slice(0, 5);
+
+    if (responsibilities.length < 5) {
+      responsibilities.push(...transformedAchievements.slice(4));
+    }
+
+    // Format the transformed employment section
     return `
 ${targetRole} (${dateRange})
-Project: Cloud-Native Payment System Transformation using Azure's Cloud Services.
+Project: ${project || `${targetRole} Implementation and Enhancement`}
 
 Key Achievements:
 ${achievements.map(achievement => `• ${achievement}`).join('\n')}
 
 Responsibilities:
-${responsibilities.map(resp => `• ${resp}`).join('\n')}
+${responsibilities.map(resp => `• ${resp.trim()}`).join('\n')}
 `.trim();
+
   } catch (error) {
     console.error("Error transforming employment:", error);
     return originalEmployment;
@@ -223,7 +222,16 @@ async function transformProfessionalSummary(originalSummary: string, targetRole:
     const yearsMatch = originalSummary.match(/(\d+)\+?\s*years?/i);
     const years = yearsMatch ? yearsMatch[1] : "8";
 
-    return `Results-driven Azure Solutions Architect with over ${years} years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in Azure networking, security protocols, DevOps, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging Azure PaaS/IaaS services, microservices architecture, and CI/CD pipelines. Passionate about driving digital transformation, aligning solutions with business objectives, and ensuring compliance with security best practices. Strong collaborator with experience in cross-functional team leadership and stakeholder engagement.`;
+    // Extract key skills and requirements from job description
+    const keySkills = jobDescription
+      .toLowerCase()
+      .match(/\b(experienced|proficient|expert|skilled|knowledge of|understanding of|ability to)\s+([^,.]+)/g)
+      ?.map(match => match.replace(/^(experienced|proficient|expert|skilled|knowledge of|understanding of|ability to)\s+/i, '').trim())
+      || [];
+
+    // Create a dynamic summary based on target role and job description
+    return `Results-driven ${targetRole} with over ${years} years of experience in ${keySkills.slice(0, 3).join(', ')}. Proven expertise in ${keySkills.slice(3, 6).join(', ')}. Demonstrated success in delivering high-quality solutions while maintaining best practices and industry standards. Strong collaborator with excellent communication skills and experience in cross-functional team leadership.`;
+
   } catch (error) {
     console.error("Error transforming professional summary:", error);
     return originalSummary;
