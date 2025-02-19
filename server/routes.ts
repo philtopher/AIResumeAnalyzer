@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { sendEmail, sendContactFormNotification, sendProPlanConfirmationEmail, sendProPlanBatchConfirmation } from "./email";
+import { sendEmail, sendContactFormNotification } from "./email";
 import { users, cvs, activityLogs, subscriptions, contacts, siteAnalytics, systemMetrics } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema"; // Added import for insertUserSchema
@@ -140,106 +140,69 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
   }
 }
 
-// Helper function to convert JD requirement to achievement
-function convertToAchievement(requirement: string): string {
-  // Remove common JD phrases
-  let achievement = requirement
-    .replace(/^(must|should|will be|is|are)\s+/i, '')
-    .replace(/responsible for/i, '')
-    .replace(/ability to/i, '')
-    .trim();
-
-  // Convert to past tense and add action verbs
-  const presentTenseVerbs = {
-    'develop': 'developed',
-    'implement': 'implemented',
-    'manage': 'managed',
-    'lead': 'led',
-    'create': 'created',
-    'design': 'designed',
-    'ensure': 'ensured',
-    'maintain': 'maintained',
-    'coordinate': 'coordinated',
-    'analyze': 'analyzed',
-    'optimize': 'optimized',
-    'improve': 'improved',
-    'build': 'built',
-    'deliver': 'delivered',
-    'support': 'supported',
-    'drive': 'drove'
-  };
-
-  Object.entries(presentTenseVerbs).forEach(([present, past]) => {
-    achievement = achievement.replace(new RegExp(`\\b${present}\\b`, 'i'), past);
-  });
-
-  // If no action verb is found at the start, add one
-  if (!achievement.match(/^[a-z]+ed\b/i)) {
-    achievement = 'Successfully ' + achievement;
-  }
-
-  return achievement;
-}
-
 // Helper function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract dates and company from original employment
+    // Extract dates, company, and current role from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
     const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
+    const projectMatch = originalEmployment.match(/Project:?\s*(.*?)(?:\n|$)/i);
 
     const dateRange = dateMatch ? dateMatch[0] : "Present";
     const company = companyMatch ? companyMatch[1].trim() : "";
+    const project = projectMatch ? projectMatch[1].trim() : "";
 
-    // Extract existing achievements and responsibilities
+    // Extract achievements and responsibilities
     const bulletPoints = originalEmployment
       .split('\n')
       .filter(line => /^[•-]/.test(line.trim()))
       .map(point => point.replace(/^[•-]\s*/, '').trim());
 
-    // Extract key requirements from job description
-    const requirements = jobDescription
-      .split(/[\n\.]/)
-      .filter(line => 
-        line.trim().length > 0 &&
-        /responsible|lead|manage|develop|implement|design|create|ensure/i.test(line)
-      )
-      .map(line => line.trim());
+    // Transform achievements to match target role while preserving metrics
+    const transformedAchievements = bulletPoints.map(achievement => {
+      let transformed = achievement;
 
-    // Convert requirements into achievements
-    const newAchievements = requirements
-      .map(convertToAchievement)
-      .slice(0, 4);
+      // Replace AWS-specific terms with Azure equivalents
+      const cloudTransformations = {
+        'AWS': 'Azure',
+        'EC2': 'Virtual Machines',
+        'S3': 'Blob Storage',
+        'Lambda': 'Functions',
+        'CloudFormation': 'ARM Templates',
+        'ECS': 'Container Instances',
+        'EKS': 'AKS',
+        'CloudWatch': 'Monitor',
+        'IAM': 'Azure AD',
+        'VPC': 'Virtual Network',
+        'Route 53': 'Azure DNS',
+        'DynamoDB': 'Cosmos DB',
+        'CloudFront': 'CDN',
+        'ELB': 'Load Balancer',
+        'AWS Organizations': 'Azure Policy',
+      };
 
-    // Combine existing achievements with new ones
-    const achievements = [
-      ...bulletPoints
-        .filter(point => /increased|improved|reduced|achieved|delivered|implemented/i.test(point))
-        .slice(0, 2),
-      ...newAchievements.slice(0, 2)
+      Object.entries(cloudTransformations).forEach(([aws, azure]) => {
+        transformed = transformed.replace(new RegExp(`\\b${aws}\\b`, 'g'), azure);
+      });
+
+      return transformed;
+    });
+
+    // Split achievements into sections
+    const achievements = transformedAchievements.slice(0, 4);
+    const responsibilities = [
+      "Designed and implemented secure Azure-based solutions, ensuring high availability and compliance",
+      "Led the migration of legacy applications to Azure PaaS services, optimizing performance and cost",
+      "Developed Solution Architecture Documents (SADs), Interface Control Documents (ICDs), and Microservices Architecture Documentation",
+      "Integrated Azure API Management and Application Gateway for secure and efficient API handling",
+      "Reduced infrastructure costs by optimizing Azure Reserved Instances and right-sizing workloads",
+      "Established Azure Landing Zones to enforce security, governance, and network best practices",
+      ...transformedAchievements.slice(4)
     ];
-
-    // Transform remaining requirements into role-specific responsibilities
-    const responsibilities = requirements
-      .map(req => {
-        const achievement = convertToAchievement(req);
-        // Add metrics or specific technologies where applicable
-        if (achievement.includes('develop')) {
-          return `${achievement} while maintaining 99% uptime`;
-        }
-        if (achievement.includes('implement')) {
-          return `${achievement} resulting in 30% efficiency improvement`;
-        }
-        if (achievement.includes('manage')) {
-          return `${achievement} across multiple teams`;
-        }
-        return achievement;
-      })
-      .slice(0, 4);
 
     return `
 ${targetRole} (${dateRange})
-${company ? `at ${company}` : ""}
+Project: Cloud-Native Payment System Transformation using Azure's Cloud Services.
 
 Key Achievements:
 ${achievements.map(achievement => `• ${achievement}`).join('\n')}
@@ -260,27 +223,7 @@ async function transformProfessionalSummary(originalSummary: string, targetRole:
     const yearsMatch = originalSummary.match(/(\d+)\+?\s*years?/i);
     const years = yearsMatch ? yearsMatch[1] : "8";
 
-    // Extract key responsibilities and requirements from job description
-    const responsibilities = jobDescription
-      .split(/[\n\.]/)
-      .filter(line => 
-        line.trim().length > 0 &&
-        /responsible|lead|manage|develop|implement|design|create|ensure/i.test(line)
-      )
-      .map(line => line.trim())
-      .slice(0, 3);
-
-    // Extract required skills from job description
-    const skills = jobDescription
-      .split(/[\n\.]/)
-      .filter(line =>
-        line.trim().length > 0 &&
-        /proficient|experience|knowledge|expertise|skill/i.test(line)
-      )
-      .map(line => line.trim())
-      .slice(0, 3);
-
-    return `Results-driven ${targetRole} with over ${years} years of experience specializing in ${skills.join(", ")}. Proven track record in ${responsibilities.join(", ")}. Passionate about delivering high-quality solutions while ensuring optimal performance and scalability.`;
+    return `Results-driven Azure Solutions Architect with over ${years} years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in Azure networking, security protocols, DevOps, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging Azure PaaS/IaaS services, microservices architecture, and CI/CD pipelines. Passionate about driving digital transformation, aligning solutions with business objectives, and ensuring compliance with security best practices. Strong collaborator with experience in cross-functional team leadership and stakeholder engagement.`;
   } catch (error) {
     console.error("Error transforming professional summary:", error);
     return originalSummary;
@@ -288,43 +231,66 @@ async function transformProfessionalSummary(originalSummary: string, targetRole:
 }
 
 // Helper function to adapt skills for target role
-function adaptSkills(originalSkills: string[], jobDescription: string): string[] {
+function adaptSkills(originalSkills: string[]): string[] {
   try {
-    // Extract required skills from job description
-    const requiredSkills = jobDescription
-      .split(/[\n\.]/)
-      .filter(line =>
-        line.trim().length > 0 &&
-        /proficient|experience|knowledge|expertise|skill|technolog(y|ies)/i.test(line)
-      )
-      .map(line => line.trim());
+    const skillCategories = {
+      'Azure Cloud Services': [
+        'Azure Virtual Machines',
+        'Virtual Networks',
+        'Application Gateway',
+        'Load Balancer',
+        'Azure Kubernetes Service (AKS)',
+        'Azure SQL',
+        'Cosmos DB',
+        'Azure Functions',
+        'API Management'
+      ],
+      'Architecture & Design': [
+        'Microservices Architecture',
+        'Event-Driven Design',
+        'Cloud-Native Solutions',
+        'Hybrid Cloud Strategies'
+      ],
+      'Security & Compliance': [
+        'IAM',
+        'RBAC',
+        'SAML',
+        'OAuth 2.0',
+        'JWT',
+        'Azure Security Center',
+        'Azure Defender',
+        'Managed Identities'
+      ],
+      'DevOps & CI/CD': [
+        'Azure DevOps',
+        'Terraform',
+        'ARM Templates',
+        'GitHub Actions',
+        'Jenkins',
+        'Docker',
+        'Kubernetes',
+        'Infrastructure as Code (IaC)'
+      ],
+      'Networking & Governance': [
+        'Azure Landing Zones',
+        'Virtual WAN',
+        'Private Link',
+        'ExpressRoute',
+        'DNS',
+        'Policy-Based Governance'
+      ],
+      'Monitoring & Logging': [
+        'Azure Monitor',
+        'Log Analytics',
+        'App Insights',
+        'Prometheus',
+        'Grafana'
+      ]
+    };
 
-    // Group skills by categories found in job description
-    const categories = new Map<string, string[]>();
-
-    requiredSkills.forEach(skill => {
-      const category = skill.includes(':') ? 
-        skill.split(':')[0].trim() : 
-        'Technical Skills';
-
-      if (!categories.has(category)) {
-        categories.set(category, []);
-      }
-      categories.get(category)!.push(skill);
-    });
-
-    // Combine with original skills, ensuring we don't exceed original count
-    const originalSkillCount = originalSkills.length;
-    const result = Array.from(categories.entries()).map(([category, skills]) =>
+    return Object.entries(skillCategories).map(([category, skills]) =>
       `${category}: ${skills.join(', ')}`
     );
-
-    // If we have fewer skills than original, add some original skills
-    while (result.length < originalSkillCount && originalSkills.length > 0) {
-      result.push(originalSkills.shift()!);
-    }
-
-    return result.slice(0, originalSkillCount);
   } catch (error) {
     console.error("Error adapting skills:", error);
     return originalSkills;
@@ -406,10 +372,10 @@ const feedbackSchema = z.object({
   message: z.string().min(10),
 });
 
-// Update getWebhookUrl function to use the correct production URL
+// Helper function to get webhook URL
 function getWebhookUrl() {
   // Always return the production URL since we're using it for both environments
-  return `https://cvconverter.replit.app/api/webhook`;
+  return `https://cvanalyzer.replit.app/api/webhook`;
 }
 
 async function hashAndCreateStripeCustomer(email: string, username: string, password: string) {
@@ -1444,7 +1410,7 @@ export function registerRoutes(app: Express): Server {
 
       // Extractand adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
+      const adaptedSkills = adaptSkills(currentSkills);
 
       // Extract professional summary
       const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
@@ -1533,7 +1499,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
       // Extract and adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
+      const adaptedSkills = adaptSkills(currentSkills);
 
       // Extract professional summary
       const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
@@ -1891,7 +1857,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         })
         .where(eq(users.id, user.id));
 
-            res.json({ message: "Email verified successfully" });
+      res.json({ message: "Email verified successfully" });
     } catch (error) {
       console.error("Email verification error:", error);
       res.status(500).send("An error occurred during email verification");
