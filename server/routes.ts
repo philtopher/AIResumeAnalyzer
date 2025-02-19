@@ -143,66 +143,44 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
 // Helper function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract dates, company, and current role from original employment
+    // Extract dates and company from original employment
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
     const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
-    const projectMatch = originalEmployment.match(/Project:?\s*(.*?)(?:\n|$)/i);
 
     const dateRange = dateMatch ? dateMatch[0] : "Present";
     const company = companyMatch ? companyMatch[1].trim() : "";
-    const project = projectMatch ? projectMatch[1].trim() : "";
 
-    // Extract achievements and responsibilities
+    // Extract achievements and responsibilities from original employment
     const bulletPoints = originalEmployment
       .split('\n')
       .filter(line => /^[•-]/.test(line.trim()))
       .map(point => point.replace(/^[•-]\s*/, '').trim());
 
-    // Transform achievements to match target role while preserving metrics
-    const transformedAchievements = bulletPoints.map(achievement => {
-      let transformed = achievement;
+    // Extract key responsibilities from job description
+    const newResponsibilities = jobDescription
+      .split(/[\n\.]/)
+      .filter(line => 
+        line.trim().length > 0 &&
+        /responsible|lead|manage|develop|implement|design|create|ensure/i.test(line)
+      )
+      .map(line => line.trim())
+      .slice(0, 4);
 
-      // Replace AWS-specific terms with Azure equivalents
-      const cloudTransformations = {
-        'AWS': 'Azure',
-        'EC2': 'Virtual Machines',
-        'S3': 'Blob Storage',
-        'Lambda': 'Functions',
-        'CloudFormation': 'ARM Templates',
-        'ECS': 'Container Instances',
-        'EKS': 'AKS',
-        'CloudWatch': 'Monitor',
-        'IAM': 'Azure AD',
-        'VPC': 'Virtual Network',
-        'Route 53': 'Azure DNS',
-        'DynamoDB': 'Cosmos DB',
-        'CloudFront': 'CDN',
-        'ELB': 'Load Balancer',
-        'AWS Organizations': 'Azure Policy',
-      };
+    // Combine existing achievements with new responsibilities
+    const achievements = bulletPoints
+      .filter(point => /increased|improved|reduced|achieved|delivered|implemented/i.test(point))
+      .slice(0, 3);
 
-      Object.entries(cloudTransformations).forEach(([aws, azure]) => {
-        transformed = transformed.replace(new RegExp(`\\b${aws}\\b`, 'g'), azure);
-      });
-
-      return transformed;
-    });
-
-    // Split achievements into sections
-    const achievements = transformedAchievements.slice(0, 4);
     const responsibilities = [
-      "Designed and implemented secure Azure-based solutions, ensuring high availability and compliance",
-      "Led the migration of legacy applications to Azure PaaS services, optimizing performance and cost",
-      "Developed Solution Architecture Documents (SADs), Interface Control Documents (ICDs), and Microservices Architecture Documentation",
-      "Integrated Azure API Management and Application Gateway for secure and efficient API handling",
-      "Reduced infrastructure costs by optimizing Azure Reserved Instances and right-sizing workloads",
-      "Established Azure Landing Zones to enforce security, governance, and network best practices",
-      ...transformedAchievements.slice(4)
+      ...newResponsibilities,
+      ...bulletPoints
+        .filter(point => !achievements.includes(point))
+        .slice(0, 3)
     ];
 
     return `
 ${targetRole} (${dateRange})
-Project: Cloud-Native Payment System Transformation using Azure's Cloud Services.
+${company ? `at ${company}` : ""}
 
 Key Achievements:
 ${achievements.map(achievement => `• ${achievement}`).join('\n')}
@@ -223,7 +201,27 @@ async function transformProfessionalSummary(originalSummary: string, targetRole:
     const yearsMatch = originalSummary.match(/(\d+)\+?\s*years?/i);
     const years = yearsMatch ? yearsMatch[1] : "8";
 
-    return `Results-driven Azure Solutions Architect with over ${years} years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in Azure networking, security protocols, DevOps, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging Azure PaaS/IaaS services, microservices architecture, and CI/CD pipelines. Passionate about driving digital transformation, aligning solutions with business objectives, and ensuring compliance with security best practices. Strong collaborator with experience in cross-functional team leadership and stakeholder engagement.`;
+    // Extract key responsibilities and requirements from job description
+    const responsibilities = jobDescription
+      .split(/[\n\.]/)
+      .filter(line => 
+        line.trim().length > 0 &&
+        /responsible|lead|manage|develop|implement|design|create|ensure/i.test(line)
+      )
+      .map(line => line.trim())
+      .slice(0, 3);
+
+    // Extract required skills from job description
+    const skills = jobDescription
+      .split(/[\n\.]/)
+      .filter(line =>
+        line.trim().length > 0 &&
+        /proficient|experience|knowledge|expertise|skill/i.test(line)
+      )
+      .map(line => line.trim())
+      .slice(0, 3);
+
+    return `Results-driven ${targetRole} with over ${years} years of experience specializing in ${skills.join(", ")}. Proven track record in ${responsibilities.join(", ")}. Passionate about delivering high-quality solutions while ensuring optimal performance and scalability.`;
   } catch (error) {
     console.error("Error transforming professional summary:", error);
     return originalSummary;
@@ -231,66 +229,43 @@ async function transformProfessionalSummary(originalSummary: string, targetRole:
 }
 
 // Helper function to adapt skills for target role
-function adaptSkills(originalSkills: string[]): string[] {
+function adaptSkills(originalSkills: string[], jobDescription: string): string[] {
   try {
-    const skillCategories = {
-      'Azure Cloud Services': [
-        'Azure Virtual Machines',
-        'Virtual Networks',
-        'Application Gateway',
-        'Load Balancer',
-        'Azure Kubernetes Service (AKS)',
-        'Azure SQL',
-        'Cosmos DB',
-        'Azure Functions',
-        'API Management'
-      ],
-      'Architecture & Design': [
-        'Microservices Architecture',
-        'Event-Driven Design',
-        'Cloud-Native Solutions',
-        'Hybrid Cloud Strategies'
-      ],
-      'Security & Compliance': [
-        'IAM',
-        'RBAC',
-        'SAML',
-        'OAuth 2.0',
-        'JWT',
-        'Azure Security Center',
-        'Azure Defender',
-        'Managed Identities'
-      ],
-      'DevOps & CI/CD': [
-        'Azure DevOps',
-        'Terraform',
-        'ARM Templates',
-        'GitHub Actions',
-        'Jenkins',
-        'Docker',
-        'Kubernetes',
-        'Infrastructure as Code (IaC)'
-      ],
-      'Networking & Governance': [
-        'Azure Landing Zones',
-        'Virtual WAN',
-        'Private Link',
-        'ExpressRoute',
-        'DNS',
-        'Policy-Based Governance'
-      ],
-      'Monitoring & Logging': [
-        'Azure Monitor',
-        'Log Analytics',
-        'App Insights',
-        'Prometheus',
-        'Grafana'
-      ]
-    };
+    // Extract required skills from job description
+    const requiredSkills = jobDescription
+      .split(/[\n\.]/)
+      .filter(line =>
+        line.trim().length > 0 &&
+        /proficient|experience|knowledge|expertise|skill|technolog(y|ies)/i.test(line)
+      )
+      .map(line => line.trim());
 
-    return Object.entries(skillCategories).map(([category, skills]) =>
+    // Group skills by categories found in job description
+    const categories = new Map<string, string[]>();
+
+    requiredSkills.forEach(skill => {
+      const category = skill.includes(':') ? 
+        skill.split(':')[0].trim() : 
+        'Technical Skills';
+
+      if (!categories.has(category)) {
+        categories.set(category, []);
+      }
+      categories.get(category)!.push(skill);
+    });
+
+    // Combine with original skills, ensuring we don't exceed original count
+    const originalSkillCount = originalSkills.length;
+    const result = Array.from(categories.entries()).map(([category, skills]) =>
       `${category}: ${skills.join(', ')}`
     );
+
+    // If we have fewer skills than original, add some original skills
+    while (result.length < originalSkillCount && originalSkills.length > 0) {
+      result.push(originalSkills.shift()!);
+    }
+
+    return result.slice(0, originalSkillCount);
   } catch (error) {
     console.error("Error adapting skills:", error);
     return originalSkills;
@@ -1410,7 +1385,7 @@ export function registerRoutes(app: Express): Server {
 
       // Extractand adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills);
+      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
 
       // Extract professional summary
       const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
@@ -1499,7 +1474,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
       // Extract and adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills);
+      const adaptedSkills = adaptSkills(currentSkills, jobDescription);
 
       // Extract professional summary
       const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
@@ -1857,7 +1832,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
         })
         .where(eq(users.id, user.id));
 
-      res.json({ message: "Email verified successfully" });
+            res.json({ message: "Email verified successfully" });
     } catch (error) {
       console.error("Email verification error:", error);
       res.status(500).send("An error occurred during email verification");

@@ -1,0 +1,39 @@
+I have a CV conversion website that allows users to upload their CV and provide a job title and job description. The site should then transform the latest role in the CV to match the new/targeted role and incorporate key responsibilities, skills, and accomplishments from the user-provided job description. However, I’m getting feedback that:
+
+The conversion often ignores the user-provided job description and defaults to an irrelevant role (e.g., “Azure Solutions Architect”).
+The previous employments from the old CV are not appended correctly in the new CV.
+The newly converted CV must not exceed the original CV’s page count.
+I need you to fix the existing CV conversion code so it accurately uses the job title and job description provided by the user. Do not overwrite or remove any code that’s already working elsewhere—only modify the parts that handle the CV transformation.
+
+Key Requirements:
+New/Targeted Role
+
+Provide a text box where users enter their targeted job role (e.g., “Director of Communications”).
+Transform the most recent role in the uploaded CV to match that targeted role (title, responsibilities, achievements).
+User-Provided Job Description
+
+Add a text box where users can paste the job description (like the one in the complaint example).
+Parse and extract key skills, responsibilities, qualifications, and challenges from that job description.
+Reflect those elements in the new CV’s professional summary, latest role responsibilities, and skills section.
+Appending Previous Employments
+
+After transforming the latest role to align with the new job description, append all previous roles from the old CV below the newly converted role.
+Do not transform older roles beyond minor formatting or listing them as they are.
+Page Limit
+
+Ensure the newly converted CV does not exceed the original page count.
+If necessary, truncate or condense overly long content in the summary or bullet points so that the final output stays within the same number of pages.
+Maintain Existing Working Code
+
+Do not remove or drastically refactor code that handles user registration, login, or other site features.
+Only modify the CV conversion logic to properly integrate the user’s job description and keep the page limit.
+Verification & Testing
+
+After these changes, test the demo and registered user flows, ensuring the site uses the new job description and the targeted role in all relevant fields.
+Confirm that the previous employments are appended correctly, and the CV remains within the original page count.
+Expected Outcome
+When a user uploads a CV and provides a targeted role plus job description, the system:
+Updates the professional summary to reflect the new role.
+Transforms the latest role to include relevant responsibilities, accomplishments, and skills based on the job description.
+Appends older roles unchanged, ensuring the entire CV remains within the same page limit.
+Outputs a final CV that aligns with the user’s targeted job rather than defaulting to an irrelevant role.
