@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { sendEmail, sendContactFormNotification, sendProPlanBatchConfirmation } from "./email";
+import { sendEmail, sendContactFormNotification } from "./email";
 import { users, cvs, activityLogs, subscriptions, contacts, siteAnalytics, systemMetrics } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema"; // Added import for insertUserSchema
@@ -874,7 +874,7 @@ export function registerRoutes(app: Express): Server {
       res.json({ message: "User deleted successfully" });
     } catch (error: any) {
       console.error("Admin delete user error:", error);
-      res.status(500).send(error.message);
+      resstatus(500).send(error.message);
     }
   });
 
@@ -1383,7 +1383,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Public CV transformation endpoint
-  app.post("/api/cv/transform/public", upload.single("file"), async (req, res) => {
+  app.post("/api/cv/transform/public", upload.single("cv"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).send("No file uploaded");
@@ -1411,9 +1411,6 @@ export function registerRoutes(app: Express): Server {
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
       const adaptedSkills = adaptSkills(currentSkills, jobDescription);
 
-      // Store file content
-      const fileContent = req.file.buffer.toString("base64");
-
       // Generate the transformed CV content
       const transformedContent = `
 Professional Summary
@@ -1428,19 +1425,15 @@ ${adaptedSkills.join('\n')}
 
       // Store the transformed CV
       const [newCV] = await db.insert(cvs).values({
-        userId: 1, // Demo user ID
-        originalFilename: req.file.originalname,
-        fileContent: fileContent,
-        transformedContent: Buffer.from(transformedContent).toString("base64"),
+        content: transformedContent,
+        originalContent: textContent,
         targetRole,
-        jobDescription,
         status: "public",
       }).returning();
 
       res.json({
         success: true,
-        cv: newCV,
-        transformedContent,
+        cvId: newCV.id,
       });
     } catch (error: any) {
       console.error("CV transformation error:", error);
