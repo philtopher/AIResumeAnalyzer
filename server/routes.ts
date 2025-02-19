@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { sendEmail, sendContactFormNotification } from "./email";
+import { sendEmail, sendContactFormNotification, sendProPlanConfirmationEmail, sendProPlanBatchConfirmation } from "./email";
 import { users, cvs, activityLogs, subscriptions, contacts, siteAnalytics, systemMetrics } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema"; // Added import for insertUserSchema
@@ -140,6 +140,47 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
   }
 }
 
+// Helper function to convert JD requirement to achievement
+function convertToAchievement(requirement: string): string {
+  // Remove common JD phrases
+  let achievement = requirement
+    .replace(/^(must|should|will be|is|are)\s+/i, '')
+    .replace(/responsible for/i, '')
+    .replace(/ability to/i, '')
+    .trim();
+
+  // Convert to past tense and add action verbs
+  const presentTenseVerbs = {
+    'develop': 'developed',
+    'implement': 'implemented',
+    'manage': 'managed',
+    'lead': 'led',
+    'create': 'created',
+    'design': 'designed',
+    'ensure': 'ensured',
+    'maintain': 'maintained',
+    'coordinate': 'coordinated',
+    'analyze': 'analyzed',
+    'optimize': 'optimized',
+    'improve': 'improved',
+    'build': 'built',
+    'deliver': 'delivered',
+    'support': 'supported',
+    'drive': 'drove'
+  };
+
+  Object.entries(presentTenseVerbs).forEach(([present, past]) => {
+    achievement = achievement.replace(new RegExp(`\\b${present}\\b`, 'i'), past);
+  });
+
+  // If no action verb is found at the start, add one
+  if (!achievement.match(/^[a-z]+ed\b/i)) {
+    achievement = 'Successfully ' + achievement;
+  }
+
+  return achievement;
+}
+
 // Helper function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
@@ -150,33 +191,51 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
     const dateRange = dateMatch ? dateMatch[0] : "Present";
     const company = companyMatch ? companyMatch[1].trim() : "";
 
-    // Extract achievements and responsibilities from original employment
+    // Extract existing achievements and responsibilities
     const bulletPoints = originalEmployment
       .split('\n')
       .filter(line => /^[•-]/.test(line.trim()))
       .map(point => point.replace(/^[•-]\s*/, '').trim());
 
-    // Extract key responsibilities from job description
-    const newResponsibilities = jobDescription
+    // Extract key requirements from job description
+    const requirements = jobDescription
       .split(/[\n\.]/)
       .filter(line => 
         line.trim().length > 0 &&
         /responsible|lead|manage|develop|implement|design|create|ensure/i.test(line)
       )
-      .map(line => line.trim())
+      .map(line => line.trim());
+
+    // Convert requirements into achievements
+    const newAchievements = requirements
+      .map(convertToAchievement)
       .slice(0, 4);
 
-    // Combine existing achievements with new responsibilities
-    const achievements = bulletPoints
-      .filter(point => /increased|improved|reduced|achieved|delivered|implemented/i.test(point))
-      .slice(0, 3);
-
-    const responsibilities = [
-      ...newResponsibilities,
+    // Combine existing achievements with new ones
+    const achievements = [
       ...bulletPoints
-        .filter(point => !achievements.includes(point))
-        .slice(0, 3)
+        .filter(point => /increased|improved|reduced|achieved|delivered|implemented/i.test(point))
+        .slice(0, 2),
+      ...newAchievements.slice(0, 2)
     ];
+
+    // Transform remaining requirements into role-specific responsibilities
+    const responsibilities = requirements
+      .map(req => {
+        const achievement = convertToAchievement(req);
+        // Add metrics or specific technologies where applicable
+        if (achievement.includes('develop')) {
+          return `${achievement} while maintaining 99% uptime`;
+        }
+        if (achievement.includes('implement')) {
+          return `${achievement} resulting in 30% efficiency improvement`;
+        }
+        if (achievement.includes('manage')) {
+          return `${achievement} across multiple teams`;
+        }
+        return achievement;
+      })
+      .slice(0, 4);
 
     return `
 ${targetRole} (${dateRange})
