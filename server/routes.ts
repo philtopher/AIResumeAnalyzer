@@ -140,10 +140,71 @@ async function extractEmployments(content: string): Promise<{ latest: string; pr
   }
 }
 
-// Helper function to transform employment details
+// Helper function to extract keywords from job description
+async function extractKeywords(jobDescription: string): Promise<{
+  skills: string[];
+  responsibilities: string[];
+  requirements: string[];
+}> {
+  try {
+    // Split the job description into sections
+    const sections = jobDescription.split(/\n{2,}/);
+
+    // Initialize categorized keywords
+    const keywords = {
+      skills: new Set<string>(),
+      responsibilities: new Set<string>(),
+      requirements: new Set<string>()
+    };
+
+    // Common technical skills pattern
+    const skillsPattern = /\b(typescript|javascript|python|java|c\+\+|react|node\.js|express|api|aws|azure|gcp|cloud|docker|kubernetes|ci\/cd|agile|scrum|testing|development|programming|software|database|sql|nosql|rest|graphql|git|security)\b/gi;
+
+    // Experience and education pattern
+    const requirementsPattern = /\b(\d+\+?\s*years?|bachelor'?s|master'?s|phd|degree|certification|experience\s+in|background\s+in|knowledge\s+of)\b/gi;
+
+    // Action verbs for responsibilities
+    const responsibilityPattern = /\b(develop|create|design|implement|manage|lead|coordinate|analyze|maintain|improve|optimize|test|deploy|architect|review|mentor|collaborate|solve)\b/gi;
+
+    sections.forEach(section => {
+      // Extract skills
+      const skills = section.match(skillsPattern);
+      if (skills) {
+        skills.forEach(skill => keywords.skills.add(skill.toLowerCase()));
+      }
+
+      // Extract requirements
+      const requirements = section.match(requirementsPattern);
+      if (requirements) {
+        requirements.forEach(req => keywords.requirements.add(req.toLowerCase()));
+      }
+
+      // Extract responsibilities
+      const responsibilities = section.match(responsibilityPattern);
+      if (responsibilities) {
+        responsibilities.forEach(resp => keywords.responsibilities.add(resp.toLowerCase()));
+      }
+    });
+
+    return {
+      skills: Array.from(keywords.skills),
+      responsibilities: Array.from(keywords.responsibilities),
+      requirements: Array.from(keywords.requirements)
+    };
+  } catch (error) {
+    console.error("Error extracting keywords:", error);
+    return {
+      skills: [],
+      responsibilities: [],
+      requirements: []
+    };
+  }
+}
+
+// Enhanced function to transform employment details
 async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
-    // Extract dates, company, and current role from original employment
+    // Extract dates and company info (keeping existing logic)
     const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
     const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
     const projectMatch = originalEmployment.match(/Project:?\s*(.*?)(?:\n|$)/i);
@@ -152,57 +213,99 @@ async function transformEmployment(originalEmployment: string, targetRole: strin
     const company = companyMatch ? companyMatch[1].trim() : "";
     const project = projectMatch ? projectMatch[1].trim() : "";
 
+    // Extract keywords from job description
+    const keywords = await extractKeywords(jobDescription);
+
     // Extract achievements and responsibilities
     const bulletPoints = originalEmployment
       .split('\n')
       .filter(line => /^[•-]/.test(line.trim()))
       .map(point => point.replace(/^[•-]\s*/, '').trim());
 
-    // Transform achievements to match target role while preserving metrics
+    // Transform achievements to match target role and keywords
     const transformedAchievements = bulletPoints.map(achievement => {
       let transformed = achievement;
 
-      // Replace AWS-specific terms with Azure equivalents
-      const cloudTransformations = {
-        'AWS': 'Azure',
-        'EC2': 'Virtual Machines',
-        'S3': 'Blob Storage',
-        'Lambda': 'Functions',
-        'CloudFormation': 'ARM Templates',
-        'ECS': 'Container Instances',
-        'EKS': 'AKS',
-        'CloudWatch': 'Monitor',
-        'IAM': 'Azure AD',
-        'VPC': 'Virtual Network',
-        'Route 53': 'Azure DNS',
-        'DynamoDB': 'Cosmos DB',
-        'CloudFront': 'CDN',
-        'ELB': 'Load Balancer',
-        'AWS Organizations': 'Azure Policy',
+      // Replace technology-specific terms based on target role
+      const techTransformations: { [key: string]: { [key: string]: string } } = {
+        'Cloud Architect': {
+          'AWS': 'Azure',
+          'EC2': 'Virtual Machines',
+          'S3': 'Blob Storage',
+          'Lambda': 'Functions',
+          'DynamoDB': 'Cosmos DB'
+        },
+        'Frontend Developer': {
+          'Angular': 'React',
+          'Vue': 'React',
+          'Svelte': 'React',
+          'jQuery': 'React hooks'
+        },
+        'Backend Developer': {
+          'PHP': 'Node.js',
+          'Ruby': 'TypeScript',
+          'Python': 'Node.js',
+          'MySQL': 'PostgreSQL'
+        },
+        'Full Stack Developer': {
+          'jQuery': 'React',
+          'PHP': 'Node.js',
+          'MySQL': 'PostgreSQL'
+        }
       };
 
-      Object.entries(cloudTransformations).forEach(([aws, azure]) => {
-        transformed = transformed.replace(new RegExp(`\\b${aws}\\b`, 'g'), azure);
+      // Apply role-specific transformations
+      if (techTransformations[targetRole]) {
+        Object.entries(techTransformations[targetRole]).forEach(([from, to]) => {
+          transformed = transformed.replace(new RegExp(`\\b${from}\\b`, 'gi'), to);
+        });
+      }
+
+      // Enhance with keywords from job description if relevant
+      keywords.skills.forEach(skill => {
+        if (!transformed.toLowerCase().includes(skill.toLowerCase())) {
+          if (Math.random() < 0.3) { // 30% chance to add relevant skill
+            transformed += ` using ${skill}`;
+          }
+        }
       });
 
       return transformed;
     });
 
-    // Split achievements into sections
-    const achievements = transformedAchievements.slice(0, 4);
+    // Generate role-specific project description
+    const projectDesc = `Project: ${targetRole} Implementation - ${
+      project || 'Enterprise System Modernization'
+    }`;
+
+    // Combine achievements with job description keywords
+    const achievements = transformedAchievements
+      .slice(0, 4)
+      .map(achievement => {
+        // Add quantifiable metrics if not present
+        if (!achievement.match(/\d+%|\d+x|\$\d+/)) {
+          const metrics = [
+            'reducing costs by 25%',
+            'improving performance by 40%',
+            'increasing efficiency by 35%',
+            'saving 20 hours per week'
+          ];
+          achievement += `, ${metrics[Math.floor(Math.random() * metrics.length)]}`;
+        }
+        return achievement;
+      });
+
+    // Generate role-specific responsibilities
     const responsibilities = [
-      "Designed and implemented secure Azure-based solutions, ensuring high availability and compliance",
-      "Led the migration of legacy applications to Azure PaaS services, optimizing performance and cost",
-      "Developed Solution Architecture Documents (SADs), Interface Control Documents (ICDs), and Microservices Architecture Documentation",
-      "Integrated Azure API Management and Application Gateway for secure and efficient API handling",
-      "Reduced infrastructure costs by optimizing Azure Reserved Instances and right-sizing workloads",
-      "Established Azure Landing Zones to enforce security, governance, and network best practices",
+      ...keywords.responsibilities.map(resp => 
+        `Led ${resp} initiatives focusing on ${keywords.skills.slice(0, 2).join(' and ')}`
+      ),
       ...transformedAchievements.slice(4)
-    ];
+    ].slice(0, 6);
 
     return `
 ${targetRole} (${dateRange})
-Project: Cloud-Native Payment System Transformation using Azure's Cloud Services.
+${projectDesc}
 
 Key Achievements:
 ${achievements.map(achievement => `• ${achievement}`).join('\n')}
@@ -216,81 +319,88 @@ ${responsibilities.map(resp => `• ${resp}`).join('\n')}
   }
 }
 
-// Helper function to transform professional summary
+// Enhanced function to transform professional summary
 async function transformProfessionalSummary(originalSummary: string, targetRole: string, jobDescription: string): Promise<string> {
   try {
     // Extract years of experience
     const yearsMatch = originalSummary.match(/(\d+)\+?\s*years?/i);
     const years = yearsMatch ? yearsMatch[1] : "8";
 
-    return `Results-driven Azure Solutions Architect with over ${years} years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in Azure networking, security protocols, DevOps, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging Azure PaaS/IaaS services, microservices architecture, and CI/CD pipelines. Passionate about driving digital transformation, aligning solutions with business objectives, and ensuring compliance with security best practices. Strong collaborator with experience in cross-functional team leadership and stakeholder engagement.`;
+    // Extract keywords from job description
+    const keywords = await extractKeywords(jobDescription);
+
+    // Role-specific summary templates
+    const summaryTemplates: { [key: string]: string } = {
+      'Cloud Architect': `Results-driven ${targetRole} with ${years}+ years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in ${keywords.skills.slice(0, 3).join(', ')}, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging modern cloud services. Passionate about driving digital transformation and ensuring compliance with security best practices.`,
+
+      'Frontend Developer': `Creative ${targetRole} with ${years}+ years of experience crafting responsive and intuitive user interfaces. Specialized in ${keywords.skills.slice(0, 3).join(', ')}. Proven track record of delivering pixel-perfect, accessible, and performant web applications. Passionate about creating exceptional user experiences and staying current with modern frontend technologies.`,
+
+      'Backend Developer': `Experienced ${targetRole} with ${years}+ years of expertise in building scalable server-side applications. Proficient in ${keywords.skills.slice(0, 3).join(', ')}. Strong background in designing RESTful APIs, microservices architecture, and database optimization. Committed to writing clean, maintainable code and implementing robust security measures.`,
+
+      'Full Stack Developer': `Versatile ${targetRole} with ${years}+ years of experience in end-to-end application development. Expert in ${keywords.skills.slice(0, 3).join(', ')}. Proven ability to architect and implement full-stack solutions from database design to responsive UI. Passionate about creating efficient, scalable applications and adopting best practices in both frontend and backend development.`
+    };
+
+    // Get template based on role or use default
+    const summaryTemplate = summaryTemplates[targetRole] || 
+      `Experienced ${targetRole} with ${years}+ years of expertise in ${keywords.skills.slice(0, 3).join(', ')}. Proven track record of delivering high-quality solutions and driving technological innovation. Strong background in ${keywords.responsibilities.slice(0, 2).join(' and ')}. Committed to continuous learning and staying current with industry best practices.`;
+
+    return summaryTemplate;
   } catch (error) {
     console.error("Error transforming professional summary:", error);
     return originalSummary;
   }
 }
 
-// Helper function to adapt skills for target role
-function adaptSkills(originalSkills: string[]): string[] {
+// Enhanced function to adapt skills for target role
+async function adaptSkills(originalSkills: string[], targetRole: string, jobDescription: string): Promise<string[]> {
   try {
-    const skillCategories = {
-      'Azure Cloud Services': [
-        'Azure Virtual Machines',
-        'Virtual Networks',
-        'Application Gateway',
-        'Load Balancer',
-        'Azure Kubernetes Service (AKS)',
-        'Azure SQL',
-        'Cosmos DB',
-        'Azure Functions',
-        'API Management'
-      ],
-      'Architecture & Design': [
-        'Microservices Architecture',
-        'Event-Driven Design',
-        'Cloud-Native Solutions',
-        'Hybrid Cloud Strategies'
-      ],
-      'Security & Compliance': [
-        'IAM',
-        'RBAC',
-        'SAML',
-        'OAuth 2.0',
-        'JWT',
-        'Azure Security Center',
-        'Azure Defender',
-        'Managed Identities'
-      ],
-      'DevOps & CI/CD': [
-        'Azure DevOps',
-        'Terraform',
-        'ARM Templates',
-        'GitHub Actions',
-        'Jenkins',
-        'Docker',
-        'Kubernetes',
-        'Infrastructure as Code (IaC)'
-      ],
-      'Networking & Governance': [
-        'Azure Landing Zones',
-        'Virtual WAN',
-        'Private Link',
-        'ExpressRoute',
-        'DNS',
-        'Policy-Based Governance'
-      ],
-      'Monitoring & Logging': [
-        'Azure Monitor',
-        'Log Analytics',
-        'App Insights',
-        'Prometheus',
-        'Grafana'
-      ]
+    // Extract keywords from job description
+    const { skills: jobSkills } = await extractKeywords(jobDescription);
+
+    // Role-specific skill categories
+    const skillCategories: { [key: string]: { [key: string]: string[] } } = {
+      'Cloud Architect': {
+        'Cloud Platforms': ['AWS', 'Azure', 'GCP', 'Multi-cloud Architecture'],
+        'Infrastructure & DevOps': ['Terraform', 'Kubernetes', 'Docker', 'CI/CD'],
+        'Security & Compliance': ['IAM', 'Security Best Practices', 'Compliance Frameworks'],
+        'Architecture Patterns': ['Microservices', 'Event-Driven', 'Serverless']
+      },
+      'Frontend Developer': {
+        'UI Technologies': ['React', 'TypeScript', 'HTML5', 'CSS3', 'Responsive Design'],
+        'State Management': ['Redux', 'Context API', 'React Query'],
+        'Build Tools': ['Webpack', 'Vite', 'ESBuild'],
+        'Testing': ['Jest', 'React Testing Library', 'Cypress']
+      },
+      'Backend Developer': {
+        'Server Technologies': ['Node.js', 'Express', 'TypeScript', 'RESTful APIs'],
+        'Databases': ['PostgreSQL', 'MongoDB', 'Redis'],
+        'Architecture': ['Microservices', 'Event-Driven', 'API Design'],
+        'DevOps': ['Docker', 'CI/CD', 'Monitoring']
+      },
+      'Full Stack Developer': {
+        'Frontend': ['React', 'TypeScript', 'Responsive Design'],
+        'Backend': ['Node.js', 'Express', 'RESTful APIs'],
+        'Database': ['PostgreSQL', 'MongoDB', 'ORM Tools'],
+        'DevOps': ['Docker', 'CI/CD', 'Cloud Platforms']
+      }
     };
 
-    return Object.entries(skillCategories).map(([category, skills]) =>
-      `${category}: ${skills.join(', ')}`
-    );
+    // Get role-specific categories or use default
+    const categories = skillCategories[targetRole] || {
+      'Technical Skills': jobSkills,
+      'Tools & Platforms': ['Git', 'Docker', 'CI/CD'],
+      'Methodologies': ['Agile', 'Scrum', 'TDD'],
+      'Soft Skills': ['Team Collaboration', 'Problem Solving', 'Communication']
+    };
+
+    // Combine original skills with job description skills
+    return Object.entries(categories).map(([category, skills]) => {
+      const relevantJobSkills = jobSkills
+        .filter(skill => !skills.includes(skill))
+        .slice(0, 2);
+
+      return `${category}: ${[...skills, ...relevantJobSkills].join(', ')}`;
+    });
   } catch (error) {
     console.error("Error adapting skills:", error);
     return originalSkills;
@@ -1410,7 +1520,7 @@ export function registerRoutes(app: Express): Server {
 
       // Extractand adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills);
+      const adaptedSkills = await adaptSkills(currentSkills, targetRole, jobDescription);
 
       // Extract professional summary
       const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
@@ -1499,7 +1609,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
 
       // Extract and adapt skills
       const currentSkills = textContent.toLowerCase().match(/\b(?:proficient|experience|knowledge|skill)\w*\s+\w+(?:\s+\w+)?\b/g) || [];
-      const adaptedSkills = adaptSkills(currentSkills);
+      const adaptedSkills = await adaptSkills(currentSkills, targetRole, jobDescription);
 
       // Extract professional summary
       const summaryMatch = textContent.match(/Professional Summary\n(.*?)(?=\n\n|\n$)/is);
@@ -1668,7 +1778,7 @@ ${textContent.split(/\n{2,}/).find(section => /EDUCATION|CERTIFICATIONS/i.test(s
       const [cv] = await db.select().from(cvs).where(eq(cvs.id, cvId)).limit(1);
 
       if (!cv) {
-        return res.status(404).send("CV not found");
+        return res.status(404).send("CVnot found");
       }
 
       const content = Buffer.from(cv.transformedContent || "", "base64");
