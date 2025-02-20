@@ -31,6 +31,7 @@ import MetricsPage from "./pages/MetricsPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
 import InterviewerAnalysisPage from "./pages/InterviewerAnalysisPage"; // Added import
+import { Users } from "lucide-react";
 
 
 // Add type for user subscription
@@ -113,6 +114,8 @@ function Navigation() {
                 <Link key={item.path} href={item.path}>
                   <Button variant="ghost">
                     {item.label}
+                    {item.label === "Employer Competition Analysis" && <Activity className="ml-2 h-4 w-4" />}
+                    {item.label === "Interviewer Analysis" && <Users className="ml-2 h-4 w-4" />}
                   </Button>
                 </Link>
               ))}
@@ -155,6 +158,8 @@ function Navigation() {
                       className="cursor-pointer"
                     >
                       {item.label}
+                      {item.label === "Employer Competition Analysis" && <Activity className="ml-2 h-4 w-4" />}
+                      {item.label === "Interviewer Analysis" && <Users className="ml-2 h-4 w-4" />}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuItem

@@ -30,6 +30,7 @@ import { hashPassword } from "./auth";
 import {randomUUID} from 'crypto';
 import { format } from "date-fns";
 import stripeRouter from './routes/stripe';
+import sgMail from '@sendgrid/mail'; // Assuming SendGrid is used
 
 // Add proper Stripe initialization with error handling
 const stripe = (() => {
@@ -1852,26 +1853,34 @@ ${transformedPreviousEmployments.join('\n\n')}
     }
   });
 
-  // Test email route
+  // Add test email endpoint
   app.post("/api/test-email", async (req, res) => {
     try {
-      const result = await sendEmail({
-        to: "t.unamka@yahoo.co.uk",
-        subject: "Test Email from CV Transformer",
+      const testEmail = await sendEmail({
+        to: 'tufort-teams@yahoo.com',
+        from: 'no-reply@cvanalyzer.freindel.com',
+        replyTo: 'support@cvanalyzer.freindel.com',
+        subject: 'CV Transformer - Test Email',
         html: `
-          <h1>Test Email</h1>
-          <p>This is a test email from CVTransformer.</p>If you received this, your email configuration is working correctly!</p>
-        `,
+          <h1>Test Email from CV Transformer</h1>
+          <p>This is a test email to verify the email sending functionality.</p>
+          <p>If you received this email, it means our email system is working correctly.</p>
+          <p>Best regards,<br>The CV Transformer Team</p>
+        `
       });
 
-      if (result) {
-        res.json({ message: "Test email sent successfully" });
+      if (testEmail) {
+        res.json({ success: true, message: "Test email sent successfully" });
       } else {
-        res.status(500).json({ message: "Failed to send test email" });
+        throw new Error("Failed to send test email");
       }
     } catch (error: any) {
       console.error("Test email error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to send test email",
+        error: error.message 
+      });
     }
   });
 
@@ -2420,6 +2429,47 @@ async function sendContactNotification(formData: {
     return true;
   } catch (error) {
     console.error('Error sending contact notification:', error);
+    return false;
+  }
+}
+// Update the sendEmail function to handle replyTo
+async function sendEmail({
+  to,
+  from = 'no-reply@cvanalyzer.freindel.com',
+  replyTo = 'support@cvanalyzer.freindel.com',
+  subject,
+  html
+}: {
+  to: string;
+  from?: string;
+  replyTo?: string;
+  subject: string;
+  html: string;
+}): Promise<boolean> {
+  try {
+    console.log('[SendGrid] Attempting to send email (attempt 1/4)', {
+      to,
+      from,
+      replyTo,
+      subject
+    });
+
+    const msg = {
+      to,
+      from,
+      replyTo,
+      subject,
+      html
+    };
+
+    const result = await sgMail.send(msg);
+    console.log('[SendGrid] Email sent successfully', {
+      statusCode: result[0].statusCode,
+      messageId: result[0].headers['x-message-id']
+    });
+    return true;
+  } catch (error) {
+    console.error('[SendGrid] Email sending error:', error);
     return false;
   }
 }
