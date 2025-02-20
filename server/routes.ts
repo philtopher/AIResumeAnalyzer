@@ -871,8 +871,7 @@ export function registerRoutes(app: Express): Server {
             // Get customer and notify about failed payment
             const customer = await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
             if (customer &&!customer.deleted && customer.email) {
-              await sendEmail({
-                to: customer.email,                subject: 'Payment Failed',
+              await sendEmail({                to: customer.email,                subject: 'Payment Failed',
                 html: `
                   <h1>Payment Failed</h1>
                   <p>We were unable to process your payment for CV Transformer Pro. Please try again or update your payment method.</p>
@@ -1795,9 +1794,7 @@ ${transformedPreviousEmployments.join('\n\n')}
       }
 
       const content = Buffer.from(cv.transformedContent || "", "base64").toString();
-      const sections = content.split("\n\n").filter(Boolean);
-
-      // Create Word document
+      const sections = content.split("\n\n").filter(Boolean);      // Create Word document
       const doc = new Document({
         sections: [{
           properties: {
@@ -2380,8 +2377,8 @@ async function sendContactNotification(formData: {
     // Send confirmation to user
     await sendEmail({
       to: formData.email,
-      from: 'support@cvanalyzer.freindel.com',
-      replyTo: 'no-reply@cvanalyzer.freindel.com',
+      from: 'no-reply@cvanalyzer.freindel.com',
+      replyTo: 'support@cvanalyzer.freindel.com',
       subject: 'CV Transformer - We Received Your Message',
       html: `
         <h1>Thank you for contacting CV Transformer!</h1>
@@ -2399,11 +2396,10 @@ async function sendContactNotification(formData: {
       `
     });
 
-    // Send notification to support team
+    // Send notification to support team with the user's email as sender
     await sendEmail({
       to: 'support@cvanalyzer.freindel.com',
-      from: 'support@cvanalyzer.freindel.com',
-      replyTo: formData.email,
+      from: formData.email, // Use the sender's email address
       subject: 'New Contact Form Submission',
       html: `
         <h1>New Contact Form Submission</h1>
