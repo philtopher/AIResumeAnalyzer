@@ -7,18 +7,17 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Use support email as the default sender
-const FROM_EMAIL = 'support@cvanalyzer.freindel.com';
-const NO_REPLY_EMAIL = 'no-reply@cvanalyzer.freindel.com';
-const SUPPORT_EMAIL = 'support@cvanalyzer.freindel.com';
+if (!process.env.SENDGRID_FROM_EMAIL) {
+  throw new Error("SENDGRID_FROM_EMAIL environment variable must be set");
+}
+
+const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
 const MAX_RETRY_ATTEMPTS = 3;
 
 export async function sendEmail(options: {
   to: string;
   subject: string;
   html: string;
-  from?: string;
-  replyTo?: string;
   retryCount?: number;
 }): Promise<boolean> {
   const retryCount = options.retryCount || 0;
@@ -26,20 +25,19 @@ export async function sendEmail(options: {
   try {
     console.log(`[SendGrid] Attempting to send email (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS + 1})`, {
       to: options.to,
-      from: options.from || FROM_EMAIL,
-      subject: options.subject,
-      replyTo: options.replyTo
+      from: FROM_EMAIL,
+      subject: options.subject
     });
 
     const msg = {
       to: options.to,
       from: {
-        email: options.from || FROM_EMAIL,
+        email: FROM_EMAIL,
         name: "CV Transformer"
       },
-      replyTo: options.replyTo || NO_REPLY_EMAIL,
       subject: options.subject,
       html: options.html,
+      // Simplified mail settings - remove potential conflict sources
       mailSettings: {
         sandboxMode: {
           enable: false
@@ -49,6 +47,7 @@ export async function sendEmail(options: {
 
     const [response] = await sgMail.send(msg);
 
+    // Accept both 200 and 202 as success codes
     if (response?.statusCode === 200 || response?.statusCode === 202) {
       console.log('[SendGrid] Email sent successfully', {
         statusCode: response.statusCode,
@@ -66,6 +65,7 @@ export async function sendEmail(options: {
       attempt: retryCount + 1
     });
 
+    // Retry logic
     if (retryCount < MAX_RETRY_ATTEMPTS) {
       console.log(`[SendGrid] Retrying... (${retryCount + 2}/${MAX_RETRY_ATTEMPTS + 1})`);
       return sendEmail({
@@ -83,8 +83,6 @@ export async function sendProPlanConfirmationEmail(email: string, username: stri
 
   return sendEmail({
     to: email,
-    from: SUPPORT_EMAIL,
-    replyTo: NO_REPLY_EMAIL,
     subject: "Welcome to CV Transformer Pro!",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -146,11 +144,9 @@ export async function sendContactFormNotification(contactData: {
       </div>
     `;
 
-    // Send notification to admin with reply-to set to user's email
+    // Send notification to admin
     const adminNotification = await sendEmail({
-      to: SUPPORT_EMAIL,
-      from: SUPPORT_EMAIL,
-      replyTo: contactData.email,
+      to: FROM_EMAIL,
       subject: `New Contact Form Message from ${contactData.name}`,
       html: emailContent
     });
@@ -158,8 +154,6 @@ export async function sendContactFormNotification(contactData: {
     // Send confirmation to user
     const userConfirmation = await sendEmail({
       to: contactData.email,
-      from: SUPPORT_EMAIL,
-      replyTo: NO_REPLY_EMAIL,
       subject: "Thank you for contacting CV Transformer",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -187,8 +181,6 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
 
   return sendEmail({
     to: email,
-    from: SUPPORT_EMAIL,
-    replyTo: NO_REPLY_EMAIL,
     subject: "Reset Your CV Transformer Password",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -223,8 +215,6 @@ export async function sendVerificationEmail(email: string, verificationToken: st
 
   return sendEmail({
     to: email,
-    from: SUPPORT_EMAIL,
-    replyTo: NO_REPLY_EMAIL,
     subject: "Verify Your CV Transformer Account",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">

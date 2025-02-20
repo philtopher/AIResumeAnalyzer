@@ -872,7 +872,8 @@ export function registerRoutes(app: Express): Server {
             const customer = await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
             if (customer &&!customer.deleted && customer.email) {
               await sendEmail({
-                to: customer.email,                subject: 'Payment Failed',
+                to: customer.email,
+                subject: 'Payment Failed',
                 html: `
                   <h1>Payment Failed</h1>
                   <p>We were unable to process your payment for CV Transformer Pro. Please try again or update your payment method.</p>
@@ -2338,8 +2339,8 @@ async function sendWelcomeEmail(user: { email: string, username: string, verific
     const baseUrl = 'https://cvanalyzer.replit.app';
     await sendEmail({
       to: user.email,
-      from: 'support@cvanalyzer.freindel.com',
-      replyTo: 'no-reply@cvanalyzer.freindel.com',
+      from: 'no-reply@cvanalyzer.freindel.com',
+      replyTo: 'support@cvanalyzer.freindel.com',
       subject: 'Welcome to CV Transformer Pro!',
       html: `
         <h1>Welcome to CV Transformer Pro!</h1>
@@ -2377,11 +2378,10 @@ async function sendContactNotification(formData: {
   message: string
 }) {
   try {
-    // Send confirmation to user
     await sendEmail({
       to: formData.email,
-      from: 'support@cvanalyzer.freindel.com',
-      replyTo: 'no-reply@cvanalyzer.freindel.com',
+      from: 'no-reply@cvanalyzer.freindel.com',
+      replyTo: 'support@cvanalyzer.freindel.com',
       subject: 'CV Transformer - We Received Your Message',
       html: `
         <h1>Thank you for contacting CV Transformer!</h1>
@@ -2399,10 +2399,10 @@ async function sendContactNotification(formData: {
       `
     });
 
-    // Send notification to support team
+    // Also send notification to admin
     await sendEmail({
       to: 'support@cvanalyzer.freindel.com',
-      from: 'support@cvanalyzer.freindel.com',
+      from: 'no-reply@cvanalyzer.freindel.com',
       replyTo: formData.email,
       subject: 'New Contact Form Submission',
       html: `
