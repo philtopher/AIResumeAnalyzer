@@ -752,16 +752,11 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).send(`Webhook Error: ${err.message}`);
       }
 
-      if (!event) {
-        return res.status(400).send("Invalid webhook event");
-      }
-
       // Handle the event
       switch (event.type) {
         case 'payment_intent.succeeded':
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
           console.log('Processing successful payment for customer:', paymentIntent.customer);
-
           // Get the customer details
           const customer = await stripe?.customers.retrieve(paymentIntent.customer as string);
           console.log('Retrieved customer data:', {
@@ -876,8 +871,8 @@ export function registerRoutes(app: Express): Server {
 
       res.json({ received: true });
     } catch (error: any) {
-      console.error('Webhook error:', error);
-      res.status(400).json({ error: error.message });
+      console.error('Webhook error:', error.message);
+      res.status(500).send(`Webhook Error: ${error.message}`);
     }
   });
 
