@@ -1,4 +1,857 @@
-failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { setupAuth } from "./auth";
+import { db } from "@db";
+import { sendEmail, sendContactFormNotification, sendProPlanBatchConfirmation } from "./email";
+import { users, cvs, activityLogs, subscriptions, contacts, siteAnalytics, systemMetrics } from "@db/schema";
+import { eq, desc } from "drizzle-orm";
+import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema"; // Added import for insertUserSchema
+import multer from "multer";
+import { extname } from "path";
+import mammoth from "mammoth";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import {
+  Document,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  SectionType,
+  Packer,
+} from "docx";
+import { z } from "zod";
+import { sql } from 'drizzle-orm';
+import os from 'os-utils';
+import geoip from 'geoip-lite';
+import { UAParser } from 'ua-parser-js';
+import Stripe from 'stripe';
+import express from 'express';
+import { hashPassword } from "./auth";
+import {randomUUID} from 'crypto';
+import { format } from "date-fns";
+import stripeRouter from './routes/stripe';
+
+// Add proper Stripe initialization with error handling
+const stripe = (() => {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    console.error('Stripe secret key is missing');
+    return null;
+  }
+  return new Stripe(key, {
+    apiVersion: '2023-10-16',
+    typescript: true,
+  });
+})();
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  fileFilter: (_req, file, cb) => {
+    const allowedExtensions = [".pdf", ".docx"];
+    const ext = extname(file.originalname).toLowerCase();
+    if (allowedExtensions.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF and DOCX files are allowed"));
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+});
+
+// Helper function to extract text content from uploaded file
+async function extractTextContent(file: Express.Multer.File): Promise<string> {
+  const ext = extname(file.originalname).toLowerCase();
+  let textContent = "";
+
+  try {
+    if (ext === ".docx") {
+      const result = await mammoth.extractRawText({ buffer: file.buffer });
+      textContent = result.value;
+    } else if (ext === ".pdf") {
+      const pdfDoc = await PDFDocument.load(file.buffer);
+      // For PDF files, we'll need to implement proper text extraction
+      // For now, return a placeholder
+      textContent = "PDF content extraction placeholder";
+    }
+    return textContent || "";
+  } catch (error) {
+    console.error("Error extracting text content:", error);
+    throw new Error("Failed to extract content from file");
+  }
+}
+
+// Helper function to extract employments
+async function extractEmployments(content: string): Promise<{ latest: string; previous: string[] }> {
+  try {
+    // Split content into sections based on line breaks and employment markers
+    const sections = content.split(/\n{2,}/);
+
+    // Find the sections that contain employment information
+    const employmentSections = sections.filter((section) => {
+      // Check for standard employment section markers
+      return /\b(19|20)\d{2}\b/.test(section) && // Has year
+        /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(section) && // Has month
+        (/\b(at|with|for)\b/i.test(section) || /\|/.test(section)) && // Employment prepositions or separator
+        (/\b(senior|lead|manager|director|engineer|developer|architect|consultant|specialist|analyst)\b/i.test(section) || // Job titles
+         /\b(responsible|managed|led|developed|implemented|designed|created)\b/i.test(section)); // Action verbs
+    });
+
+    if (employmentSections.length === 0) {
+      return {
+        latest: content,
+        previous: [],
+      };
+    }
+
+    // Sort sections by date to ensure latest is first
+    const sortedSections = employmentSections.sort((a, b) => {
+      const getLatestDate = (text: string) => {
+        const dateMatch = text.match(/\b(19|20)\d{2}\b/g);
+        return dateMatch ? Math.max(...dateMatch.map(Number)) : 0;
+      };
+      return getLatestDate(b) - getLatestDate(a);
+    });
+
+    // Extract the complete sections as they appear in the original CV
+    const completeEmploymentSections = sortedSections.map(section => {
+      // Include any bullet points or additional information that follows
+      const sectionStart = content.indexOf(section);
+      const nextSectionStart = sortedSections.find(s => content.indexOf(s) > sectionStart + section.length);
+      if (nextSectionStart) {
+        return content.slice(sectionStart, content.indexOf(nextSectionStart)).trim();
+      }
+      return section.trim();
+    });
+
+    return {
+      latest: completeEmploymentSections[0],
+      previous: completeEmploymentSections.slice(1),
+    };
+  } catch (error) {
+    console.error("Error extracting employments:", error);
+    return {
+      latest: content,
+      previous: [],
+    };
+  }
+}
+
+// Helper function to extract keywords from job description
+async function extractKeywords(jobDescription: string): Promise<{
+  skills: string[];
+  responsibilities: string[];
+  requirements: string[];
+}> {
+  try {
+    // Split the job description into sections
+    const sections = jobDescription.split(/\n{2,}/);
+
+    // Initialize categorized keywords
+    const keywords = {
+      skills: new Set<string>(),
+      responsibilities: new Set<string>(),
+      requirements: new Set<string>()
+    };
+
+    // Common technical skills pattern
+    const skillsPattern = /\b(typescript|javascript|python|java|c\+\+|react|node\.js|express|api|aws|azure|gcp|cloud|docker|kubernetes|ci\/cd|agile|scrum|testing|development|programming|software|database|sql|nosql|rest|graphql|git|security)\b/gi;
+
+    // Experience and education pattern
+    const requirementsPattern = /\b(\d+\+?\s*years?|bachelor'?s|master'?s|phd|degree|certification|experience\s+in|background\s+in|knowledge\s+of)\b/gi;
+
+    // Action verbs for responsibilities
+    const responsibilityPattern = /\b(develop|create|design|implement|manage|lead|coordinate|analyze|maintain|improve|optimize|test|deploy|architect|review|mentor|collaborate|solve)\b/gi;
+
+    sections.forEach(section => {
+      // Extract skills
+      const skills = section.match(skillsPattern);
+      if (skills) {
+        skills.forEach(skill => keywords.skills.add(skill.toLowerCase()));
+      }
+
+      // Extract requirements
+      const requirements = section.match(requirementsPattern);
+      if (requirements) {
+        requirements.forEach(req => keywords.requirements.add(req.toLowerCase()));
+      }
+
+      // Extract responsibilities
+      const responsibilities = section.match(responsibilityPattern);
+      if (responsibilities) {
+        responsibilities.forEach(resp => keywords.responsibilities.add(resp.toLowerCase()));
+      }
+    });
+
+    return {
+      skills: Array.from(keywords.skills),
+      responsibilities: Array.from(keywords.responsibilities),
+      requirements: Array.from(keywords.requirements)
+    };
+  } catch (error) {
+    console.error("Error extracting keywords:", error);
+    return {
+      skills: [],
+      responsibilities: [],
+      requirements: []
+    };
+  }
+}
+
+// Enhanced function to transform employment details
+async function transformEmployment(originalEmployment: string, targetRole: string, jobDescription: string): Promise<string> {
+  try {
+    // Extract dates and company info (keeping existing logic)
+    const dateMatch = originalEmployment.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:-|to|–)\s*(?:Present|\d{4}|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})\b/i);
+    const companyMatch = originalEmployment.match(/(?:at|@|with)\s+([A-Z][A-Za-z\s&]+(?:Inc\.|LLC|Ltd\.)?)/);
+    const projectMatch = originalEmployment.match(/Project:?\s*(.*?)(?:\n|$)/i);
+
+    const dateRange = dateMatch ? dateMatch[0] : "Present";
+    const company = companyMatch ? companyMatch[1].trim() : "";
+    const project = projectMatch ? projectMatch[1].trim() : "";
+
+    // Extract keywords from job description
+    const keywords = await extractKeywords(jobDescription);
+
+    // Extract achievements and responsibilities
+    const bulletPoints = originalEmployment
+      .split('\n')
+      .filter(line => /^[•-]/.test(line.trim()))
+      .map(point => point.replace(/^[•-]\s*/, '').trim());
+
+    // Transform achievements to match target role and keywords
+    const transformedAchievements = bulletPoints.map(achievement => {
+      let transformed = achievement;
+
+      // Replace technology-specific terms based on target role
+      const techTransformations: { [key: string]: { [key: string]: string } } = {
+        'Cloud Architect': {
+          'AWS': 'Azure',
+          'EC2': 'Virtual Machines',
+          'S3': 'Blob Storage',
+          'Lambda': 'Functions',
+          'DynamoDB': 'Cosmos DB'
+        },
+        'Frontend Developer': {
+          'Angular': 'React',
+          'Vue': 'React',
+          'Svelte': 'React',
+          'jQuery': 'React hooks'
+        },
+        'Backend Developer': {
+          'PHP': 'Node.js',
+          'Ruby': 'TypeScript',
+          'Python': 'Node.js',
+          'MySQL': 'PostgreSQL'
+        },
+        'Full Stack Developer': {
+          'jQuery': 'React',
+          'PHP': 'Node.js',
+          'MySQL': 'PostgreSQL'
+        }
+      };
+
+      // Apply role-specific transformations
+      if (techTransformations[targetRole]) {
+        Object.entries(techTransformations[targetRole]).forEach(([from, to]) => {
+          transformed = transformed.replace(new RegExp(`\\b${from}\\b`, 'gi'), to);
+        });
+      }
+
+      // Enhance with keywords from job description if relevant
+      keywords.skills.forEach(skill => {
+        if (!transformed.toLowerCase().includes(skill.toLowerCase())) {
+          if (Math.random() < 0.3) { // 30% chance to add relevant skill
+            transformed += ` using ${skill}`;
+          }
+        }
+      });
+
+      return transformed;
+    });
+
+    // Generate role-specific project description
+    const projectDesc = `Project: ${targetRole} Implementation - ${
+      project || 'Enterprise System Modernization'
+    }`;
+
+    // Combine achievements with job description keywords
+    const achievements = transformedAchievements
+      .slice(0, 4)
+      .map(achievement => {
+        // Add quantifiable metrics if not present
+        if (!achievement.match(/\d+%|\d+x|\$\d+/)) {
+          const metrics = [
+            'reducing costs by 25%',
+            'improving performance by 40%',
+            'increasing efficiency by 35%',
+            'saving 20 hours per week'
+          ];
+          achievement += `, ${metrics[Math.floor(Math.random() * metrics.length)]}`;
+        }
+        return achievement;
+      });
+
+    // Generate role-specific responsibilities
+    const responsibilities = [
+      ...keywords.responsibilities.map(resp => 
+        `Led ${resp} initiatives focusing on ${keywords.skills.slice(0, 2).join(' and ')}`
+      ),
+      ...transformedAchievements.slice(4)
+    ].slice(0, 6);
+
+    return `
+${targetRole} (${dateRange})
+${projectDesc}
+
+Key Achievements:
+${achievements.map(achievement => `• ${achievement}`).join('\n')}
+
+Responsibilities:
+${responsibilities.map(resp => `• ${resp}`).join('\n')}
+`.trim();
+  } catch (error) {
+    console.error("Error transforming employment:", error);
+    return originalEmployment;
+  }
+}
+
+// Enhanced function to transform professional summary
+async function transformProfessionalSummary(originalSummary: string, targetRole: string, jobDescription: string): Promise<string> {
+  try {
+    // Extract years of experience
+    const yearsMatch = originalSummary.match(/(\d+)\+?\s*years?/i);
+    const years = yearsMatch ? yearsMatch[1] : "8";
+
+    // Extract keywords from job description
+    const keywords = await extractKeywords(jobDescription);
+
+    // Role-specific summary templates
+    const summaryTemplates: { [key: string]: string } = {
+      'Cloud Architect': `Results-driven ${targetRole} with ${years}+ years of experience in cloud transformation, infrastructure design, and enterprise architecture. Proven expertise in ${keywords.skills.slice(0, 3).join(', ')}, and cloud-native solutions. Adept at designing scalable, secure, and cost-efficient solutions leveraging modern cloud services. Passionate about driving digital transformation and ensuring compliance with security best practices.`,
+
+      'Frontend Developer': `Creative ${targetRole} with ${years}+ years of experience crafting responsive and intuitive user interfaces. Specialized in ${keywords.skills.slice(0, 3).join(', ')}. Proven track record of delivering pixel-perfect, accessible, and performant web applications. Passionate about creating exceptional user experiences and staying current with modern frontend technologies.`,
+
+      'Backend Developer': `Experienced ${targetRole} with ${years}+ years of expertise in building scalable server-side applications. Proficient in ${keywords.skills.slice(0, 3).join(', ')}. Strong background in designing RESTful APIs, microservices architecture, and database optimization. Committed to writing clean, maintainable code and implementing robust security measures.`,
+
+      'Full Stack Developer': `Versatile ${targetRole} with ${years}+ years of experience in end-to-end application development. Expert in ${keywords.skills.slice(0, 3).join(', ')}. Proven ability to architect and implement full-stack solutions from database design to responsive UI. Passionate about creating efficient, scalable applications and adopting best practices in both frontend and backend development.`
+    };
+
+    // Get template based on role or use default
+    const summaryTemplate = summaryTemplates[targetRole] || 
+      `Experienced ${targetRole} with ${years}+ years of expertise in ${keywords.skills.slice(0, 3).join(', ')}. Proven track record of delivering high-quality solutions and driving technological innovation. Strong background in ${keywords.responsibilities.slice(0, 2).join(' and ')}. Committed to continuous learning and staying current with industry best practices.`;
+
+    return summaryTemplate;
+  } catch (error) {
+    console.error("Error transforming professional summary:", error);
+    return originalSummary;
+  }
+}
+
+// Enhanced function to adapt skills for target role
+async function adaptSkills(originalSkills: string[], targetRole: string, jobDescription: string): Promise<string[]> {
+  try {
+    // Extract keywords from job description
+    const { skills: jobSkills } = await extractKeywords(jobDescription);
+
+    // Role-specific skill categories
+    const skillCategories: { [key: string]: { [key: string]: string[] } } = {
+      'Cloud Architect': {
+        'Cloud Platforms': ['AWS', 'Azure', 'GCP', 'Multi-cloud Architecture'],
+        'Infrastructure & DevOps': ['Terraform', 'Kubernetes', 'Docker', 'CI/CD'],
+        'Security & Compliance': ['IAM', 'Security Best Practices', 'Compliance Frameworks'],
+        'Architecture Patterns': ['Microservices', 'Event-Driven', 'Serverless']
+      },
+      'Frontend Developer': {
+        'UI Technologies': ['React', 'TypeScript', 'HTML5', 'CSS3', 'Responsive Design'],
+        'State Management': ['Redux', 'Context API', 'React Query'],
+        'Build Tools': ['Webpack', 'Vite', 'ESBuild'],
+        'Testing': ['Jest', 'React Testing Library', 'Cypress']
+      },
+      'Backend Developer': {
+        'Server Technologies': ['Node.js', 'Express', 'TypeScript', 'RESTful APIs'],
+        'Databases': ['PostgreSQL', 'MongoDB', 'Redis'],
+        'Architecture': ['Microservices', 'Event-Driven', 'API Design'],
+        'DevOps': ['Docker', 'CI/CD', 'Monitoring']
+      },
+      'Full Stack Developer': {
+        'Frontend': ['React', 'TypeScript', 'Responsive Design'],
+        'Backend': ['Node.js', 'Express', 'RESTful APIs'],
+        'Database': ['PostgreSQL', 'MongoDB', 'ORM Tools'],
+        'DevOps': ['Docker', 'CI/CD', 'Cloud Platforms']
+      }
+    };
+
+    // Get role-specific categories or use default
+    const categories = skillCategories[targetRole] || {
+      'Technical Skills': jobSkills,
+      'Tools & Platforms': ['Git', 'Docker', 'CI/CD'],
+      'Methodologies': ['Agile', 'Scrum', 'TDD'],
+      'Soft Skills': ['Team Collaboration', 'Problem Solving', 'Communication']
+    };
+
+    // Combine original skills with job description skills
+    return Object.entries(categories).map(([category, skills]) => {
+      const relevantJobSkills = jobSkills
+        .filter(skill => !skills.includes(skill))
+        .slice(0, 2);
+
+      return `${category}: ${[...skills, ...relevantJobSkills].join(', ')}`;
+    });
+  } catch (error) {
+    console.error("Error adapting skills:", error);
+    return originalSkills;
+  }
+}
+
+// Helper function to gather organizational insights
+async function gatherOrganizationalInsights(companyName: string): Promise<{
+  glassdoor: string[];
+  indeed: string[];
+  news: string[];
+}> {
+  // In a production environment, this would integrate with actual APIs
+  return {
+    glassdoor: [
+      "Strong emphasis on innovation and technological advancement",
+      "Competitive benefits package and career growth opportunities",
+      "Fast-paced environment with focus on continuous learning",
+    ],
+    indeed: [
+      "Collaborative work culture with emphasis on teamwork",
+      "Opportunities for professional development and skill enhancement",
+      "Work-life balance initiatives and flexible scheduling options",
+    ],
+    news: [
+      "Recent expansion into emerging markets",
+      "Investment in artificial intelligence and machine learning",
+      "Focus on sustainable business practices and environmental initiatives",
+    ],
+  };
+}
+
+// Helper function to evaluate CV
+function evaluateCV(cv: string, jobDescription: string): {
+  score: number;
+  feedback: {
+    strengths: string[];
+    weaknesses: string[];
+    suggestions: string[];
+    organizationalInsights: string[][];
+  };
+} {
+  // Extract keywords from job description
+  const keywords = jobDescription.toLowerCase().split(/\s+/);
+  const skillsFound = cv.toLowerCase().split(/\s+/).filter((word) => keywords.includes(word)).length;
+
+  const companyInsights = gatherOrganizationalInsights(jobDescription.split(" at ")[1] || "");
+
+
+  return {
+    score: skillsFound > 10 ? 85 : 70,
+    feedback: {
+      strengths: [
+        "Strong technical background",
+        "Clear project achievements",
+        "Relevant industry experience",
+      ],
+      weaknesses: [
+        "Could improve keyword alignment with job description",
+        "Limited quantifiable metrics",
+        "Some skills need updating",
+      ],
+      suggestions: [
+        "Add more specific technical achievements",
+        "Include project impact metrics",
+        "Highlight leadership experience",
+        "Add recent certifications",
+      ],
+      organizationalInsights: [companyInsights.glassdoor, companyInsights.indeed, companyInsights.news],
+    },
+  };
+}
+
+// Define feedback schema
+const feedbackSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().optional(), // Make phone optional and remove regex validation
+  message: z.string().min(10),
+});
+
+// Helper function to get webhook URL
+function getWebhookUrl() {
+  // Always return the production URL since we're using it for both environments
+  return `https://cvanalyzer.replit.app/api/webhook`;
+}
+
+async function hashAndCreateStripeCustomer(email: string, username: string, password: string) {
+  // Hash the password before storing
+  const hashedPassword = await hashPassword(password);
+
+  // Create a customer with pending signup status and user data
+  const customer = await stripe?.customers.create({
+    email,
+    metadata: {
+      signup_pending: 'true',
+      username, // Store username separately
+      hashedPassword // Store hashed password directly
+    }
+  });
+
+  return customer;
+}
+
+export function registerRoutes(app: Express): Server {
+  // Setup authentication routes
+  setupAuth(app);
+
+  // Contact form routes
+  app.post("/api/contact", async (req, res) => {
+    try {
+      const result = feedbackSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(result.error.message);
+      }
+
+      const { name, email, phone, message, subject } = result.data;
+      let emailSent = false;
+
+      try {
+        // Send email notification using SendGrid
+        emailSent = await sendContactFormNotification({
+          name,
+          email,
+          phone,
+          subject,
+          message,
+        });
+      } catch (emailError) {
+        console.error("Email sending error:", emailError);
+        // Continue with database operation even if email fails
+      }
+
+      try {
+        // Store the contact form submission in the database
+        await db.insert(contacts).values({
+          name,
+          email,
+          phone,
+          subject,
+          message,
+          status: "new",
+        }).returning();
+      } catch (dbError) {
+        console.error("Database error:", dbError);
+        // If email was sent, we still want to notify the user
+        if (emailSent) {
+          return res.json({
+            success: true,
+            message: "Message sent successfully, but there was an issue saving your contact information."
+          });
+        }
+        throw dbError;
+      }
+
+      res.json({
+        success: true,
+        message: "Contact form submitted successfully"
+      });
+    } catch (error: any) {
+      console.error("Contact form submission error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to process your request. Please try again later."
+      });
+    }
+  });
+
+  // Update the feedback endpoint to use email notification
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const result = feedbackSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const { name, email, phone, message } = result.data;
+
+      try {
+        // Store the feedback submission in the database
+        await db.insert(contacts).values({
+          name,
+          email,
+          phone,
+          message,
+          subject: "Feedback from Demo Page",
+          status: "new",
+        });
+
+        // Send email notification
+        await sendContactFormNotification({
+          name,
+          email,
+          phone,
+          message
+        });
+
+        res.json({
+          success: true,
+          message: "Feedback submitted successfully"
+        });
+      } catch (error: any) {
+        console.error("Feedback submission error:", error);
+        // If it's a database error, handle it separately
+        if (error.code) {
+          throw error;
+        }
+        // For email errors, still return success but log the error
+        res.json({
+          success: true,
+          message: "Feedback submitted successfully"
+        });
+      }
+    } catch (error: any) {
+      console.error("Feedback submission error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to process your request. Please try again later."
+      });
+    }
+  });
+
+  // Update create-subscription endpoint with consistent validation
+  app.post("/api/create-subscription", async (req, res) => {
+    try {
+      // Validate required fields are present
+      const { email, username, password } = req.body;
+
+      if (!email || !username || !password) {
+        return res.status(400).json({
+          error: "All fields are required - please provide email, username, and password"
+        });
+      }
+
+      const result = insertUserSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      // Check for existing user/email
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      const [existingEmail] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      if (existingEmail) {
+        return res.status(400).json({ error: "Email address is already registered" });
+      }
+
+      // Log the subscription attempt
+      console.log('Creating subscription for:', email);
+
+      const customer = await hashAndCreateStripeCustomer(email, username, password);
+
+      if (!customer) {
+        console.error('Failed to create Stripe customer');
+        return res.status(500).json({error: "Failed to create Stripe customer"});
+      }
+
+      // Use environment variable for price ID
+      const priceId = process.env.STRIPE_PRICE_ID;
+      if (!priceId) {
+        console.error('Stripe price ID is not configured');
+        return res.status(500).json({error: "Stripe price ID is not configured"});
+      }
+
+      console.log('Using price ID:', priceId);
+
+      // Create a subscription
+      const subscription = await stripe?.subscriptions.create({
+        customer: customer.id,
+        items: [{ price: priceId }],
+        payment_behavior: 'default_incomplete',
+        payment_settings: { save_default_payment_method: 'on_subscription' },
+        expand: ['latest_invoice.payment_intent'],
+        metadata: {
+          signup_pending: 'true'
+        }
+      }).catch(error => {
+        console.error('Stripe subscription creation error:', error);
+        throw error;
+      });
+
+      if (!subscription) {
+        console.error('Failed to create Stripe subscription');
+        return res.status(500).json({error: "Failed to create Stripe subscription"});
+      }
+
+      const invoice = subscription.latest_invoice as Stripe.Invoice;
+      const payment_intent = invoice.payment_intent as Stripe.PaymentIntent;
+
+      // Return the client secret
+      res.json({
+        subscriptionId: subscription.id,
+        clientSecret: payment_intent.client_secret,
+      });
+    } catch (error: any) {
+      console.error('Error creating subscription:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update the webhook handler with improved error handling and logging
+  app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
+    try {
+      const sig = req.headers['stripe-signature'];
+
+      if (!sig) {
+        console.error('⚠️ Webhook Error: No Stripe signature found');
+        return res.status(400).send('No Stripe signature found');
+      }
+
+      if (!stripe) {
+        console.error('⚠️ Webhook Error: Stripe is not properly initialized');
+        return res.status(500).send('Stripe is not properly initialized');
+      }
+
+      if (!process.env.STRIPE_WEBHOOK_SECRET) {
+        console.error('⚠️ Webhook Error: STRIPE_WEBHOOK_SECRET is not set');
+        return res.status(500).send('Webhook secret is not configured');
+      }
+
+      let event;
+      try {
+        event = stripe.webhooks.constructEvent(
+          req.body,
+          sig,
+          process.env.STRIPE_WEBHOOK_SECRET
+        );
+        console.log('✓ Webhook verified and received:', event.type);
+      } catch (err: any) {
+        console.error(`⚠️ Webhook signature verification failed:`, err.message);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+
+      if (!event) {
+        return res.status(400).send("Invalid webhook event");
+      }
+
+      // Handle the event
+      switch (event.type) {
+        case 'payment_intent.succeeded':
+          const paymentIntent = event.data.object as Stripe.PaymentIntent;
+          console.log('Processing successful payment for customer:', paymentIntent.customer);
+
+          // Get the customer details
+          const customer = await stripe?.customers.retrieve(paymentIntent.customer as string);
+          console.log('Retrieved customer data:', {
+            email: customer?.email,
+            metadata: customer?.metadata,
+            status: 'signup_pending' in (customer?.metadata || {})
+          });
+
+          if (customer && !customer.deleted && customer.metadata.signup_pending) {
+            try {
+              // Create user account with hashed password from metadata
+              const [newUser] = await db.insert(users).values({
+                email: customer.email!,
+                username: customer.metadata.username,
+                password: customer.metadata.hashedPassword,
+                role: 'user', // Start with basic user role
+                emailVerified: false,
+                verificationToken: randomUUID(),
+                verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour expiry
+              }).returning();
+
+              console.log('Created new user:', {
+                id: newUser.id,
+                username: newUser.username,
+                email: newUser.email,
+                role: newUser.role
+              });
+
+              // Create subscription record with proper end date tracking
+              await db.insert(subscriptions).values({
+                userId: newUser.id,
+                stripeCustomerId: customer.id,
+                stripeSubscriptionId: event.data.object.metadata.subscriptionId, // Store Stripe subscription ID
+                status: 'active',
+                createdAt: new Date(),
+                endedAt: new Date(event.data.object.subscription.current_period_end * 1000), // Convert UNIX timestamp to Date
+              });
+
+              console.log('Created subscription record for user:', newUser.id);
+
+              // Remove sensitive data from customer metadata
+              await stripe?.customers.update(customer.id, {
+                metadata: {
+                  signup_pending: 'false',
+                  username: '',
+                  hashedPassword: ''
+                }
+              });
+
+              // Send welcome email using the reliable approach
+              try {
+                const baseUrl = 'https://cvanalyzer.replit.app';
+                await sendEmail({
+                  to: customer.email!,
+                  subject: 'Welcome to CV Transformer Pro!',
+                  html: `
+                    <h1>Welcome to CV Transformer Pro!</h1>
+                    <p>Thank you for subscribing to our premium service! Please verify your email address by clicking the link below:</p>
+                    <a href="${baseUrl}/verify-email/${newUser.verificationToken}">Verify Email</a>
+                    <p>Your account has been successfully created with premium features enabled.</p>
+                    <h2>Your Account Details:</h2>
+                    <ul>
+                      <li>Username: ${newUser.username}</li>
+                      <li>Email: ${newUser.email}</li>
+                    </ul>
+                    <h2>Your Subscription Details:</h2>
+                    <ul>
+                      <li>Plan: Pro Account</li>
+                      <li>Price: £5/month</li>
+                      <li>Billing Period: Monthly</li>
+                    </ul>
+                    <p>Your verification link will expire in 1 hour. Please verify your email to ensure full access to all features.</p>
+                    <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+                    <p>Best regards,<br>CV Transformer Team</p>
+                  `
+                });
+                console.log('Welcome email sent successfully');
+              } catch (emailError) {
+                console.error('Failed to send welcome email:', emailError);
+                // Continue even if email fails
+              }
+            } catch (error) {
+              console.error('Error processing webhook user creation:', error);
+              throw error;
+            }
+          }
+          break;
+
+        case 'payment_intent.payment_failed':
+          const failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
           if (failedPaymentIntent.customer) {
             // Get customer and notify about failed payment
             const customer = await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
@@ -922,7 +1775,7 @@ ${transformedPreviousEmployments.join('\n\n')}
   app.get("/api/cv/:id/content/public", async (req, res) => {
     try {
       const cvId = parseInt(req.params.id);
-      if (isNaN(cvId)){
+      if (isNaN(cvId)) {
         return res.status(400).send("Invalid CV ID");
       }
 
@@ -1411,207 +2264,3 @@ async function sendProPlanBatchConfirmation(users: Array<{email: string, usernam
     }
   }
 }
-app.post("/api/create-subscription", async (req, res) => {
-  try {
-    // Validate required fields are present
-    const { email, username, password } = req.body;
-
-    if (!email || !username || !password) {
-      return res.status(400).json({
-        error: "All fields are required - please provide email, username, and password"
-      });
-    }
-
-    const result = insertUserSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-      });
-    }
-
-    // Check for existing user/email
-    const [existingUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.username, username))
-      .limit(1);
-
-    const [existingEmail] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
-
-    if (existingUser) {
-      return res.status(400).json({ error: "Username already exists" });
-    }
-
-    if (existingEmail) {
-      return res.status(400).json({ error: "Email address is already registered" });
-    }
-
-    // Log the subscription attempt
-    console.log('Creating subscription for:', email);
-
-    const customer = await hashAndCreateStripeCustomer(email, username, password);
-
-    if (!customer) {
-      console.error('Failed to create Stripe customer');
-      return res.status(500).json({error: "Failed to create Stripe customer"});
-    }
-
-    // Use environment variable for price ID
-    const priceId = process.env.STRIPE_PRICE_ID;
-    if (!priceId) {
-      console.error('Stripe price ID is not configured');
-      return res.status(500).json({error: "Stripe price ID is not configured"});
-    }
-
-    console.log('Using price ID:', priceId);
-
-    // Get domain for success and cancel URLs
-    const domain = process.env.NODE_ENV === 'production' 
-      ? 'https://cvconverter.replit.app' 
-      : 'http://localhost:3000';
-
-    // Create a checkout session instead of a subscription directly
-    const session = await stripe?.checkout.sessions.create({
-      customer: customer.id,
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [{
-        price: priceId,
-        quantity: 1,
-      }],
-      success_url: `${domain}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${domain}/features`,
-      metadata: {
-        username,
-        email,
-        signup_pending: 'true'
-      }
-    });
-
-    if (!session || !session.url) {
-      throw new Error('Failed to create checkout session');
-    }
-
-    // Return the session URL for the frontend to redirect to
-    res.json({
-      sessionUrl: session.url,
-      sessionId: session.id
-    });
-  } catch (error: any) {
-    console.error('Error creating subscription:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Add payment verification endpoint
-app.get("/api/verify-payment", async (req, res) => {
-  try {
-    const { session_id } = req.query;
-
-    if (!session_id || typeof session_id !== 'string') {
-      return res.status(400).json({ error: 'Invalid session ID' });
-    }
-
-    if (!stripe) {
-      throw new Error('Stripe is not properly initialized');
-    }
-
-    // Retrieve the session to check its status
-    const session = await stripe.checkout.sessions.retrieve(session_id);
-
-    if (!session || session.payment_status !== 'paid') {
-      return res.status(400).json({ error: 'Payment not completed' });
-    }
-
-    // Get customer details
-    const customer = await stripe.customers.retrieve(session.customer as string);
-    if (!customer || customer.deleted) {
-      return res.status(400).json({ error: 'Invalid customer' });
-    }
-
-    // Check if user was already created
-    const [existingUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, customer.email!))
-      .limit(1);
-
-    if (existingUser) {
-      // User already exists, update subscription status
-      await db
-        .update(subscriptions)
-        .set({ 
-          status: 'active',
-          endedAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        })
-        .where(eq(subscriptions.userId, existingUser.id));
-    } else {
-      // Create new user with the stored credentials
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          email: customer.email!,
-          username: customer.metadata.username,
-          password: customer.metadata.hashedPassword,
-          role: 'user',
-          emailVerified: false,
-          verificationToken: randomUUID(),
-          verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour expiry
-        })
-        .returning();
-
-      // Create subscription record
-      await db
-        .insert(subscriptions)
-        .values({
-          userId: newUser.id,
-          stripeCustomerId: customer.id,
-          stripeSubscriptionId: session.subscription as string,
-          status: 'active',
-          endedAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        });
-
-      // Send welcome email
-      await sendEmail({
-        to: customer.email!,
-        subject: 'Welcome to CV Transformer Pro!',
-        html: `
-          <h1>Welcome to CV Transformer Pro!</h1>
-          <p>Thank you for subscribing to our premium service!</p>
-          <p>Your account has been successfully created and premium features are now enabled.</p>
-          <h2>Your Account Details:</h2>
-          <ul>
-            <li>Username: ${newUser.username}</li>
-            <li>Email: ${newUser.email}</li>
-          </ul>
-          <h2>Your Subscription Details:</h2>
-          <ul>
-            <li>Plan: Pro Account</li>
-            <li>Price: £5/month</li>
-            <li>Billing Period: Monthly</li>
-          </ul>
-          <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
-          <p>Best regards,<br>CV Transformer Team</p>
-        `
-      });
-
-      // Clean up customer metadata
-      await stripe.customers.update(customer.id, {
-        metadata: {
-          signup_pending: 'false',
-          username: '',
-          hashedPassword: ''
-        }
-      });
-    }
-
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error('Payment verification error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
