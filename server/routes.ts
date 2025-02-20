@@ -524,53 +524,82 @@ export function registerRoutes(app: Express): Server {
     try {
       const result = feedbackSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).send(result.error.message);
-      }
-
-      const { name, email, phone, message, subject } = result.data;
-      let emailSent = false;
-
-      try {
-        // Send email notification using SendGrid
-        emailSent = await sendContactNotification({
-          name,
-          email,
-          phone,
-          message,
+        return res.status(400).json({
+          success: false,
+          message: result.error.issues.map(i => i.message).join(", ")
         });
-      } catch (emailError) {
-        console.error("Email sending error:", emailError);
-        // Continue with database operation even if email fails
       }
 
+      const { name, email, phone, message } = result.data;
+      const subject = "Contact Form Submission"; // Set a default subject
+
+      console.log('[Contact Form] Processing submission:', { name, email, message });
+
+      // First send the confirmation email to the user
+      const userEmailSent = await sendEmail({
+        to: email,
+        from: 'no-reply@cvanalyzer.freindel.com',
+        replyTo: 'support@cvanalyzer.freindel.com',
+        subject: 'CV Transformer - We Received Your Message',
+        html: `
+          <h1>Thank you for contacting us!</h1>
+          <p>Dear ${name},</p>
+          <p>We have received your message and will get back to you shortly.</p>
+          <p>Your message:</p>
+          <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px;">${message}</p>
+          <p>Best regards,<br>CV Transformer Team</p>
+        `
+      });
+
+      // Then send the notification to support
+      const notificationEmailSent = await sendEmail({
+        to: 'support@cvanalyzer.freindel.com',
+        from: 'no-reply@cvanalyzer.freindel.com',
+        replyTo: email, // Set reply-to as the sender's email
+        subject: 'New Contact Form Submission',
+        html: `
+          <h1>New Contact Form Submission</h1>
+          <p><strong>From:</strong> ${name} (${email})</p>
+          <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
+          <p><strong>Message:</strong></p>
+          <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px;">${message}</p>
+        `
+      });
+
+      // Store in database only after emails are sent
       try {
-        // Store the contact form submission in the database
         await db.insert(contacts).values({
           name,
           email,
           phone,
-          subject,
+          subject, // Now we have a default subject
           message,
           status: "new",
-        }).returning();
+        });
       } catch (dbError) {
-        console.error("Database error:", dbError);
-        // If email was sent, we still want to notify the user
-        if (emailSent) {
+        console.error("[Contact Form] Database error:", dbError);
+        // If at least one email was sent, we still want to notify the user
+        if (userEmailSent || notificationEmailSent) {
           return res.json({
             success: true,
-            message: "Message sent successfully, but there was an issue saving your contact information."
+            message: "Message received, but there was an issue saving your contact information."
           });
         }
         throw dbError;
       }
 
+      console.log('[Contact Form] Success:', {
+        userEmailSent,
+        notificationEmailSent,
+        databaseSaved: true
+      });
+
       res.json({
         success: true,
-        message: "Contact form submitted successfully"
+        message: "Thank you for your message. We'll get back to you soon!"
       });
     } catch (error: any) {
-      console.error("Contact form submission error:", error);
+      console.error("[Contact Form] Error:", error);
       res.status(500).json({
         success: false,
         message: "Failed to process your request. Please try again later."
@@ -1756,7 +1785,7 @@ ${transformedPreviousEmployments.join('\n\n')}
   app.get("/api/cv/:id/content/public", async (req, res) => {
     try {
       const cvId = parseInt(req.params.id);
-      if (isNaN(cvId)) {
+      if (isNaN<previous_generation>(cvId)) {
         return res.status(400).send("Invalid CV ID");
       }
 
@@ -2438,6 +2467,7 @@ async function sendEmail({
   replyTo?: string;
   subject: string;
   html: string;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
 }): Promise<boolean> {
   try {
     if (!to || !subject || !html) {
@@ -2457,7 +2487,8 @@ async function sendEmail({
       from,
       replyTo,
       subject,
-      html
+      html,
+      attachments
     };
 
     const [response] = await sgMail.send(msg);
