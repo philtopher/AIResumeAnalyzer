@@ -522,11 +522,10 @@ export function registerRoutes(app: Express): Server {
 
       try {
         // Send email notification using SendGrid
-        emailSent = await sendContactFormNotification({
+        emailSent = await sendContactNotification({
           name,
           email,
           phone,
-          subject,
           message,
         });
       } catch (emailError) {
@@ -594,7 +593,7 @@ export function registerRoutes(app: Express): Server {
         });
 
         // Send email notification
-        await sendContactFormNotification({
+        await sendContactNotification({
           name,
           email,
           phone,
@@ -850,36 +849,15 @@ export function registerRoutes(app: Express): Server {
               });
 
               // Send welcome email using the reliable approach
-              try {
-                const baseUrl = 'https://cvanalyzer.replit.app';
-                await sendEmail({
-                  to: customer.email!,
-                  subject: 'Welcome to CV Transformer Pro!',
-                  html: `
-                    <h1>Welcome to CV Transformer Pro!</h1>
-                    <p>Thank you for subscribing to our premium service! Please verify your email address by clicking the link below:</p>
-                    <a href="${baseUrl}/verify-email/${newUser.verificationToken}">Verify Email</a>
-                    <p>Your account has been successfully created with premium features enabled.</p>
-                    <h2>Your Account Details:</h2>
-                    <ul>
-                      <li>Username: ${newUser.username}</li>
-                      <li>Email: ${newUser.email}</li>
-                    </ul>
-                    <h2>Your Subscription Details:</h2>
-                    <ul>
-                      <li>Plan: Pro Account</li<li>Price: £5/month</li>
-                    <li>Billing Period: Monthly</li>
-                    </ul>
-                    <p>Your verification link will expire in 1 hour. Please verify your email to ensure full access to all features.</p>
-                    <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
-                    <p>Best regards,<br>CV Transformer Team</p>
-                  `
-                });
-                console.log('Welcome email sent successfully');
-              } catch (emailError) {
-                console.error('Failed to send welcome email:', emailError);
-                // Continue even if email fails
+              const welcomeEmailSent = await sendWelcomeEmail({
+                email: customer.email!,
+                username: customer.metadata.username,
+                verificationToken: newUser.verificationToken
+              });
+              if(!welcomeEmailSent){
+                console.error('Failed to send welcome email')
               }
+
             } catch (error) {
               console.error('Error processing webhook user creation:', error);
               throw error;
@@ -2354,5 +2332,94 @@ async function sendProPlanBatchConfirmation(users: Array<{email: string, usernam
     } catch (error) {
       console.error(`Failed to send confirmation to ${user.email}:`, error);
     }
+  }
+}
+async function sendWelcomeEmail(user: { email: string, username: string, verificationToken: string }) {
+  try {
+    const baseUrl = 'https://cvanalyzer.replit.app';
+    await sendEmail({
+      to: user.email,
+      from: 'no-reply@cvanalyzer.freindel.com',
+      replyTo: 'support@cvanalyzer.freindel.com',
+      subject: 'Welcome to CV Transformer Pro!',
+      html: `
+        <h1>Welcome to CV Transformer Pro!</h1>
+        <p>Thank you for subscribing to our premium service! Please verify your email address by clicking the link below:</p>
+        <a href="${baseUrl}/verify-email/${user.verificationToken}">Verify Email</a>
+        <p>Your account has been successfully created with premium features enabled.</p>
+        <h2>Your Account Details:</h2>
+        <ul>
+          <li>Username: ${user.username}</li>
+          <li>Email: ${user.email}</li>
+        </ul>
+        <h2>Your Subscription Details:</h2>
+        <ul>
+          <li>Plan: Pro Account</li>
+          <li>Price: £5/month</li>
+          <li>Billing Period: Monthly</li>
+        </ul>
+        <p>Your verification link will expire in 1 hour. Please verify your email to ensure full access to all features.</p>
+        <p>If you have any questions or need assistance, please don't hesitate to contact our support team at support@cvanalyzer.freindel.com.</p>
+        <p>Best regards,<br>The CV Transformer Team</p>
+      `
+    });
+    return true;
+  } catch (error) {
+    console.error('Error sending welcome email:', error);
+    return false;
+  }
+}
+
+// Update the contact form notification logic
+async function sendContactNotification(formData: {
+  name: string,
+  email: string,
+  phone?: string,
+  message: string
+}) {
+  try {
+    await sendEmail({
+      to: formData.email,
+      from: 'no-reply@cvanalyzer.freindel.com',
+      replyTo: 'support@cvanalyzer.freindel.com',
+      subject: 'CV Transformer - We Received Your Message',
+      html: `
+        <h1>Thank you for contacting CV Transformer!</h1>
+        <p>We have received your message and will get back to you shortly.</p>
+        <h2>Your Message Details:</h2>
+        <ul>
+          <li>Name: ${formData.name}</li>
+          <li>Email: ${formData.email}</li>
+          ${formData.phone ? `<li>Phone: ${formData.phone}</li>` : ''}
+        </ul>
+        <p>Your message:</p>
+        <blockquote>${formData.message}</blockquote>
+        <p>If you need immediate assistance, please email us at support@cvanalyzer.freindel.com</p>
+        <p>Best regards,<br>The CV Transformer Team</p>
+      `
+    });
+
+    // Also send notification to admin
+    await sendEmail({
+      to: 'support@cvanalyzer.freindel.com',
+      from: 'no-reply@cvanalyzer.freindel.com',
+      replyTo: formData.email,
+      subject: 'New Contact Form Submission',
+      html: `
+        <h1>New Contact Form Submission</h1>
+        <h2>Contact Details:</h2>
+        <ul>
+          <li>Name: ${formData.name}</li>
+          <li>Email: ${formData.email}</li>
+          ${formData.phone ? `<li>Phone: ${formData.phone}</li>` : ''}
+        </ul>
+        <p>Message:</p>
+        <blockquote>${formData.message}</blockquote>
+      `
+    });
+    return true;
+  } catch (error) {
+    console.error('Error sending contact notification:', error);
+    return false;
   }
 }
