@@ -719,6 +719,49 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add this new route before the webhook handler
+  app.get("/api/verify-payment", async (req, res) => {
+    try {
+      const { session_id } = req.query;
+
+      if (!session_id || typeof session_id !== 'string') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Missing or invalid session ID'
+        });
+      }
+
+      if (!stripe) {
+        return res.status(500).json({
+          status: 'error',
+          message: 'Stripe is not properly initialized'
+        });
+      }
+
+      // Retrieve the session from Stripe
+      const session = await stripe.checkout.sessions.retrieve(session_id);
+
+      // Verify the payment status
+      if (session.payment_status === 'paid') {
+        return res.json({
+          status: 'success',
+          message: 'Payment verified successfully'
+        });
+      } else {
+        return res.json({
+          status: 'error',
+          message: 'Payment has not been completed'
+        });
+      }
+    } catch (error: any) {
+      console.error('Payment verification error:', error);
+      return res.status(500).json({
+        status: 'error',
+        message: error.message || 'Failed to verify payment'
+      });
+    }
+  });
+
   // Update the webhook handler with improved error handling and logging
   app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
     try {
@@ -824,9 +867,8 @@ export function registerRoutes(app: Express): Server {
                     </ul>
                     <h2>Your Subscription Details:</h2>
                     <ul>
-                      <li>Plan: Pro Account</li>
-                      <li>Price: £5/month</li>
-                      <li>Billing Period: Monthly</li>
+                      <li>Plan: Pro Account</li<li>Price: £5/month</li>
+                    <li>Billing Period: Monthly</li>
                     </ul>
                     <p>Your verification link will expire in 1 hour. Please verify your email to ensure full access to all features.</p>
                     <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
@@ -1745,6 +1787,7 @@ ${transformedPreviousEmployments.join('\n\n')}
                   text: line,
                   spacing: {
                     before: 100,
+                    after:100,
                     after: 100,
                   },
                 });
