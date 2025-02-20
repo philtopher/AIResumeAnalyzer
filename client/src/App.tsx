@@ -29,6 +29,7 @@ import SuperAdminDashboardPage from "./pages/SuperAdminDashboardPage";
 import UpgradePlanPage from "./pages/UpgradePlanPage";
 import MetricsPage from "./pages/MetricsPage";
 import AnalysisPage from "./pages/AnalysisPage";
+import PaymentCompletePage from "./pages/PaymentCompletePage";
 
 // Add type for user subscription
 type User = {
@@ -206,6 +207,7 @@ function App() {
           <Route path="/terms-of-service" component={TermsOfServicePage} />
           <Route path="/upgrade" component={UpgradePlanPage} />
           <Route path="/payment-success" component={PaymentSuccessPage} />
+          <Route path="/payment-complete" component={PaymentCompletePage} />
           {user && (
             <>
               <Route path="/dashboard" component={DashboardPage} />
