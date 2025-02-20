@@ -869,10 +869,10 @@ export function registerRoutes(app: Express): Server {
           const failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
           if (failedPaymentIntent.customer) {
             // Get customer and notify about failed payment
-            const customer = await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
+            const customer =await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
             if (customer &&!customer.deleted && customer.email) {
               await sendEmail({
-                to: customer.email,
+                to:customer.email,
                 subject: 'Payment Failed',
                 html: `
                   <h1>Payment Failed</h1>
@@ -1793,12 +1793,8 @@ ${transformedPreviousEmployments.join('\n\n')}
 
       if (!cv) {
         return res.status(404).send("CV not found");
-      }
-
-      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
-      const sections = content.split("\n\n").filter(Boolean);
-
-      // Create Word document
+      }      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
+      const sections = content.split("\n\n").filter(Boolean);      // Create Word document
       const doc = new Document({
         sections: [{
           properties: {
@@ -2378,32 +2374,11 @@ async function sendContactNotification(formData: {
   message: string
 }) {
   try {
+    // Send single email to website admin with proper headers for reply
     await sendEmail({
-      to: formData.email,
-      from: 'no-reply@cvanalyzer.freindel.com',
-      replyTo: 'support@cvanalyzer.freindel.com',
-      subject: 'CV Transformer - We Received Your Message',
-      html: `
-        <h1>Thank you for contacting CV Transformer!</h1>
-        <p>We have received your message and will get back to you shortly.</p>
-        <h2>Your Message Details:</h2>
-        <ul>
-          <li>Name: ${formData.name}</li>
-          <li>Email: ${formData.email}</li>
-          ${formData.phone ? `<li>Phone: ${formData.phone}</li>` : ''}
-        </ul>
-        <p>Your message:</p>
-        <blockquote>${formData.message}</blockquote>
-        <p>If you need immediate assistance, please email us at support@cvanalyzer.freindel.com</p>
-        <p>Best regards,<br>The CV Transformer Team</p>
-      `
-    });
-
-    // Also send notification to admin
-    await sendEmail({
-      to: 'support@cvanalyzer.freindel.com',
-      from: 'no-reply@cvanalyzer.freindel.com',
-      replyTo: formData.email,
+      to: 'info@cvanalyzer.freindel.com',
+      from: 'no-reply@cvanalyzer.freindel.com', // SendGrid verified sender
+      replyTo: formData.email, // Customer's email for replies
       subject: 'New Contact Form Submission',
       html: `
         <h1>New Contact Form Submission</h1>
