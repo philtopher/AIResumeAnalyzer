@@ -918,38 +918,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Admin routes
-  app.get("/api/admin/users", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user ||
-        (req.user.role !== "super_admin" && req.user.role !== "sub_admin")) {
-        return res.status(403).send("Access denied");
-      }
-
-      const allUsers = await db
-        .select({
-          id: users.id,
-          username: users.username,
-          email: users.email,
-          role: users.role,
-          emailVerified: users.emailVerified,
-          createdAt: users.createdAt,
-          subscription: {
-            status: subscriptions.status,
-            endedAt: subscriptions.endedAt
-          }
-        })
-        .from(users)
-        .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
-        .orderBy(desc(users.createdAt));
-
-      res.json(allUsers);
-    } catch (error: any) {
-      console.error("Admin get users error:", error);
-      res.status(500).send(error.message);
-    }
-  });
-
   // Add new endpoint after the existing admin routes
   app.get("/api/admin/superadmins", async (req, res) => {
     try {
@@ -1817,7 +1785,7 @@ ${transformedPreviousEmployments.join('\n\n')}
         return res.status(400).send("Invalid CV ID");
       }
 
-      const [cv] = await db.select().from(cvs).where(eq(cvs.id, cvId)).limit(1);
+      const [cv] =await db.select().from(cvs).where(eq(cvs.id, cvId)).limit(1);
 
       if (!cv) {
         return res.status(404).send("CVnot found");
@@ -2244,6 +2212,92 @@ ${transformedPreviousEmployments.join('\n\n')}
 
   // Register Stripe routes
   app.use('/api', stripeRouter);
+
+  // Add interviewer insights endpoint
+  app.get("/api/interviewer-insights", async (req, res) => {
+    try {
+      // Check if user is authenticated and has active subscription
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, req.user.id))
+        .where(eq(subscriptions.status, "active"))
+        .limit(1);
+
+      if (!subscription) {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+
+      // In a production environment, this would fetch real data from external APIs
+      // For now, return mock data
+      const insights = {
+        companyProfile: {
+          culture: {
+            values: [
+              "Innovation-driven culture",
+              "Emphasis on collaboration",
+              "Work-life balance focus"
+            ],
+            environment: [
+              "Hybrid work model",
+              "Agile methodology",
+              "Continuous learning emphasis"
+            ]
+          },
+          interviewProcess: [
+            {
+              stage: "Initial Screening",
+              description: "30-minute call with HR focusing on background and experience",
+              tips: [
+                "Prepare your elevator pitch",
+                "Review company background",
+                "Have questions ready"
+              ]
+            },
+            {
+              stage: "Technical Assessment",
+              description: "Coding challenge or technical discussion",
+              tips: [
+                "Practice coding problems",
+                "Review system design concepts",
+                "Prepare for behavioral questions"
+              ]
+            },
+            {
+              stage: "Team Interview",
+              description: "Meet with potential team members and discuss collaboration",
+              tips: [
+                "Research team structure",
+                "Prepare collaboration examples",
+                "Show enthusiasm for teamwork"
+              ]
+            }
+          ],
+          careerGrowth: {
+            developmentPrograms: [
+              "Mentorship programs",
+              "Leadership training",
+              "Cross-functional projects"
+            ],
+            advancementPaths: [
+              "Technical specialist track",
+              "Management track",
+              "Architecture track"
+            ]
+          }
+        }
+      };
+
+      res.json(insights);
+    } catch (error: any) {
+      console.error("Error fetching interviewer insights:", error);
+      res.status(500).json({ error: "Failed to fetch interviewer insights" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

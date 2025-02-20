@@ -30,6 +30,8 @@ import UpgradePlanPage from "./pages/UpgradePlanPage";
 import MetricsPage from "./pages/MetricsPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
+import InterviewerAnalysisPage from "./pages/InterviewerAnalysisPage"; // Added import
+
 
 // Add type for user subscription
 type User = {
@@ -37,9 +39,9 @@ type User = {
   username: string;
   email: string;
   role: "user" | "sub_admin" | "super_admin";
-  subscription?: {
+  subscription: {
     status: "active" | "inactive" | "canceled";
-  };
+  } | null;
 };
 
 function Navigation() {
@@ -51,9 +53,10 @@ function Navigation() {
     setLocation("/");
   };
 
-  // Check user roles
+  // Check user roles and subscription
   const isSuperAdmin = user?.role === "super_admin";
   const isAdmin = isSuperAdmin || user?.role === "sub_admin";
+  const isProUser = user?.subscription?.status === "active";
 
   const menuItems = [
     { label: "About", path: "/about" },
@@ -68,13 +71,15 @@ function Navigation() {
     { label: "Privacy Settings", path: "/privacy-dashboard" },
   ];
 
-  // Add Analysis link for Pro users
-  if (user?.subscription?.status === "active") {
-    authenticatedItems.push({ label: "Advanced Analysis", path: "/analysis" });
+  // Add Pro features for Pro users
+  if (isProUser) {
+    authenticatedItems.push(
+      { label: "Employer Competition Analysis", path: "/analysis" },
+      { label: "Interviewer Analysis", path: "/interviewer-analysis" }
+    );
   }
-
-  // Add upgrade link if user is not pro
-  if (user && user.subscription?.status !== "active") {
+  // Only show upgrade link for non-pro users
+  else if (user) {
     authenticatedItems.push({ label: "Upgrade to Pro", path: "/upgrade" });
   }
 
@@ -186,9 +191,10 @@ function App() {
     );
   }
 
-  // Check user roles
+  // Check user roles and subscription
   const isSuperAdmin = user?.role === "super_admin";
   const isAdmin = isSuperAdmin || user?.role === "sub_admin";
+  const isProUser = user?.subscription?.status === "active";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -212,7 +218,12 @@ function App() {
             <>
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/privacy-dashboard" component={PrivacyDashboardPage} />
-              <Route path="/analysis" component={AnalysisPage} />
+              {isProUser && (
+                <>
+                  <Route path="/analysis" component={AnalysisPage} />
+                  <Route path="/interviewer-analysis" component={InterviewerAnalysisPage} />
+                </>
+              )}
             </>
           )}
           {isAdmin && (
