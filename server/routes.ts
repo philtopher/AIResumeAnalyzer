@@ -869,11 +869,12 @@ export function registerRoutes(app: Express): Server {
           const failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
           if (failedPaymentIntent.customer) {
             // Get customer and notify about failed payment
-            const customer =await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
+            const customer = await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
             if (customer &&!customer.deleted && customer.email) {
               await sendEmail({
-                to:customer.email,
-                subject: 'Payment Failed',                html: `
+                to: customer.email,
+                subject: 'Payment Failed',
+                html: `
                   <h1>Payment Failed</h1>
                   <p>We were unable to process your payment for CV Transformer Pro. Please try again or update your payment method.</p>
                   <p>If you need assistance, please contact our support team.</p>
@@ -1792,9 +1793,13 @@ ${transformedPreviousEmployments.join('\n\n')}
 
       if (!cv) {
         return res.status(404).send("CV not found");
-      }      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
-      const sections = content.split("\n\n").filter(Boolean);      // Create Word document
-      const doc =new Document({
+      }
+
+      const content = Buffer.from(cv.transformedContent || "", "base64").toString();
+      const sections = content.split("\n\n").filter(Boolean);
+
+      // Create Word document
+      const doc = new Document({
         sections: [{
           properties: {
             type: SectionType.CONTINUOUS,
@@ -2373,13 +2378,31 @@ async function sendContactNotification(formData: {
   message: string
 }) {
   try {
-    // Send email using SendGrid with "on behalf of" configuration
     await sendEmail({
-      to: 'info@cvanalyzer.freindel.com',
-      from: {
-        email: 'no-reply@cvanalyzer.freindel.com',
-        name: `${formData.name} via CV Transformer`
-      },
+      to: formData.email,
+      from: 'no-reply@cvanalyzer.freindel.com',
+      replyTo: 'support@cvanalyzer.freindel.com',
+      subject: 'CV Transformer - We Received Your Message',
+      html: `
+        <h1>Thank you for contacting CV Transformer!</h1>
+        <p>We have received your message and will get back to you shortly.</p>
+        <h2>Your Message Details:</h2>
+        <ul>
+          <li>Name: ${formData.name}</li>
+          <li>Email: ${formData.email}</li>
+          ${formData.phone ? `<li>Phone: ${formData.phone}</li>` : ''}
+        </ul>
+        <p>Your message:</p>
+        <blockquote>${formData.message}</blockquote>
+        <p>If you need immediate assistance, please email us at support@cvanalyzer.freindel.com</p>
+        <p>Best regards,<br>The CV Transformer Team</p>
+      `
+    });
+
+    // Also send notification to admin
+    await sendEmail({
+      to: 'support@cvanalyzer.freindel.com',
+      from: 'no-reply@cvanalyzer.freindel.com',
       replyTo: formData.email,
       subject: 'New Contact Form Submission',
       html: `
@@ -2392,27 +2415,6 @@ async function sendContactNotification(formData: {
         </ul>
         <p>Message:</p>
         <blockquote>${formData.message}</blockquote>
-      `
-    });
-
-    // Send confirmation to the customer
-    await sendEmail({
-      to: formData.email,
-      from: 'no-reply@cvanalyzer.freindel.com',
-      subject: 'We Received Your Message - CV Transformer',
-      html: `
-        <h1>Thank you for contacting CV Transformer!</h1>
-        <p>We have received your message and will get back to you shortly.</p>
-        <h2>Your Message Details:</h2>
-        <ul>
-          <li>Name: ${formData.name}</li>
-          <li>Email: ${formData.email}</li>
-          ${formData.phone ? `<li>Phone: ${formData.phone}</li>` : ''}
-        </ul>
-        <p>Your message:</p>
-        <blockquote>${formData.message}</blockquote>
-        <p>If you need immediate assistance, please email us at info@cvanalyzer.freindel.com</p>
-        <p>Best regards,<br>The CV Transformer Team</p>
       `
     });
     return true;
