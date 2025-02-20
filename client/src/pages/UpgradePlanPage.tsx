@@ -3,7 +3,7 @@ import { useUser } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Redirect, useLocation, useSearch } from "wouter";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -15,10 +15,21 @@ export default function UpgradePlanPage() {
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const search = useSearch();
   const params = new URLSearchParams(search);
   const paymentStatus = params.get('payment');
   const paymentUserId = params.get('userId');
+
+  // Check if user is already a Pro subscriber
+  if (!userLoading && user?.subscription?.status === "active") {
+    toast({
+      title: "Already Subscribed",
+      description: "You are already a Pro user. No need to upgrade again.",
+      variant: "default",
+    });
+    return <Redirect to="/dashboard" />;
+  }
 
   useEffect(() => {
     setVerificationError(null);
@@ -108,6 +119,17 @@ export default function UpgradePlanPage() {
         description: "Please log in to upgrade your account.",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Double check subscription status before proceeding
+    if (user.subscription?.status === "active") {
+      toast({
+        title: "Already Subscribed",
+        description: "You are already a Pro user. No need to upgrade again.",
+        variant: "default",
+      });
+      setLocation("/dashboard");
       return;
     }
 
