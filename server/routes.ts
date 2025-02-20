@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { sendEmail, sendContactFormNotification, sendProPlanBatchConfirmation } from "./email";
+import { sendEmail, sendContactNotification, sendProPlanBatchConfirmation } from "./email";
 import { users, cvs, activityLogs, subscriptions, contacts, siteAnalytics, systemMetrics } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema"; // Added import for insertUserSchema
@@ -32,18 +32,14 @@ import { format } from "date-fns";
 import stripeRouter from './routes/stripe';
 import sgMail from '@sendgrid/mail'; // Assuming SendGrid is used
 
-// Add proper Stripe initialization with error handling
-const stripe = (() => {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) {
-    console.error('Stripe secret key is missing');
-    return null;
-  }
-  return new Stripe(key, {
-    apiVersion: '2023-10-16',
-    typescript: true,
-  });
-})();
+// Initialize SendGrid with error handling
+if (!process.env.SENDGRID_API_KEY) {
+  console.error('SENDGRID_API_KEY is not set in environment variables');
+  throw new Error('SENDGRID_API_KEY must be set');
+}
+
+// Initialize SendGrid client
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -506,6 +502,19 @@ async function hashAndCreateStripeCustomer(email: string, username: string, pass
   return customer;
 }
 
+// Add proper Stripe initialization with error handling
+const stripe = (() => {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    console.error('Stripe secret key is missing');
+    return null;
+  }
+  return new Stripe(key, {
+    apiVersion: '2023-10-16',
+    typescript: true,
+  });
+})();
+
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
@@ -815,10 +824,10 @@ export function registerRoutes(app: Express): Server {
                 email: customer.email!,
                 username: customer.metadata.username,
                 password: customer.metadata.hashedPassword,
-                role: 'user', // Start with basic user role
+                role: 'user',
                 emailVerified: false,
                 verificationToken: randomUUID(),
-                verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour expiry
+                verificationTokenExpiry: new Date(Date.now() + 3600000),
               }).returning();
 
               console.log('Created new user:', {
@@ -828,14 +837,14 @@ export function registerRoutes(app: Express): Server {
                 role: newUser.role
               });
 
-              // Create subscription record with proper end date tracking
+              // Create subscription record
               await db.insert(subscriptions).values({
                 userId: newUser.id,
                 stripeCustomerId: customer.id,
-                stripeSubscriptionId: event.data.object.metadata.subscriptionId, // Store Stripe subscription ID
+                stripeSubscriptionId: paymentIntent.metadata?.subscriptionId,
                 status: 'active',
                 createdAt: new Date(),
-                endedAt: new Date(event.data.object.subscription.current_period_end * 1000), // Convert UNIX timestamp to Date
+                endedAt: null
               });
 
               console.log('Created subscription record for user:', newUser.id);
@@ -849,16 +858,15 @@ export function registerRoutes(app: Express): Server {
                 }
               });
 
-              // Send welcome email using the reliable approach
+              // Send welcome email
               const welcomeEmailSent = await sendWelcomeEmail({
                 email: customer.email!,
                 username: customer.metadata.username,
                 verificationToken: newUser.verificationToken
               });
-              if(!welcomeEmailSent){
-                console.error('Failed to send welcome email')
+              if(!welcomeEmailSent) {
+                console.error('Failed to send welcome email');
               }
-
             } catch (error) {
               console.error('Error processing webhook user creation:', error);
               throw error;
@@ -869,20 +877,8 @@ export function registerRoutes(app: Express): Server {
         case 'payment_intent.payment_failed':
           const failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
           if (failedPaymentIntent.customer) {
-            // Get customer and notify about failed payment
-            const customer = await stripe?.customers.retrieve(failedPaymentIntent.customer as string);
-            if (customer &&!customer.deleted && customer.email) {
-              await sendEmail({
-                to: customer.email,
-                subject: 'Payment Failed',
-                html: `
-                  <h1>Payment Failed</h1>
-                  <p>We were unable to process your payment for CV Transformer Pro. Please try again or update your payment method.</p>
-                  <p>If you need assistance, please contact our support team.</p>
-                  <p>Best regards,<br>CV Transformer Team</p>
-                `
-              });
-            }
+            // Handle failed payment
+            console.error('Payment failed for customer:', failedPaymentIntent.customer);
           }
           break;
 
@@ -1786,7 +1782,7 @@ ${transformedPreviousEmployments.join('\n\n')}
         return res.status(400).send("Invalid CV ID");
       }
 
-      const [cv] = await db
+      const [cv] =await db
         .select()
         .from(cvs)
         .where(eq(cvs.id, cvId))
@@ -1989,21 +1985,18 @@ ${transformedPreviousEmployments.join('\n\n')}
           <p>Hello,</p>
           <p>You can access the Super Admin Dashboard through this link:</p>
           <p><a href="${baseUrl}/super-admin" style="padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Access Super Admin Dashboard</a></p>
-
           <h2>Available Features:</h2>
           <ul>
             <li><strong>User Management:</strong> Add, verify, modify, and delete user accounts</li>
             <li><strong>Analytics Dashboard:</strong> View user distribution, activity patterns, and geographic data</li>
             <li><strong>Security Monitoring:</strong> Track suspicious activities and manage security threats</li>
           </ul>
-
           <p><strong>Security Note:</strong> This link provides access to sensitive administrative functions. Please:</p>
           <ul>
             <li>Do not share this link with unauthorized users</li>
             <li>Always log out after your session</li>
             <li>Use a secure, private network when accessing admin features</li>
           </ul>
-
           <p>Best regards,<br>CV Transformer Team</p>
         `
       });
@@ -2447,7 +2440,12 @@ async function sendEmail({
   html: string;
 }): Promise<boolean> {
   try {
-    console.log('[SendGrid] Attempting to send email (attempt 1/4)', {
+    if (!to || !subject || !html) {
+      console.error('[SendGrid] Missing required email parameters', { to, subject });
+      return false;
+    }
+
+    console.log('[SendGrid] Attempting to send email', {
       to,
       from,
       replyTo,
@@ -2462,14 +2460,23 @@ async function sendEmail({
       html
     };
 
-    const result = await sgMail.send(msg);
-    console.log('[SendGrid] Email sent successfully', {
-      statusCode: result[0].statusCode,
-      messageId: result[0].headers['x-message-id']
-    });
-    return true;
+    const [response] = await sgMail.send(msg);
+
+    if (response.statusCode === 202) {
+      console.log('[SendGrid] Email sent successfully', {
+        statusCode: response.statusCode,
+        messageId: response.headers['x-message-id']
+      });
+      return true;
+    } else {
+      console.error('[SendGrid] Unexpected status code:', response.statusCode);
+      return false;
+    }
   } catch (error) {
     console.error('[SendGrid] Email sending error:', error);
+    if (error.response) {
+      console.error('[SendGrid] API Error response:', error.response.body);
+    }
     return false;
   }
 }
