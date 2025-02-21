@@ -51,7 +51,7 @@ export function registerRoutes(app: Express): Express {
   // Setup authentication routes
   setupAuth(app);
 
-  // Add deployment guide email endpoint
+  // Add deployment guide email endpoint with improved error handling
   app.post("/api/send-deployment-guide", async (req: Request, res: Response) => {
     try {
       const deploymentGuide = `# CV Transformer AWS Deployment Guide
@@ -116,8 +116,11 @@ terraform/
 
 For detailed implementation steps, please refer to our comprehensive deployment documentation.`;
 
+      console.log('Attempting to send deployment guide email...');
+
       const emailSent = await sendEmail({
         to: 'tufort-teams@yahoo.com',
+        from: 'noreply@cvtransformer.com', // Verified sender domain
         subject: 'CV Transformer - AWS Deployment Guide',
         html: `
           <h1>CV Transformer AWS Deployment Guide</h1>
@@ -127,14 +130,17 @@ For detailed implementation steps, please refer to our comprehensive deployment 
           </div>
           <p>If you have any questions or need assistance, please reply to this email.</p>
           <p>Best regards,<br>The CV Transformer Team</p>
-        `
+        `,
+        text: `CV Transformer AWS Deployment Guide\n\n${deploymentGuide}`, // Plain text fallback
       });
 
-      if (emailSent) {
-        res.json({ success: true, message: "Deployment guide sent successfully" });
-      } else {
-        throw new Error("Failed to send deployment guide");
+      if (!emailSent) {
+        console.error('Email sending failed - no error thrown but returned false');
+        throw new Error('Failed to send deployment guide email');
       }
+
+      console.log('Email sent successfully');
+      res.json({ success: true, message: "Deployment guide sent successfully" });
     } catch (error: any) {
       console.error("Error sending deployment guide:", error);
       res.status(500).json({ 

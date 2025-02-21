@@ -7,11 +7,7 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-if (!process.env.SENDGRID_FROM_EMAIL) {
-  throw new Error("SENDGRID_FROM_EMAIL environment variable must be set");
-}
-
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
+const FROM_EMAIL = 'no-reply@cvanalyzer.freindel.com';
 const MAX_RETRY_ATTEMPTS = 3;
 
 export async function sendEmail(options: {
@@ -37,7 +33,16 @@ export async function sendEmail(options: {
       },
       subject: options.subject,
       html: options.html,
-      // Simplified mail settings - remove potential conflict sources
+      // Ensure proper tracking settings
+      trackingSettings: {
+        clickTracking: {
+          enable: true
+        },
+        openTracking: {
+          enable: true
+        }
+      },
+      // Simplified mail settings
       mailSettings: {
         sandboxMode: {
           enable: false
