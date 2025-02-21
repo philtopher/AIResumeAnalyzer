@@ -119,7 +119,7 @@ For detailed implementation steps, please refer to our comprehensive deployment 
       console.log('Attempting to send deployment guide email...');
 
       const emailSent = await sendEmail({
-        to: 'tufort-teams@yahoo.com',
+        to: 't.unamka@yahoo.co.uk',
         from: 'noreply@cvtransformer.com', // Verified sender domain
         subject: 'CV Transformer - AWS Deployment Guide',
         html: `
@@ -130,8 +130,7 @@ For detailed implementation steps, please refer to our comprehensive deployment 
           </div>
           <p>If you have any questions or need assistance, please reply to this email.</p>
           <p>Best regards,<br>The CV Transformer Team</p>
-        `,
-        text: `CV Transformer AWS Deployment Guide\n\n${deploymentGuide}`, // Plain text fallback
+        `
       });
 
       if (!emailSent) {
