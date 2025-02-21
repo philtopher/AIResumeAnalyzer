@@ -117,8 +117,8 @@ terraform/
 For detailed implementation steps, please refer to our comprehensive deployment documentation.`;
 
       const emailSent = await sendEmail({
-        to: 'tufort-teams@yahoo.com',
-        from: 'noreply@cvanalyzer.freindel.com',
+        to: 't.unamka@yahoo.co.uk',
+        from: 'no-reply@cvanalyzer.freindel.com',
         replyTo: 'support@cvanalyzer.freindel.com',
         subject: 'CV Transformer - AWS Deployment Guide',
         html: `
