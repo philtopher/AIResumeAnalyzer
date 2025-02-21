@@ -118,8 +118,6 @@ For detailed implementation steps, please refer to our comprehensive deployment 
 
       const emailSent = await sendEmail({
         to: 'tufort-teams@yahoo.com',
-        from: 'noreply@cvanalyzer.freindel.com',
-        replyTo: 'support@cvanalyzer.freindel.com',
         subject: 'CV Transformer - AWS Deployment Guide',
         html: `
           <h1>CV Transformer AWS Deployment Guide</h1>
