@@ -3,7 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
-import { Loader2, Menu, FileText, Shield, Activity } from "lucide-react";
+import { Loader2, Menu, FileText, Shield, Activity, Users } from "lucide-react";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -30,8 +30,8 @@ import UpgradePlanPage from "./pages/UpgradePlanPage";
 import MetricsPage from "./pages/MetricsPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
-import InterviewerAnalysisPage from "./pages/InterviewerAnalysisPage"; // Added import
-import { Users } from "lucide-react";
+import InterviewerAnalysisPage from "./pages/InterviewerAnalysisPage";
+import { Footer } from "./components/Footer"; // Added import
 
 
 // Add type for user subscription
@@ -243,6 +243,7 @@ function App() {
           <Route component={NotFound} />
         </Switch>
       </main>
+      <Footer />
     </div>
   );
 }
