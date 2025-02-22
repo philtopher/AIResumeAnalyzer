@@ -437,6 +437,7 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Update the login endpoint to check subscription status
   app.post("/api/login", (req, res, next) => {
     const result = loginSchema.safeParse(req.body);
     if (!result.success) {
@@ -445,7 +446,7 @@ export function setupAuth(app: Express) {
         .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
     }
 
-    const cb = (err: any, user: Express.User | false, info: IVerifyOptions) => {
+    const cb = async (err: any, user: Express.User | false, info: IVerifyOptions) => {
       if (err) {
         return next(err);
       }
@@ -453,6 +454,13 @@ export function setupAuth(app: Express) {
       if (!user) {
         return res.status(400).send(info.message ?? "Login failed");
       }
+
+      // Check subscription status
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, user.id))
+        .limit(1);
 
       req.logIn(user, (err) => {
         if (err) {
@@ -466,7 +474,10 @@ export function setupAuth(app: Express) {
             username: user.username,
             email: user.email,
             role: user.role,
+            subscription: subscription ? { status: subscription.status } : null,
+            emailVerified: user.emailVerified,
           },
+          requiresSubscription: !subscription,
         });
       });
     };
@@ -591,7 +602,7 @@ export function setupAuth(app: Express) {
       res.status(500).send(error.message);
     }
   });
-  // Add email verification endpoint with proper URL handling
+  // In the email verification endpoint, update the redirect logic
   app.get("/api/verify-email/:token", async (req, res) => {
     try {
       const { token } = req.params;
@@ -616,6 +627,7 @@ export function setupAuth(app: Express) {
         });
       }
 
+      // Mark email as verified
       await db
         .update(users)
         .set({
@@ -625,9 +637,22 @@ export function setupAuth(app: Express) {
         })
         .where(eq(users.id, user.id));
 
-      // Redirect to frontend with success message
+      // Check if user already has a subscription
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, user.id))
+        .limit(1);
+
+      // If no subscription, redirect to upgrade page
+      if (!subscription) {
+        const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+        return res.redirect(`${baseUrl}/upgrade?verified=true`);
+      }
+
+      // If already subscribed, redirect to dashboard
       const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
-      res.redirect(`${baseUrl}/auth?verified=true`);
+      res.redirect(`${baseUrl}/dashboard?verified=true`);
     } catch (error) {
       console.error("Email verification error:", error);
       res.status(500).json({
@@ -636,6 +661,7 @@ export function setupAuth(app: Express) {
       });
     }
   });
+
   // Add resend verification email endpoint
   app.post("/api/resend-verification", async (req, res) => {
     try {

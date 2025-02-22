@@ -10,6 +10,11 @@ if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('STRIPE_SECRET_KEY must be set');
 }
 
+// Add price ID configuration check
+if (!process.env.STRIPE_BASIC_PRICE_ID || !process.env.STRIPE_PRO_PRICE_ID) {
+  throw new Error('STRIPE_BASIC_PRICE_ID and STRIPE_PRO_PRICE_ID must be set');
+}
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2023-10-16',
   typescript: true,
@@ -97,22 +102,26 @@ router.post('/create-payment-link', async (req, res) => {
   }
 
   try {
-    console.log('Creating payment link for user:', req.user.id);
+    console.log('Creating payment link for user:', req.user.id, 'plan:', req.body.plan);
 
-    if (!process.env.STRIPE_PRICE_ID) {
-      throw new Error('STRIPE_PRICE_ID is not configured');
+    const priceId = req.body.plan === 'pro'
+      ? process.env.STRIPE_PRO_PRICE_ID
+      : process.env.STRIPE_BASIC_PRICE_ID;
+
+    if (!priceId) {
+      throw new Error(`${req.body.plan === 'pro' ? 'STRIPE_PRO_PRICE_ID' : 'STRIPE_BASIC_PRICE_ID'} is not configured`);
     }
 
-    // Create a payment link with Stripe's native success page
     const paymentLink = await stripe.paymentLinks.create({
       line_items: [
         {
-          price: process.env.STRIPE_PRICE_ID,
+          price: priceId,
           quantity: 1,
         },
       ],
       metadata: {
         userId: req.user.id.toString(),
+        plan: req.body.plan,
       },
     });
 

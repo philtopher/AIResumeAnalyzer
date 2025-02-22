@@ -14,6 +14,7 @@ export default function UpgradePlanPage() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'basic' | 'pro'>('basic');
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const search = useSearch();
@@ -25,7 +26,7 @@ export default function UpgradePlanPage() {
   if (!userLoading && user?.subscription?.status === "active") {
     toast({
       title: "Already Subscribed",
-      description: "You are already a Pro user. No need to upgrade again.",
+      description: "You already have an active subscription.",
       variant: "default",
     });
     return <Redirect to="/dashboard" />;
@@ -34,7 +35,6 @@ export default function UpgradePlanPage() {
   useEffect(() => {
     setVerificationError(null);
 
-    // Always verify if we have payment success parameters
     if (paymentStatus === 'success' && paymentUserId) {
       console.log('Verifying payment success for userId:', paymentUserId);
       setIsVerifying(true);
@@ -50,8 +50,8 @@ export default function UpgradePlanPage() {
           if (data.isSubscribed) {
             setIsSubscribed(true);
             toast({
-              title: "Upgrade Successful!",
-              description: "Welcome to CV Transformer Pro! Check your email for confirmation.",
+              title: "Subscription Successful!",
+              description: "Your subscription is now active. Check your email for confirmation.",
             });
           } else {
             throw new Error(data.message || "Subscription verification failed. Please contact support if you believe this is an error.");
@@ -72,46 +72,6 @@ export default function UpgradePlanPage() {
     }
   }, [paymentStatus, paymentUserId, toast]);
 
-  const handleResendWelcomeEmail = async () => {
-    if (!paymentUserId) {
-      toast({
-        title: "Error",
-        description: "User ID not found",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSendingEmail(true);
-    try {
-      const response = await fetch(`/api/stripe/test-send-welcome-email/${paymentUserId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send welcome email');
-      }
-
-      toast({
-        title: "Email Sent",
-        description: "Welcome email has been resent successfully!",
-      });
-    } catch (error) {
-      console.error('Email sending error:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send welcome email",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSendingEmail(false);
-    }
-  };
-
   const handleUpgradeClick = async () => {
     if (!user) {
       toast({
@@ -122,17 +82,6 @@ export default function UpgradePlanPage() {
       return;
     }
 
-    // Double check subscription status before proceeding
-    if (user.subscription?.status === "active") {
-      toast({
-        title: "Already Subscribed",
-        description: "You are already a Pro user. No need to upgrade again.",
-        variant: "default",
-      });
-      setLocation("/dashboard");
-      return;
-    }
-
     setIsProcessing(true);
     try {
       const response = await fetch("/api/create-payment-link", {
@@ -140,6 +89,7 @@ export default function UpgradePlanPage() {
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({ plan: selectedPlan }),
         credentials: "include",
       });
 
@@ -169,8 +119,8 @@ export default function UpgradePlanPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-8">Upgrade to Pro Plan</h1>
+    <div className="container mx-auto px-4 py-8 max-w-5xl">
+      <h1 className="text-3xl font-bold mb-8">Choose Your Plan</h1>
 
       {verificationError && (
         <Alert variant="destructive" className="mb-8">
@@ -181,37 +131,19 @@ export default function UpgradePlanPage() {
 
       {isSubscribed && (
         <Alert className="mb-8">
-          <AlertTitle>Pro Plan Active!</AlertTitle>
+          <AlertTitle>Subscription Active!</AlertTitle>
           <AlertDescription>
-            Your subscription is active. You now have access to all Pro features.
+            Your subscription is active. You now have access to all features.
             {user ? (
-              <> Visit your <a href="/dashboard" className="font-medium underline">dashboard</a> to start using them!</>
+              <> Visit your <a href="/dashboard" className="font-medium underline">dashboard</a> to start!</>
             ) : (
-              <> Please <a href="/auth" className="font-medium underline">log in</a> to access your Pro features.</>
+              <> Please <a href="/auth" className="font-medium underline">log in</a> to access your features.</>
             )}
           </AlertDescription>
-          {paymentUserId && (
-            <div className="mt-4">
-              <Button
-                variant="outline"
-                onClick={handleResendWelcomeEmail}
-                disabled={isSendingEmail}
-              >
-                {isSendingEmail ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending Email...
-                  </>
-                ) : (
-                  "Resend Welcome Email"
-                )}
-              </Button>
-            </div>
-          )}
         </Alert>
       )}
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="grid md:grid-cols-3 gap-8">
         {/* Free Plan Card */}
         <Card>
           <CardHeader>
@@ -222,28 +154,24 @@ export default function UpgradePlanPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Basic CV transformation</span>
+                <span>View sample CVs</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>View transformed CVs in browser</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="h-5 w-5 text-green-500" />
-                <span>Basic keyword optimization</span>
+                <span>Basic formatting preview</span>
               </div>
             </div>
+            <Button className="w-full" variant="outline" disabled>
+              Current Plan
+            </Button>
           </CardContent>
         </Card>
 
-        {/* Pro Plan Card */}
-        <Card className="relative border-primary">
-          <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm">
-            Advanced Features
-          </div>
+        {/* Basic Plan Card */}
+        <Card className={selectedPlan === 'basic' ? 'border-primary' : ''}>
           <CardHeader>
-            <CardTitle>Pro Plan</CardTitle>
-            <CardDescription>£5/month - Unlock premium features and interview insights</CardDescription>
+            <CardTitle>Basic Plan</CardTitle>
+            <CardDescription>£5/month - Essential CV tools</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -253,52 +181,86 @@ export default function UpgradePlanPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
+                <span>Basic CV transformation</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
                 <span>Download transformed CVs</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Comprehensive employer and competitor analysis</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="h-5 w-5 text-green-500" />
-                <span>Personalized interview question predictions</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="h-5 w-5 text-green-500" />
-                <span>Real-time updates on company culture and interview style</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="h-5 w-5 text-green-500" />
-                <span>Advanced CV scoring with industry benchmarks</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="h-5 w-5 text-green-500" />
-                <span>Interview preparation timeline with custom insights</span>
+                <span>Basic keyword optimization</span>
               </div>
             </div>
-
-            <div className="mt-6">
-              {isSubscribed ? (
-                <Button className="w-full" disabled>
-                  Currently Subscribed
-                </Button>
+            <Button
+              className="w-full"
+              onClick={() => {
+                setSelectedPlan('basic');
+                handleUpgradeClick();
+              }}
+              disabled={isProcessing || isSubscribed}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
               ) : (
-                <Button
-                  className="w-full"
-                  onClick={handleUpgradeClick}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    "Upgrade Now - £5/month"
-                  )}
-                </Button>
+                "Subscribe - £5/month"
               )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Pro Plan Card */}
+        <Card className={selectedPlan === 'pro' ? 'border-primary' : ''}>
+          <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm rounded-bl">
+            Best Value
+          </div>
+          <CardHeader>
+            <CardTitle>Pro Plan</CardTitle>
+            <CardDescription>£15/month - Premium features</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                <span>All Basic Plan features</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                <span>Advanced CV Analysis</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                <span>Employer Competition Analysis</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                <span>Interviewer LinkedIn Insights</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                <span>Advanced CV scoring</span>
+              </div>
             </div>
+            <Button
+              className="w-full"
+              onClick={() => {
+                setSelectedPlan('pro');
+                handleUpgradeClick();
+              }}
+              disabled={isProcessing || isSubscribed}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Upgrade - £15/month"
+              )}
+            </Button>
           </CardContent>
         </Card>
       </div>
