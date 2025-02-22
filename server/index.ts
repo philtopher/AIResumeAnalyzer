@@ -2,6 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { updateAdminPassword } from "./auth";
+import { createServer } from "http";
+import { AddressInfo } from "net";
 
 const app = express();
 
@@ -14,9 +16,6 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
-      if (req.method === 'POST' && path === '/api/send-pro-confirmation') {
-        log('Pro confirmation request body:', req.body);
-      }
     }
   });
 
@@ -39,16 +38,16 @@ app.get("/api/health", (_req, res) => {
   res.status(200).send("OK");
 });
 
-(async () => {
+async function startServer(initialPort: number) {
   try {
     await updateAdminPassword();
 
     // Register API routes before setting up Vite/static files
-    const server = registerRoutes(app);
+    registerRoutes(app);
 
     // Set up Vite or serve static files based on environment
     if (app.get("env") === "development") {
-      await setupVite(app, server);
+      await setupVite(app);
     } else {
       serveStatic(app);
     }
@@ -66,12 +65,47 @@ app.get("/api/health", (_req, res) => {
       res.status(status).json({ message });
     });
 
-    const PORT = 5000;
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server is running on port ${PORT}`);
-    });
+    // Create HTTP server
+    const server = createServer(app);
+
+    // Try to start the server with retries
+    let currentPort = initialPort;
+    const maxRetries = 10;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', (err: NodeJS.ErrnoException) => {
+            if (err.code === 'EADDRINUSE') {
+              currentPort++;
+              server.close();
+              resolve();
+            } else {
+              reject(err);
+            }
+          });
+
+          server.listen(currentPort, "0.0.0.0", () => {
+            const address = server.address() as AddressInfo;
+            log(`Server is running on port ${address.port}`);
+            resolve();
+          });
+        });
+        break; // Successfully started server
+      } catch (error) {
+        if (attempt === maxRetries - 1) {
+          throw error; // Reached max retries
+        }
+        currentPort++;
+      }
+    }
+
+    return server;
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
   }
-})();
+}
+
+// Start the server
+startServer(5000);

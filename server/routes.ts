@@ -38,78 +38,91 @@ export function registerRoutes(app: Express): Express {
 
   app.post("/api/send-deployment-guide", async (req: Request, res: Response) => {
     try {
-      // Store Terraform configurations as template literals with proper escaping
-      const vpcConfig = `
-# VPC Configuration (modules/vpc/main.tf)
-resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-  enable_dns_support   = true
+      const deploymentGuide = `# CV Transformer AWS Deployment Guide
 
-  tags = {
-    Name = "\${var.environment}-vpc"
-  }
-}
+## Prerequisites
+- AWS Account with appropriate permissions
+- Terraform installed (v1.0.0 or later)
+- Git installed
+- GitHub account
 
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
+## Environment Variables
+Configure your environment variables in a .env file:
 
-  tags = {
-    Name = "\${var.environment}-igw"
-  }
-}
+\`\`\`bash
+export DATABASE_URL=""
+export STRIPE_SECRET_KEY=""
+export SENDGRID_API_KEY=""
+\`\`\`
 
-resource "aws_subnet" "public" {
-  count             = length(var.public_subnets)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.public_subnets[count.index]
-  availability_zone = var.availability_zones[count.index]
+## Project Structure
+\`\`\`
+terraform/
+├── modules/
+│   ├── vpc/
+│   │   ├── main.tf         # VPC configuration
+│   │   ├── variables.tf    # Input variables
+│   │   └── outputs.tf      # Output values
+│   ├── ec2/
+│   │   ├── main.tf         # EC2 instance configuration
+│   │   ├── variables.tf    # Input variables
+│   │   └── outputs.tf      # Output values
+│   ├── rds/
+│   │   ├── main.tf         # RDS instance configuration
+│   │   ├── variables.tf    # Input variables
+│   │   └── outputs.tf      # Output values
+│   └── security/
+│       ├── main.tf         # Security groups and IAM roles
+│       ├── variables.tf    # Input variables
+│       └── outputs.tf      # Output values
+├── environments/
+│   ├── prod/
+│   │   ├── main.tf         # Production environment configuration
+│   │   ├── variables.tf    # Environment-specific variables
+│   │   └── terraform.tfvars # Production values
+│   └── staging/
+│       ├── main.tf         # Staging environment configuration
+│       ├── variables.tf    # Environment-specific variables
+│       └── terraform.tfvars # Staging values
+├── main.tf                 # Root module configuration
+├── variables.tf            # Root input variables
+├── outputs.tf             # Root output values
+└── versions.tf            # Required provider versions
+\`\`\`
 
-  tags = {
-    Name = "\${var.environment}-public-\${count.index + 1}"
-  }
-}
-`;
+## Deployment Steps
 
-      const emailContent = `
-        <h1>CV Transformer AWS Terraform Deployment Guide</h1>
-        <p>Below are the complete Terraform configurations for deploying CV Transformer on AWS. If you have any questions, simply reply to this email and our support team will assist you.</p>
+1. Clone the repository and initialize Terraform
+2. Configure AWS credentials and environment variables
+3. Create and apply Terraform configuration
+4. Set up monitoring and security measures
+5. Deploy the application
 
-        <h2>VPC Configuration</h2>
-        <pre style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto;">
-          <code>${vpcConfig}</code>
-        </pre>
-
-        <h2>Next Steps</h2>
-        <ol>
-          <li>Create the directory structure as shown above</li>
-          <li>Copy each configuration into its respective file</li>
-          <li>Create necessary variables.tf files in each module directory</li>
-          <li>Initialize Terraform and apply the configuration</li>
-        </ol>
-
-        <p>Additional configuration files and detailed setup instructions will be sent in follow-up emails. If you have any questions or need assistance, please reply directly to this email and our support team will help you.</p>
-        <p>Best regards,<br>The CV Transformer Team</p>
-      `;
+For detailed implementation steps, please refer to our comprehensive deployment documentation.`;
 
       console.log('Attempting to send deployment guide email...');
 
       const emailSent = await sendEmail({
         to: 'tufort-teams@yahoo.com',
-        subject: 'CV Transformer - AWS Terraform Deployment Guide (Part 1)',
-        html: emailContent,
-        replyTo: 'support@cvanalyzer.freindel.com'
+        from: 'noreply@cvanalyzer.freindel.com',
+        replyTo: 'support@cvanalyzer.freindel.com',
+        subject: 'CV Transformer - AWS Deployment Guide',
+        html: `
+          <h1>CV Transformer AWS Deployment Guide</h1>
+          <p>Please find below the detailed deployment guide for setting up CV Transformer on AWS using Terraform.</p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-family: monospace;">
+            ${deploymentGuide}
+          </div>
+          <p>If you have any questions or need assistance, please reply to this email.</p>
+          <p>Best regards,<br>The CV Transformer Team</p>
+        `
       });
 
-      if (!emailSent) {
-        throw new Error('Failed to send deployment guide email');
+      if (emailSent) {
+        res.json({ success: true, message: "Deployment guide sent successfully" });
+      } else {
+        throw new Error("Failed to send deployment guide");
       }
-
-      console.log('Email sent successfully');
-      res.json({ 
-        success: true, 
-        message: "Deployment guide with Terraform configurations sent successfully" 
-      });
     } catch (error: any) {
       console.error("Error sending deployment guide:", error);
       res.status(500).json({ 
