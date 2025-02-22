@@ -11,12 +11,20 @@ const FROM_EMAIL = 'noreply@cvanalyzer.freindel.com';
 const SUPPORT_EMAIL = 'support@cvanalyzer.freindel.com';
 const MAX_RETRY_ATTEMPTS = 3;
 
+interface Attachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+  disposition?: string;
+}
+
 export async function sendEmail(options: {
   to: string;
   subject: string;
   html: string;
   replyTo?: string;
   retryCount?: number;
+  attachments?: Attachment[];
 }): Promise<boolean> {
   const retryCount = options.retryCount || 0;
 
@@ -25,7 +33,8 @@ export async function sendEmail(options: {
       to: options.to,
       from: FROM_EMAIL,
       subject: options.subject,
-      replyTo: options.replyTo
+      replyTo: options.replyTo,
+      hasAttachments: options.attachments?.length > 0
     });
 
     const msg = {
@@ -37,6 +46,14 @@ export async function sendEmail(options: {
       replyTo: options.replyTo || SUPPORT_EMAIL,
       subject: options.subject,
       html: options.html,
+      attachments: options.attachments?.map(attachment => ({
+        filename: attachment.filename,
+        content: Buffer.isBuffer(attachment.content) 
+          ? attachment.content.toString('base64')
+          : Buffer.from(attachment.content).toString('base64'),
+        type: attachment.contentType,
+        disposition: attachment.disposition || 'attachment'
+      })),
       trackingSettings: {
         clickTracking: {
           enable: true
@@ -57,7 +74,8 @@ export async function sendEmail(options: {
     if (response?.statusCode === 200 || response?.statusCode === 202) {
       console.log('[SendGrid] Email sent successfully', {
         statusCode: response.statusCode,
-        messageId: response.headers['x-message-id']
+        messageId: response.headers['x-message-id'],
+        attachmentsCount: options.attachments?.length
       });
       return true;
     }
@@ -68,7 +86,8 @@ export async function sendEmail(options: {
       error: error.message,
       code: error.code,
       response: error.response?.body,
-      attempt: retryCount + 1
+      attempt: retryCount + 1,
+      hasAttachments: options.attachments?.length > 0
     });
 
     if (retryCount < MAX_RETRY_ATTEMPTS) {
