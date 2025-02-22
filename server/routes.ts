@@ -34,12 +34,12 @@ const upload = multer({
 });
 
 export function registerRoutes(app: Express): Express {
+  // Setup authentication routes
   setupAuth(app);
 
   app.post("/api/send-deployment-guide", async (req: Request, res: Response) => {
     try {
       const deploymentGuide = `# CV Transformer AWS Deployment Guide
-
 ## Prerequisites
 - AWS Account with appropriate permissions
 - Terraform installed (v1.0.0 or later)
@@ -128,6 +128,62 @@ For detailed implementation steps, please refer to our comprehensive deployment 
       res.status(500).json({ 
         success: false, 
         message: "Failed to send deployment guide",
+        error: error.message 
+      });
+    }
+  });
+
+  // Add migration guide email endpoint
+  app.post("/api/send-migration-guide", async (req: Request, res: Response) => {
+    try {
+      const manualMigrationGuide = `# Manual PostgreSQL Migration to AWS RDS Guide`;
+      const terraformMigrationGuide = `# PostgreSQL Migration to AWS RDS Using Terraform`;
+
+      // Send manual migration guide
+      const manualGuideEmailSent = await sendEmail({
+        to: 'tufort-teams@yahoo.com',
+        subject: 'CV Transformer - PostgreSQL to AWS RDS Migration Guide (Manual Process)',
+        html: `
+          <h1>PostgreSQL to AWS RDS Migration Guide - Manual Process</h1>
+          <p>Please find below the detailed guide for manually migrating your PostgreSQL database to AWS RDS.</p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-family: monospace;">
+            ${manualMigrationGuide}
+          </div>
+          <p>If you have any questions or need assistance, please reply to this email.</p>
+          <p>Best regards,<br>The CV Transformer Team</p>
+        `,
+        replyTo: 'support@cvanalyzer.freindel.com'
+      });
+
+      // Send Terraform migration guide
+      const terraformGuideEmailSent = await sendEmail({
+        to: 'tufort-teams@yahoo.com',
+        subject: 'CV Transformer - PostgreSQL to AWS RDS Migration Guide (Terraform Process)',
+        html: `
+          <h1>PostgreSQL to AWS RDS Migration Guide - Terraform Process</h1>
+          <p>Please find below the detailed guide for migrating your PostgreSQL database to AWS RDS using Terraform.</p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-family: monospace;">
+            ${terraformMigrationGuide}
+          </div>
+          <p>If you have any questions or need assistance, please reply to this email.</p>
+          <p>Best regards,<br>The CV Transformer Team</p>
+        `,
+        replyTo: 'support@cvanalyzer.freindel.com'
+      });
+
+      if (manualGuideEmailSent && terraformGuideEmailSent) {
+        res.json({ 
+          success: true, 
+          message: "Migration guides sent successfully" 
+        });
+      } else {
+        throw new Error("Failed to send migration guides");
+      }
+    } catch (error: any) {
+      console.error("Error sending migration guides:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to send migration guides",
         error: error.message 
       });
     }
