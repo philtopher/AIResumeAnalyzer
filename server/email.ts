@@ -7,13 +7,15 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const FROM_EMAIL = 'no-reply@cvanalyzer.freindel.com';
+const FROM_EMAIL = 'noreply@cvanalyzer.freindel.com';
+const SUPPORT_EMAIL = 'support@cvanalyzer.freindel.com';
 const MAX_RETRY_ATTEMPTS = 3;
 
 export async function sendEmail(options: {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string;
   retryCount?: number;
 }): Promise<boolean> {
   const retryCount = options.retryCount || 0;
@@ -22,7 +24,8 @@ export async function sendEmail(options: {
     console.log(`[SendGrid] Attempting to send email (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS + 1})`, {
       to: options.to,
       from: FROM_EMAIL,
-      subject: options.subject
+      subject: options.subject,
+      replyTo: options.replyTo
     });
 
     const msg = {
@@ -31,9 +34,9 @@ export async function sendEmail(options: {
         email: FROM_EMAIL,
         name: "CV Transformer"
       },
+      replyTo: options.replyTo || SUPPORT_EMAIL,
       subject: options.subject,
       html: options.html,
-      // Ensure proper tracking settings
       trackingSettings: {
         clickTracking: {
           enable: true
@@ -42,7 +45,6 @@ export async function sendEmail(options: {
           enable: true
         }
       },
-      // Simplified mail settings
       mailSettings: {
         sandboxMode: {
           enable: false
@@ -52,7 +54,6 @@ export async function sendEmail(options: {
 
     const [response] = await sgMail.send(msg);
 
-    // Accept both 200 and 202 as success codes
     if (response?.statusCode === 200 || response?.statusCode === 202) {
       console.log('[SendGrid] Email sent successfully', {
         statusCode: response.statusCode,
@@ -70,7 +71,6 @@ export async function sendEmail(options: {
       attempt: retryCount + 1
     });
 
-    // Retry logic
     if (retryCount < MAX_RETRY_ATTEMPTS) {
       console.log(`[SendGrid] Retrying... (${retryCount + 2}/${MAX_RETRY_ATTEMPTS + 1})`);
       return sendEmail({
@@ -153,7 +153,8 @@ export async function sendContactFormNotification(contactData: {
     const adminNotification = await sendEmail({
       to: FROM_EMAIL,
       subject: `New Contact Form Message from ${contactData.name}`,
-      html: emailContent
+      html: emailContent,
+      replyTo: contactData.email // Added replyTo for contact form
     });
 
     // Send confirmation to user
