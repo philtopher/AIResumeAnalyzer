@@ -9,12 +9,12 @@ type PaymentStatus = "loading" | "success" | "error" | "invalid";
 export default function PaymentCompletePage() {
   const [status, setStatus] = useState<PaymentStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [planType, setPlanType] = useState<"standard" | "pro">("standard");
   const [location] = useLocation();
 
   useEffect(() => {
     const verifyPayment = async () => {
       try {
-        // Get session_id from URL if it exists
         const params = new URLSearchParams(window.location.search);
         const sessionId = params.get('session_id');
 
@@ -23,7 +23,6 @@ export default function PaymentCompletePage() {
           return;
         }
 
-        // Verify payment status with backend
         const response = await fetch(`/api/verify-payment?session_id=${sessionId}`, {
           credentials: 'include'
         });
@@ -35,8 +34,8 @@ export default function PaymentCompletePage() {
         const data = await response.json();
 
         if (data.status === 'success') {
+          setPlanType(data.planType);
           setStatus("success");
-          // Track successful payment completion
           try {
             const event = new Event('payment_complete');
             window.dispatchEvent(event);
@@ -112,19 +111,27 @@ export default function PaymentCompletePage() {
           <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
             <CheckCircle className="h-6 w-6 text-green-600" />
           </div>
-          <CardTitle className="text-2xl mb-2">Welcome to CV Transformer Pro!</CardTitle>
+          <CardTitle className="text-2xl mb-2">
+            Welcome to CV Transformer {planType === 'pro' ? 'Pro' : 'Standard'}!
+          </CardTitle>
           <CardDescription className="text-lg">
-            Your account has been successfully upgraded
+            Your account has been successfully activated
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="bg-muted p-4 rounded-lg">
-            <h3 className="font-medium mb-2">🎉 What's included in your Pro plan:</h3>
+            <h3 className="font-medium mb-2">🎉 What's included in your {planType === 'pro' ? 'Pro' : 'Standard'} plan:</h3>
             <ul className="space-y-2 text-sm">
               <li>✓ Advanced CV transformation with AI-powered insights</li>
-              <li>✓ Unlimited CV transformations</li>
-              <li>✓ Priority support</li>
-              <li>✓ Access to all premium features</li>
+              <li>✓ Download transformed CVs</li>
+              <li>✓ Keyword optimization</li>
+              {planType === 'pro' && (
+                <>
+                  <li>✓ Interview preparation insights</li>
+                  <li>✓ Advanced analytics dashboard</li>
+                  <li>✓ Priority support</li>
+                </>
+              )}
             </ul>
           </div>
 
@@ -148,6 +155,19 @@ export default function PaymentCompletePage() {
               </Button>
             </Link>
           </div>
+
+          {planType === 'standard' && (
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-2">
+                Want more features? Upgrade to Pro for advanced analytics and interview insights
+              </p>
+              <Link href="/upgrade">
+                <Button variant="outline">
+                  Upgrade to Pro
+                </Button>
+              </Link>
+            </div>
+          )}
 
           <div className="text-center text-sm text-muted-foreground mt-6">
             <p>Need help getting started?</p>

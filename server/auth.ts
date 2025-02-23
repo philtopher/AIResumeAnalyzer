@@ -10,6 +10,7 @@ import { db } from "@db";
 import { eq, and, gt, desc } from "drizzle-orm";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 import { sendEmail } from "./email"; // Import sendEmail function
+import Stripe from 'stripe';
 
 const scryptAsync = promisify(scrypt);
 
@@ -627,7 +628,7 @@ export function setupAuth(app: Express) {
         });
       }
 
-      // Mark email as verified
+      // Mark email as verified but don't change role yet
       await db
         .update(users)
         .set({
@@ -637,22 +638,32 @@ export function setupAuth(app: Express) {
         })
         .where(eq(users.id, user.id));
 
-      // Check if user already has a subscription
-      const [subscription] = await db
-        .select()
-        .from(subscriptions)
-        .where(eq(subscriptions.userId, user.id))
-        .limit(1);
+      // Create Stripe checkout session for Standard plan
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2023-10-16',
+      });
 
-      // If no subscription, redirect to upgrade page
-      if (!subscription) {
-        const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
-        return res.redirect(`${baseUrl}/upgrade?verified=true`);
-      }
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: 'price_1QsdBjIPzZXVDbyymTKeUnsC', // Standard plan price ID
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${process.env.APP_URL}/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.APP_URL}/upgrade`,
+        customer_email: user.email,
+        client_reference_id: user.id.toString(),
+        metadata: {
+          userId: user.id,
+          plan: 'standard'
+        }
+      });
 
-      // If already subscribed, redirect to dashboard
-      const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
-      res.redirect(`${baseUrl}/dashboard?verified=true`);
+      // Redirect to Stripe checkout
+      res.redirect(session.url || '/upgrade');
     } catch (error) {
       console.error("Email verification error:", error);
       res.status(500).json({
