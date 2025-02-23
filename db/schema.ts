@@ -115,6 +115,41 @@ export const dataDeletionRequests = pgTable("data_deletion_requests", {
   notes: text("notes"),
 });
 
+// Add new tables for Pro features after the existing tables
+export const interviewerInsights = pgTable("interviewer_insights", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  interviewerName: text("interviewer_name").notNull(),
+  interviewerRole: text("interviewer_role").notNull(),
+  organizationName: text("organization_name").notNull(),
+  organizationWebsite: text("organization_website").notNull(),
+  linkedinProfile: text("linkedin_profile"),
+  insights: jsonb("insights").$type<{
+    background: string[];
+    expertise: string[];
+    recentActivity: string[];
+    commonInterests: string[];
+  }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const organizationAnalysis = pgTable("organization_analysis", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  organizationName: text("organization_name").notNull(),
+  website: text("website").notNull(),
+  analysis: jsonb("analysis").$type<{
+    industryPosition: string;
+    competitors: string[];
+    recentDevelopments: string[];
+    culture: string[];
+    techStack: string[];
+  }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   subscriptions: many(subscriptions),
@@ -155,6 +190,21 @@ export const dataDeletionRequestsRelations = relations(dataDeletionRequests, ({ 
   }),
 }));
 
+// Add relations for new tables
+export const interviewerInsightsRelations = relations(interviewerInsights, ({ one }) => ({
+  user: one(users, {
+    fields: [interviewerInsights.userId],
+    references: [users.id],
+  }),
+}));
+
+export const organizationAnalysisRelations = relations(organizationAnalysis, ({ one }) => ({
+  user: one(users, {
+    fields: [organizationAnalysis.userId],
+    references: [users.id],
+  }),
+}));
+
 // Create Zod schemas
 export const insertUserSchema = createInsertSchema(users).extend({
   password: z.string()
@@ -184,6 +234,13 @@ export const selectSystemMetricsSchema = createSelectSchema(systemMetrics);
 export const insertDataDeletionRequestSchema = createInsertSchema(dataDeletionRequests);
 export const selectDataDeletionRequestSchema = createSelectSchema(dataDeletionRequests);
 
+// Add Zod schemas for new tables
+export const insertInterviewerInsightSchema = createInsertSchema(interviewerInsights);
+export const selectInterviewerInsightSchema = createSelectSchema(interviewerInsights);
+export const insertOrganizationAnalysisSchema = createInsertSchema(organizationAnalysis);
+export const selectOrganizationAnalysisSchema = createSelectSchema(organizationAnalysis);
+
+
 // Export types
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -203,6 +260,12 @@ export type SystemMetrics = typeof systemMetrics.$inferSelect;
 export type InsertSystemMetrics = typeof systemMetrics.$inferInsert;
 export type DataDeletionRequest = typeof dataDeletionRequests.$inferSelect;
 export type InsertDataDeletionRequest = typeof dataDeletionRequests.$inferInsert;
+
+// Export types for new tables
+export type InterviewerInsight = typeof interviewerInsights.$inferSelect;
+export type InsertInterviewerInsight = typeof interviewerInsights.$inferInsert;
+export type OrganizationAnalysis = typeof organizationAnalysis.$inferSelect;
+export type InsertOrganizationAnalysis = typeof organizationAnalysis.$inferInsert;
 
 // Authentication schemas
 export const loginSchema = z.object({

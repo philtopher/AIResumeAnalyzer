@@ -3,8 +3,8 @@ import { Request, Response } from "express";
 import { setupAuth } from "./auth";
 import { db } from "@db";
 import { sendEmail } from "./email";
-import { users, cvs, activityLogs, subscriptions, contacts } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
+import { users, cvs, activityLogs, subscriptions, contacts, interviewerInsights, organizationAnalysis } from "@db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema";
 import multer from "multer";
 import { extname } from "path";
@@ -582,6 +582,231 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         message: "Failed to send deployment guide",
         error: error.message 
       });
+    }
+  });
+
+  // Add the following endpoints after the existing routes
+  app.post("/api/upgrade-to-pro", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Check current subscription status
+      const [currentSubscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, req.user.id))
+        .orderBy(desc(subscriptions.createdAt))
+        .limit(1);
+
+      const isStandardPlan = currentSubscription?.status === 'active';
+
+      // Initialize Stripe
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2023-10-16',
+      });
+
+      // Create Stripe checkout session with dynamic pricing
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: isStandardPlan 
+              ? 'price_standard_to_pro_upgrade' // Price ID for £10 upgrade
+              : 'price_pro_full', // Price ID for full £15 Pro plan
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${process.env.APP_URL}/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.APP_URL}/upgrade`,
+        customer_email: req.user.email,
+        client_reference_id: req.user.id.toString(),
+        metadata: {
+          userId: req.user.id,
+          plan: 'pro',
+          upgradeFromStandard: isStandardPlan
+        }
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error("Pro upgrade error:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  // Add endpoint for AI interviewer insights (Pro users only)
+  app.post("/api/pro/interviewer-insights", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Check if user has Pro access
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, req.user.id),
+            eq(subscriptions.status, 'active')
+          )
+        )
+        .limit(1);
+
+      if (!subscription || req.user.role !== 'pro_user') {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+
+      const { interviewerName, interviewerRole, organizationName, organizationWebsite } = req.body;
+
+      // Store the request
+      const [insight] = await db
+        .insert(interviewerInsights)
+        .values({
+          userId: req.user.id,
+          interviewerName,
+          interviewerRole,
+          organizationName,
+          organizationWebsite,
+          insights: {
+            background: [],
+            expertise: [],
+            recentActivity: [],
+            commonInterests: []
+          }
+        })
+        .returning();
+
+      // In a real implementation, you would make API calls to gather data
+      // For now, we'll return a mock response
+      const mockInsights = {
+        background: [
+          "10+ years in the industry",
+          "Previously worked at leading companies",
+          "Active speaker at industry conferences"
+        ],
+        expertise: [
+          "Technical leadership",
+          "Agile methodologies",
+          "Cloud architecture"
+        ],
+        recentActivity: [
+          "Published articles on LinkedIn",
+          "Spoke at recent tech conference",
+          "Contributed to open source projects"
+        ],
+        commonInterests: [
+          "Software architecture",
+          "Team leadership",
+          "Innovation in tech"
+        ]
+      };
+
+      // Update the insight with gathered data
+      await db
+        .update(interviewerInsights)
+        .set({
+          insights: mockInsights,
+          updatedAt: new Date()
+        })
+        .where(eq(interviewerInsights.id, insight.id));
+
+      res.json({ 
+        success: true, 
+        insights: mockInsights
+      });
+    } catch (error) {
+      console.error("Interviewer insights error:", error);
+      res.status(500).json({ error: "Failed to gather insights" });
+    }
+  });
+
+  // Add endpoint for organization analysis (Pro users only)
+  app.post("/api/pro/organization-analysis", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Check if user has Pro access
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, req.user.id),
+            eq(subscriptions.status, 'active')
+          )
+        )
+        .limit(1);
+
+      if (!subscription || req.user.role !== 'pro_user') {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+
+      const { organizationName, website } = req.body;
+
+      // Store the request
+      const [analysis] = await db
+        .insert(organizationAnalysis)
+        .values({
+          userId: req.user.id,
+          organizationName,
+          website,
+          analysis: {
+            industryPosition: "",
+            competitors: [],
+            recentDevelopments: [],
+            culture: [],
+            techStack: []
+          }
+        })
+        .returning();
+
+      // Mock response for demonstration
+      const mockAnalysis = {
+        industryPosition: "Leading provider in enterprise software solutions",
+        competitors: [
+          "Major competitor A",
+          "Growing startup B",
+          "Established player C"
+        ],
+        recentDevelopments: [
+          "Recent acquisition in AI space",
+          "New product launch",
+          "International expansion"
+        ],
+        culture: [
+          "Innovation-driven environment",
+          "Strong emphasis on work-life balance",
+          "Remote-first workplace"
+        ],
+        techStack: [
+          "Cloud-native architecture",
+          "Modern development frameworks",
+          "AI/ML capabilities"
+        ]
+      };
+
+      // Update the analysis with gathered data
+      await db
+        .update(organizationAnalysis)
+        .set({
+          analysis: mockAnalysis,
+          updatedAt: new Date()
+        })
+        .where(eq(organizationAnalysis.id, analysis.id));
+
+      res.json({
+        success: true,
+        analysis: mockAnalysis
+      });
+    } catch (error) {
+      console.error("Organization analysis error:", error);
+      res.status(500).json({ error: "Failed to analyze organization" });
     }
   });
 
