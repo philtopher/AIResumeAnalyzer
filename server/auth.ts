@@ -657,7 +657,7 @@ export function setupAuth(app: Express) {
         payment_method_types: ['card'],
         line_items: [
           {
-            price: 'price_1QsdBjIPzZXVDbyymTKeUnsC', // Standard plan price ID
+            price: 'price_1QsdBjIPzZXVDbyymTKeUnsC', // Standard plan price ID £5
             quantity: 1,
           },
         ],
