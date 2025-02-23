@@ -3,7 +3,7 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import * as z from 'zod';
 
-// User table definition with added privacy fields
+// User table definition with added privacy fields and trial period tracking
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
@@ -18,6 +18,9 @@ export const users = pgTable("users", {
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // New trial period fields
+  trialStartedAt: timestamp("trial_started_at"),
+  trialEndedAt: timestamp("trial_ended_at"),
   // New privacy-related fields
   dataProcessingRestricted: boolean("data_processing_restricted").default(false),
   privacySettingsUpdatedAt: timestamp("privacy_settings_updated_at"),

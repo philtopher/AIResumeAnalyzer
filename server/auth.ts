@@ -1,6 +1,6 @@
 import passport from "passport";
 import { IVerifyOptions, Strategy as LocalStrategy } from "passport-local";
-import { type Express } from "express";
+import { type Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual, randomUUID } from "crypto";
@@ -201,8 +201,24 @@ declare global {
       subscriptions?: {
         status: string;
       } | null;
+      trialStartedAt?: Date;
+      trialEndedAt?: Date;
     }
   }
+}
+
+// Add trial period check function
+async function checkTrialStatus(user: Express.User) {
+  if (user.role === 'user' && !user.subscriptions?.status) {
+    const trialDuration = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+    const trialStart = user.trialStartedAt || user.createdAt;
+    const trialExpired = Date.now() - trialStart.getTime() > trialDuration;
+
+    if (trialExpired) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // Add this function to check subscription status
@@ -252,7 +268,6 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        // Join with subscriptions table to get subscription info
         const result = await db
           .select({
             id: users.id,
@@ -262,6 +277,8 @@ export function setupAuth(app: Express) {
             role: users.role,
             emailVerified: users.emailVerified,
             subscription: subscriptions,
+            createdAt: users.createdAt,
+            trialStartedAt: users.trialStartedAt,
           })
           .from(users)
           .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
@@ -291,6 +308,8 @@ export function setupAuth(app: Express) {
           role: hasActiveSubscription ? 'pro_user' : user.role,
           emailVerified: user.emailVerified ?? false,
           subscriptions: user.subscription ? { status: user.subscription.status } : null,
+          createdAt: user.createdAt,
+          trialStartedAt: user.trialStartedAt,
         };
 
         return done(null, userForAuth);
@@ -358,41 +377,27 @@ export function setupAuth(app: Express) {
       const [existingUser] = await db
         .select()
         .from(users)
-        .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
         .where(eq(users.username, username))
         .limit(1);
 
       const [existingEmail] = await db
         .select()
         .from(users)
-        .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
         .where(eq(users.email, email))
         .limit(1);
 
       if (existingUser) {
-        // Check if the existing user has an active subscription
-        if (existingUser.subscriptions && existingUser.subscriptions.status === 'active') {
-          return res.status(400).json({
-            error: "pro_user_exists",
-            message: "An account with pro subscription already exists. Please login instead."
-          });
-        }
         return res.status(400).send("Username already exists");
       }
 
       if (existingEmail) {
-        // Check if the existing email has an active subscription
-        if (existingEmail.subscriptions && existingEmail.subscriptions.status === 'active') {
-          return res.status(400).json({
-            error: "pro_user_exists",
-            message: "This email is associated with a pro subscription. Please login instead."
-          });
-        }
         return res.status(400).send("Email address is already registered");
       }
 
       // Hash the password
       const hashedPassword = await hashPassword(password);
+      const trialStart = new Date();
+      const trialEnd = new Date(trialStart.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
 
       const [newUser] = await db
         .insert(users)
@@ -404,6 +409,8 @@ export function setupAuth(app: Express) {
           emailVerified: false,
           verificationToken: randomUUID(),
           verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
+          trialStartedAt: trialStart,
+          trialEndedAt: trialEnd,
         })
         .returning();
 
@@ -429,6 +436,8 @@ export function setupAuth(app: Express) {
             email: newUser.email,
             role: newUser.role,
             emailVerified: false,
+            trialStartedAt: trialStart,
+            trialEndedAt: trialEnd,
           },
         });
       });
@@ -603,6 +612,7 @@ export function setupAuth(app: Express) {
       res.status(500).send(error.message);
     }
   });
+
   // In the email verification endpoint, update the redirect logic
   app.get("/api/verify-email/:token", async (req, res) => {
     try {
@@ -757,6 +767,29 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Add middleware to check trial status for protected routes
+  const checkTrialExpiration = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    const hasValidTrial = await checkTrialStatus(req.user);
+    if (!hasValidTrial && !req.user.subscriptions?.status) {
+      return res.status(402).json({
+        error: "trial_expired",
+        message: "Your trial period has expired. Please upgrade to continue using the service.",
+        upgradeUrl: "/upgrade"
+      });
+    }
+
+    next();
+  };
+
+  // Add trial check to protected routes
+  app.use("/api/cv", checkTrialExpiration);
+  app.use("/api/analyze", checkTrialExpiration);
+
   // Call createOrUpdateAdmin when setting up auth
   createOrUpdateAdmin().catch(console.error);
+  return app;
 }
