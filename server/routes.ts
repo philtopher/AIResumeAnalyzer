@@ -42,7 +42,7 @@ export function registerRoutes(app: Express): Express {
   app.post("/api/send-migration-guide", async (req: Request, res: Response) => {
     try {
       const manualMigrationGuide = `# Manual PostgreSQL Migration to AWS RDS Guide
-
+            
 ## Prerequisites
 - AWS Account with RDS access
 - PostgreSQL client (psql) installed locally
@@ -488,7 +488,6 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
     }
   });
 
-  //This part remains unchanged from original
   app.post("/api/send-deployment-guide", async (req: Request, res: Response) => {
     try {
       const deploymentGuide = `# CV Transformer AWS Deployment Guide
@@ -807,6 +806,70 @@ For detailed implementation steps, please refer to our comprehensive deployment 
     } catch (error) {
       console.error("Organization analysis error:", error);
       res.status(500).json({ error: "Failed to analyze organization" });
+    }
+  });
+
+  // Add the following endpoint after the existing pro-related routes
+  app.post("/api/downgrade-to-standard", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Get current subscription
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, req.user.id))
+        .orderBy(desc(subscriptions.createdAt))
+        .limit(1);
+
+      if (!subscription || subscription.status !== 'active') {
+        return res.status(400).json({ error: "No active subscription found" });
+      }
+
+      // Initialize Stripe
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2023-10-16',
+      });
+
+      // Update the subscription to Standard plan
+      const updatedSubscription = await stripe.subscriptions.update(
+        subscription.stripeSubscriptionId,
+        {
+          items: [{
+            id: subscription.stripeSubscriptionId,
+            price: 'price_standard_plan', // Price ID for £5 Standard plan
+          }],
+          proration_behavior: 'create_prorations',
+        }
+      );
+
+      // Update subscription in database
+      await db
+        .update(subscriptions)
+        .set({
+          status: updatedSubscription.status,
+          updatedAt: new Date(),
+        })
+        .where(eq(subscriptions.id, subscription.id));
+
+      // Update user role
+      await db
+        .update(users)
+        .set({
+          role: 'user'
+        })
+        .where(eq(users.id, req.user.id));
+
+      res.json({
+        success: true,
+        message: "Successfully downgraded to Standard plan"
+      });
+
+    } catch (error) {
+      console.error("Subscription downgrade error:", error);
+      res.status(500).json({ error: "Failed to downgrade subscription" });
     }
   });
 
