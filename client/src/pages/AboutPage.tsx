@@ -64,11 +64,11 @@ export default function AboutPage() {
               for professionals, focusing on accuracy and ethical transformation.
             </p>
             <div className="flex gap-4 justify-center">
-              <Link href="/public-cv">
-                <Button size="lg">Try Demo</Button>
-              </Link>
               <Link href="/features">
-                <Button variant="outline" size="lg">View Features</Button>
+                <Button size="lg">View Features</Button>
+              </Link>
+              <Link href="/auth">
+                <Button variant="outline" size="lg">Get Started</Button>
               </Link>
             </div>
           </div>
@@ -112,9 +112,9 @@ export default function AboutPage() {
                 See How It Works
               </Button>
             </Link>
-            <Link href="/public-cv">
+            <Link href="/auth">
               <Button size="lg">
-                Transform Your CV
+                Start Your Journey
               </Button>
             </Link>
           </div>
