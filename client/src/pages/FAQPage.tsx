@@ -92,9 +92,6 @@ export default function FAQPage() {
               <Link href="/contact">
                 <Button>Contact Support</Button>
               </Link>
-              <Link href="/public-cv">
-                <Button variant="outline">Try Demo</Button>
-              </Link>
             </div>
           </div>
         </div>

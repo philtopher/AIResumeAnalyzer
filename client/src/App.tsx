@@ -62,7 +62,6 @@ function Navigation() {
   const menuItems = [
     { label: "About", path: "/about" },
     { label: "How It Works", path: "/how-it-works" },
-    { label: "Try Demo", path: "/public-cv" },
     { label: "Contact", path: "/contact" },
   ];
 

@@ -44,11 +44,6 @@ export function Footer() {
                   <a className="text-sm text-muted-foreground hover:text-primary">How It Works</a>
                 </Link>
               </li>
-              <li>
-                <Link href="/public-cv">
-                  <a className="text-sm text-muted-foreground hover:text-primary">Try Demo</a>
-                </Link>
-              </li>
             </ul>
           </div>
 

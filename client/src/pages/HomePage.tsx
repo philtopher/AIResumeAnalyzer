@@ -29,8 +29,8 @@ export default function HomePage() {
                   Our advanced AI analyzes and enhances your professional experience, delivering role-optimized CVs that highlight your true potential while maintaining complete accuracy. Get instant feedback and improve your chances of landing your dream job.
                 </p>
                 <div className="flex gap-4">
-                  <Link href="/public-cv">
-                    <Button size="lg">Start Free Trial</Button>
+                  <Link href="/auth">
+                    <Button size="lg">Get Started</Button>
                   </Link>
                   <Link href="/tutorial">
                     <Button variant="outline" size="lg">
