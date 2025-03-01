@@ -5,17 +5,24 @@
  * @package CVTransformer
  */
 
-// Redirect non-subscribers to pricing page
-if (is_user_logged_in()) {
-    $user_id = get_current_user_id();
-    $subscription_status = get_user_meta($user_id, '_subscription_status', true);
+// Check for access to premium content using our compatibility function
+// This will check Paid Membership Pro first if installed, then default to our subscription system
+$has_access = cvtransformer_check_premium_access('cv_transform');
 
-    if ($subscription_status !== 'active') {
-        wp_redirect(home_url('/pricing/'));
-        exit;
+if (!$has_access) {
+    // Determine which plugin is controlling access to show appropriate messaging
+    if (function_exists('pmpro_hasMembershipLevel')) {
+        // Paid Membership Pro is active
+        $redirect_url = pmpro_url('levels');
+        $message = __('You need an active membership to access this feature.', 'cvtransformer');
+    } else {
+        // Default subscription system
+        $redirect_url = home_url('/pricing/');
+        $message = __('You need an active subscription to access this feature.', 'cvtransformer');
     }
-} else {
-    wp_redirect(home_url('/login/'));
+
+    // Set message and redirect
+    wp_redirect($redirect_url);
     exit;
 }
 
@@ -133,9 +140,9 @@ get_header();
                                     </div>
 
                                     <?php
-                                    // Check if user has Pro subscription
-                                    $is_pro = get_user_meta(get_current_user_id(), '_subscription_is_pro', true) === '1';
-                                    if ($is_pro) :
+                                    // Check if user has Pro access
+                                    $has_pro_access = cvtransformer_check_premium_access('pro_features');
+                                    if ($has_pro_access) :
                                     ?>
                                     <div class="pro-insights-section">
                                         <h4><?php _e('Pro Insights', 'cvtransformer'); ?></h4>
@@ -177,7 +184,15 @@ get_header();
                                     <div class="pro-upgrade-section">
                                         <h4><?php _e('Unlock Pro Insights', 'cvtransformer'); ?></h4>
                                         <p><?php _e('Upgrade to the Pro plan to access organization and interviewer insights.', 'cvtransformer'); ?></p>
-                                        <a href="<?php echo esc_url(home_url('/pricing/')); ?>" class="button button-primary">
+                                        <?php 
+                                        // Show appropriate upgrade link based on active membership system
+                                        if (function_exists('pmpro_hasMembershipLevel')) {
+                                            $upgrade_url = pmpro_url('levels');
+                                        } else {
+                                            $upgrade_url = home_url('/pricing/');
+                                        }
+                                        ?>
+                                        <a href="<?php echo esc_url($upgrade_url); ?>" class="button button-primary">
                                             <?php _e('Upgrade to Pro', 'cvtransformer'); ?>
                                         </a>
                                     </div>
@@ -327,7 +342,7 @@ jQuery(document).ready(function($) {
         document.body.removeChild(element);
     });
 
-    <?php if ($is_pro) : ?>
+    <?php if ($has_pro_access) : ?>
     // Organization analysis
     $('#analyze-organization-button').on('click', function() {
         var organizationName = $('#organization-name').val();
@@ -649,3 +664,4 @@ jQuery(document).ready(function($) {
 
 <?php
 get_footer();
+?>

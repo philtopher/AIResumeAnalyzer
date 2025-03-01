@@ -19,6 +19,7 @@ define('CVTRANSFORMER_URI', get_template_directory_uri());
  * Include required theme files
  */
 require_once CVTRANSFORMER_DIR . '/inc/customizer.php';
+require_once CVTRANSFORMER_DIR . '/inc/plugin-compatibility.php'; // Include plugin compatibility functions
 
 /**
  * Sets up theme defaults and registers support for various WordPress features.
@@ -242,24 +243,16 @@ function cvtransformer_process_cv_transformation() {
         return;
     }
 
-    // Check if user is logged in
-    if (!is_user_logged_in()) {
-        error_log('CV Transformation: User not authenticated');
-        wp_send_json_error('You must be logged in to use this feature. Please log in and try again.');
+    // Check if user has premium access using our compatibility function
+    // This will check Paid Membership Pro first if installed, then default to our subscription system
+    if (!cvtransformer_check_premium_access('cv_transform')) {
+        error_log('CV Transformation: No premium access');
+        wp_send_json_error('You need premium access to use this feature. Please subscribe to a plan.');
         return;
     }
 
     // Get current user
     $user_id = get_current_user_id();
-
-    // Check subscription status
-    $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-
-    if ($subscription_status !== 'active') {
-        error_log('CV Transformation: Active subscription required');
-        wp_send_json_error('An active subscription is required to use this feature. Please subscribe to a plan.');
-        return;
-    }
 
     // Debug uploaded files
     error_log('CV Transformation: FILES data: ' . print_r($_FILES, true));
@@ -409,170 +402,6 @@ function cvtransformer_process_cv_transformation() {
 add_action('wp_ajax_cvtransformer_process_cv_transformation', 'cvtransformer_process_cv_transformation');
 
 /**
- * Process Public CV Transformation
- * AJAX handler for public/free CV transformation (with limitations)
- */
-function cvtransformer_process_public_cv_transformation() {
-    // Add logging for debugging
-    error_log('Public CV Transformation AJAX request received');
-
-    // Check nonce
-    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
-        error_log('Public CV Transformation: Invalid nonce');
-        wp_send_json_error('Invalid security token. Please refresh the page and try again.');
-        return;
-    }
-
-    // Debug uploaded files
-    error_log('Public CV Transformation: FILES data: ' . print_r($_FILES, true));
-
-    // Check file upload
-    if (empty($_FILES['cv_file']) || $_FILES['cv_file']['error'] !== UPLOAD_ERR_OK) {
-        $error_message = 'File upload failed. ';
-        if (!empty($_FILES['cv_file']['error'])) {
-            $error_message .= 'Error code: ' . $_FILES['cv_file']['error'];
-        } else {
-            $error_message .= 'No file was uploaded.';
-        }
-        error_log('Public CV Transformation: ' . $error_message);
-        wp_send_json_error($error_message);
-        return;
-    }
-
-    // Get form data
-    $target_role = isset($_POST['target_role']) ? sanitize_text_field($_POST['target_role']) : '';
-    $job_description = isset($_POST['job_description']) ? sanitize_textarea_field($_POST['job_description']) : '';
-
-    if (empty($target_role) || empty($job_description)) {
-        error_log('Public CV Transformation: Missing form data');
-        wp_send_json_error('Target role and job description are required. Please complete all fields.');
-        return;
-    }
-
-    // Check file type
-    $file_type = strtolower(pathinfo($_FILES['cv_file']['name'], PATHINFO_EXTENSION));
-    if (!in_array($file_type, ['pdf', 'docx'])) {
-        error_log('Public CV Transformation: Invalid file type: ' . $file_type);
-        wp_send_json_error('Only PDF and DOCX files are supported. Please upload a file in one of these formats.');
-        return;
-    }
-
-    // Process the CV file (for public demo with limitations)
-    try {
-        // Create uploads directory if it doesn't exist
-        $upload_dir = wp_upload_dir();
-        $cv_dir = $upload_dir['basedir'] . '/cv_transformer';
-
-        if (!file_exists($cv_dir)) {
-            wp_mkdir_p($cv_dir);
-        }
-
-        // Move uploaded file to temporary location
-        $temp_file = $cv_dir . '/' . uniqid('cv_public_') . '.' . $file_type;
-        if (!move_uploaded_file($_FILES['cv_file']['tmp_name'], $temp_file)) {
-            error_log('Public CV Transformation: Failed to move uploaded file');
-            wp_send_json_error('Failed to process uploaded file. Please try again.');
-            return;
-        }
-
-        error_log('Public CV Transformation: File moved to: ' . $temp_file);
-
-        // Get file content (simulate CV transformation)
-        $original_content = 'Original CV content would be extracted here';
-
-        // Create a more limited transformed content for public demo
-        $transformed_content = "DEMO TRANSFORMED CV FOR: {$target_role}\n\n";
-        $transformed_content .= "This is a limited public demo of our CV transformation service.\n";
-        $transformed_content .= "Subscribe to unlock full features and personalized CV transformation.\n\n";
-        $transformed_content .= "PROFESSIONAL SUMMARY\n";
-        $transformed_content .= "Professional with experience relevant to {$target_role} roles.\n\n";
-        $transformed_content .= "WORK EXPERIENCE\n";
-        $transformed_content .= "- Led key projects with measurable results\n";
-        $transformed_content .= "- Managed teams efficiently\n\n";
-        $transformed_content .= "SKILLS\n";
-        $transformed_content .= "- Programming languages relevant to {$target_role}\n";
-        $transformed_content .= "- Project management\n";
-        $transformed_content .= "- Team leadership\n";
-
-        // Generate limited feedback
-        $feedback = [
-            'strengths' => [
-                'Good overall structure',
-                'Clear sections for easy reading',
-            ],
-            'weaknesses' => [
-                'Limited keyword optimization',
-                'Generic content could be more specific',
-            ],
-            'suggestions' => [
-                'Subscribe for personalized transformation',
-                'Consider adding more specific achievements',
-            ],
-        ];
-
-        // Calculate match score (capped at 70 for public demo)
-        $score = mt_rand(60, 70);
-
-        // Create temporary session data for the transformation
-        $transformation_id = md5(time() . $target_role . rand(1000, 9999));
-        set_transient('public_cv_' . $transformation_id, [
-            'transformed_content' => $transformed_content,
-            'score' => $score,
-            'feedback' => $feedback,
-            'created_at' => time(),
-        ], 3600); // Expire after 1 hour
-
-        // Clean up temporary file
-        @unlink($temp_file);
-
-        error_log('Public CV Transformation: Success, transformation ID: ' . $transformation_id);
-
-        // Return success response
-        wp_send_json_success([
-            'id' => $transformation_id,
-            'transformed_content' => $transformed_content,
-            'score' => $score,
-            'feedback' => $feedback,
-        ]);
-
-    } catch (Exception $e) {
-        error_log('Public CV Transformation: Exception: ' . $e->getMessage());
-        wp_send_json_error('An error occurred during transformation: ' . $e->getMessage());
-    }
-}
-add_action('wp_ajax_nopriv_cvtransformer_process_public_cv_transformation', 'cvtransformer_process_public_cv_transformation');
-add_action('wp_ajax_cvtransformer_process_public_cv_transformation', 'cvtransformer_process_public_cv_transformation');
-
-/**
- * Get Public CV Content
- * AJAX handler for retrieving public CV transformation
- */
-function cvtransformer_get_public_cv_content() {
-    // Check nonce
-    if (!isset($_GET['nonce']) || !wp_verify_nonce($_GET['nonce'], 'cvtransformer_nonce')) {
-        wp_send_json_error('Invalid nonce');
-    }
-
-    // Get transformation ID
-    $transformation_id = isset($_GET['id']) ? sanitize_text_field($_GET['id']) : '';
-
-    if (empty($transformation_id)) {
-        wp_send_json_error('Transformation ID is required');
-    }
-
-    // Get transformation data from transient
-    $transformation_data = get_transient('public_cv_' . $transformation_id);
-
-    if (!$transformation_data) {
-        wp_send_json_error('Transformation not found or expired');
-    }
-
-    wp_send_json_success($transformation_data['transformed_content']);
-}
-add_action('wp_ajax_nopriv_cvtransformer_get_public_cv_content', 'cvtransformer_get_public_cv_content');
-add_action('wp_ajax_cvtransformer_get_public_cv_content', 'cvtransformer_get_public_cv_content');
-
-/**
  * Pro Feature: Analyze Organization
  * AJAX handler for analyzing organization details
  */
@@ -587,25 +416,15 @@ function cvtransformer_analyze_organization() {
         return;
     }
 
-    // Check if user is logged in
-    if (!is_user_logged_in()) {
-        error_log('Analyze Organization: User not authenticated');
-        wp_send_json_error('You must be logged in to use this feature.');
+    // Check if user has pro access using our compatibility function
+    if (!cvtransformer_check_premium_access('pro_features')) {
+        error_log('Analyze Organization: Pro access required');
+        wp_send_json_error('This feature requires Pro access. Please upgrade your plan.');
         return;
     }
 
     // Get current user
     $user_id = get_current_user_id();
-
-    // Check subscription status
-    $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-    $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
-
-    if ($subscription_status !== 'active' || !$is_pro) {
-        error_log('Analyze Organization: Pro subscription required');
-        wp_send_json_error('This feature requires a Pro subscription.');
-        return;
-    }
 
     // Get form data
     $organization_name = isset($_POST['organization_name']) ? sanitize_text_field($_POST['organization_name']) : '';
@@ -684,25 +503,15 @@ function cvtransformer_analyze_interviewer() {
         return;
     }
 
-    // Check if user is logged in
-    if (!is_user_logged_in()) {
-        error_log('Analyze Interviewer: User not authenticated');
-        wp_send_json_error('You must be logged in to use this feature.');
+    // Check if user has pro access using our compatibility function
+    if (!cvtransformer_check_premium_access('pro_features')) {
+        error_log('Analyze Interviewer: Pro access required');
+        wp_send_json_error('This feature requires Pro access. Please upgrade your plan.');
         return;
     }
 
     // Get current user
     $user_id = get_current_user_id();
-
-    // Check subscription status
-    $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-    $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
-
-    if ($subscription_status !== 'active' || !$is_pro) {
-        error_log('Analyze Interviewer: Pro subscription required');
-        wp_send_json_error('This feature requires a Pro subscription.');
-        return;
-    }
 
     // Get form data
     $interviewer_name = isset($_POST['interviewer_name']) ? sanitize_text_field($_POST['interviewer_name']) : '';

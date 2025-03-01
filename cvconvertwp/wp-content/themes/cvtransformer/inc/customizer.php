@@ -147,6 +147,161 @@ function cvtransformer_customize_register($wp_customize) {
         'section'  => 'pricing_options',
         'type'     => 'number',
     ));
+
+    // Paid Membership Pro Integration
+    if (function_exists('pmpro_getAllLevels')) {
+        // Add PMPro section
+        $wp_customize->add_section('cvtransformer_pmpro_options', array(
+            'title'       => __('Paid Membership Pro', 'cvtransformer'),
+            'description' => __('Configure integration with Paid Membership Pro plugin.', 'cvtransformer'),
+            'priority'    => 150,
+        ));
+
+        // Get all membership levels
+        $all_levels = pmpro_getAllLevels(true);
+        $level_choices = array();
+
+        if (!empty($all_levels)) {
+            foreach ($all_levels as $level) {
+                $level_choices[$level->id] = $level->name;
+            }
+        }
+
+        // Standard Level Access
+        $wp_customize->add_setting('pmpro_standard_levels', array(
+            'default'           => '',
+            'sanitize_callback' => 'sanitize_text_field',
+        ));
+
+        $wp_customize->add_control('pmpro_standard_levels', array(
+            'label'       => __('Standard Plan Levels', 'cvtransformer'),
+            'description' => __('Enter comma-separated level IDs that give access to Standard features. Leave empty to use built-in subscription system.', 'cvtransformer'),
+            'section'     => 'cvtransformer_pmpro_options',
+            'type'        => 'text',
+        ));
+
+        // Pro Level Access
+        $wp_customize->add_setting('pmpro_pro_levels', array(
+            'default'           => '',
+            'sanitize_callback' => 'sanitize_text_field',
+        ));
+
+        $wp_customize->add_control('pmpro_pro_levels', array(
+            'label'       => __('Pro Plan Levels', 'cvtransformer'),
+            'description' => __('Enter comma-separated level IDs that give access to Pro features. Leave empty to use built-in subscription system.', 'cvtransformer'),
+            'section'     => 'cvtransformer_pmpro_options',
+            'type'        => 'text',
+        ));
+    }
+
+    // myCred Integration
+    if (function_exists('mycred')) {
+        // Add myCred section
+        $wp_customize->add_section('cvtransformer_mycred_options', array(
+            'title'       => __('myCred Integration', 'cvtransformer'),
+            'description' => __('Configure integration with myCred plugin for point-based features.', 'cvtransformer'),
+            'priority'    => 151,
+        ));
+
+        // Enable myCred integration
+        $wp_customize->add_setting('mycred_enable', array(
+            'default'           => '0',
+            'sanitize_callback' => 'absint',
+        ));
+
+        $wp_customize->add_control('mycred_enable', array(
+            'label'       => __('Enable myCred Integration', 'cvtransformer'),
+            'description' => __('Enable point-based system for features.', 'cvtransformer'),
+            'section'     => 'cvtransformer_mycred_options',
+            'type'        => 'checkbox',
+        ));
+
+        // CV Transformation cost
+        $wp_customize->add_setting('mycred_cost_cv_transform', array(
+            'default'           => '50',
+            'sanitize_callback' => 'absint',
+        ));
+
+        $wp_customize->add_control('mycred_cost_cv_transform', array(
+            'label'       => __('CV Transformation Cost', 'cvtransformer'),
+            'description' => __('Points required for CV transformation (0 = free/use subscription).', 'cvtransformer'),
+            'section'     => 'cvtransformer_mycred_options',
+            'type'        => 'number',
+            'input_attrs' => array(
+                'min'  => 0,
+                'step' => 1,
+            ),
+        ));
+
+        // Organization Analysis cost
+        $wp_customize->add_setting('mycred_cost_org_analysis', array(
+            'default'           => '25',
+            'sanitize_callback' => 'absint',
+        ));
+
+        $wp_customize->add_control('mycred_cost_org_analysis', array(
+            'label'       => __('Organization Analysis Cost', 'cvtransformer'),
+            'description' => __('Points required for organization analysis (0 = free/use subscription).', 'cvtransformer'),
+            'section'     => 'cvtransformer_mycred_options',
+            'type'        => 'number',
+            'input_attrs' => array(
+                'min'  => 0,
+                'step' => 1,
+            ),
+        ));
+
+        // Interviewer Analysis cost
+        $wp_customize->add_setting('mycred_cost_interviewer_analysis', array(
+            'default'           => '25',
+            'sanitize_callback' => 'absint',
+        ));
+
+        $wp_customize->add_control('mycred_cost_interviewer_analysis', array(
+            'label'       => __('Interviewer Analysis Cost', 'cvtransformer'),
+            'description' => __('Points required for interviewer analysis (0 = free/use subscription).', 'cvtransformer'),
+            'section'     => 'cvtransformer_mycred_options',
+            'type'        => 'number',
+            'input_attrs' => array(
+                'min'  => 0,
+                'step' => 1,
+            ),
+        ));
+
+        // Pro features access cost
+        $wp_customize->add_setting('mycred_cost_pro_features', array(
+            'default'           => '100',
+            'sanitize_callback' => 'absint',
+        ));
+
+        $wp_customize->add_control('mycred_cost_pro_features', array(
+            'label'       => __('Pro Features Access Cost', 'cvtransformer'),
+            'description' => __('Points required for temporary pro access (0 = free/use subscription).', 'cvtransformer'),
+            'section'     => 'cvtransformer_mycred_options',
+            'type'        => 'number',
+            'input_attrs' => array(
+                'min'  => 0,
+                'step' => 1,
+            ),
+        ));
+
+        // Pro access duration
+        $wp_customize->add_setting('mycred_pro_access_days', array(
+            'default'           => '7',
+            'sanitize_callback' => 'absint',
+        ));
+
+        $wp_customize->add_control('mycred_pro_access_days', array(
+            'label'       => __('Pro Access Duration (Days)', 'cvtransformer'),
+            'description' => __('Number of days pro access lasts when purchased with points.', 'cvtransformer'),
+            'section'     => 'cvtransformer_mycred_options',
+            'type'        => 'number',
+            'input_attrs' => array(
+                'min'  => 1,
+                'max'  => 365,
+                'step' => 1,
+            ),
+        ));
+    }
 }
 add_action('customize_register', 'cvtransformer_customize_register');
 
