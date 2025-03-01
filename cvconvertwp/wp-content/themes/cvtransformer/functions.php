@@ -15,6 +15,11 @@ define('CVTRANSFORMER_DIR', get_template_directory());
 define('CVTRANSFORMER_URI', get_template_directory_uri());
 
 /**
+ * Include required theme files
+ */
+require_once CVTRANSFORMER_DIR . '/inc/customizer.php';
+
+/**
  * Sets up theme defaults and registers support for various WordPress features.
  */
 function cvtransformer_setup() {
@@ -664,10 +669,7 @@ function cvtransformer_downgrade_subscription() {
 }
 add_action('wp_ajax_cvtransformer_downgrade_subscription', 'cvtransformer_downgrade_subscription');
 
-/**
- * Process CV Transformation
- * AJAX handler for transforming uploaded CV
- */
+// Process CV Transformation
 function cvtransformer_process_cv_transformation() {
     // Check nonce
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
@@ -718,7 +720,7 @@ function cvtransformer_process_cv_transformation() {
         $transformed_content = "TRANSFORMED CV FOR: {$target_role}\n\n";
         $transformed_content .= "CONTACT INFORMATION\n";
         $transformed_content .= "John Doe\n";
-        $transformed_content .= "Email: john.doe@example.com\n```php
+        $transformed_content .= "Email: john.doe@example.com\n";
         $transformed_content .= "Phone: +44 (0) 123 456 7890\n\n";
         $transformed_content .= "PROFESSIONAL SUMMARY\n";
         $transformed_content .= "Experienced professional with expertise relevant to the {$target_role} position. " .
@@ -1471,7 +1473,7 @@ function cvtransformer_create_default_plans() {
             'post_content' => 'Basic CV transformation features with keyword optimization.',
             'post_type' => 'subscription_plan',
             'post_status' => 'publish',
-                ]);
+        ]);
 
         if (!is_wp_error($standard_plan_id)) {
             update_post_meta($standard_plan_id, '_price', 5);
@@ -1599,7 +1601,6 @@ add_action('template_redirect', function() {
 });
 
 
-//Existing functions from original file.  These are not modified in the edited snippet.
 /**
  * Include required files
  */

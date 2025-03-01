@@ -6,6 +6,10 @@
  */
 
 get_header();
+
+// Get pricing from customizer settings
+$standard_price = get_theme_mod('standard_plan_price', 5);
+$pro_price = get_theme_mod('pro_plan_price', 15);
 ?>
 
 <main id="primary" class="site-main">
@@ -14,7 +18,7 @@ get_header();
             <h1 class="page-title"><?php _e('Subscription Plans', 'cvtransformer'); ?></h1>
             <p class="page-description"><?php _e('Choose the plan that best suits your career needs', 'cvtransformer'); ?></p>
         </div>
-        
+
         <div class="pricing-plans">
             <!-- Free Trial Card -->
             <div class="pricing-card">
@@ -44,13 +48,13 @@ get_header();
                     <?php endif; ?>
                 </div>
             </div>
-            
+
             <!-- Standard Plan Card -->
             <div class="pricing-card">
                 <div class="pricing-header">
                     <h3 class="pricing-name"><?php _e('Standard Plan', 'cvtransformer'); ?></h3>
                     <div class="pricing-price">
-                        £5
+                        £<?php echo esc_html($standard_price); ?>
                         <span class="pricing-interval"><?php _e('/month', 'cvtransformer'); ?></span>
                     </div>
                 </div>
@@ -69,7 +73,7 @@ get_header();
                         $user_id = get_current_user_id();
                         $subscription_status = get_user_meta($user_id, '_subscription_status', true);
                         $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
-                        
+
                         if ($subscription_status === 'active' && !$is_pro) {
                             // Already on standard plan
                             ?>
@@ -103,13 +107,13 @@ get_header();
                     ?>
                 </div>
             </div>
-            
+
             <!-- Pro Plan Card -->
             <div class="pricing-card featured">
                 <div class="pricing-header">
                     <h3 class="pricing-name"><?php _e('Pro Plan', 'cvtransformer'); ?></h3>
                     <div class="pricing-price">
-                        £15
+                        £<?php echo esc_html($pro_price); ?>
                         <span class="pricing-interval"><?php _e('/month', 'cvtransformer'); ?></span>
                     </div>
                 </div>
@@ -129,7 +133,7 @@ get_header();
                         $user_id = get_current_user_id();
                         $subscription_status = get_user_meta($user_id, '_subscription_status', true);
                         $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
-                        
+
                         if ($subscription_status === 'active' && $is_pro) {
                             // Already on pro plan
                             ?>
@@ -164,25 +168,30 @@ get_header();
                 </div>
             </div>
         </div>
-        
+
         <div class="pricing-faq">
             <h2><?php _e('Frequently Asked Questions', 'cvtransformer'); ?></h2>
-            
+
             <div class="faq-item">
                 <h3><?php _e('How does the billing work?', 'cvtransformer'); ?></h3>
                 <p><?php _e('Your subscription will be billed monthly. You can cancel at any time, and your subscription will remain active until the end of the current billing period.', 'cvtransformer'); ?></p>
             </div>
-            
+
             <div class="faq-item">
                 <h3><?php _e('Can I upgrade or downgrade my plan?', 'cvtransformer'); ?></h3>
-                <p><?php _e('Yes, you can upgrade from Standard to Pro at any time. When upgrading, you\'ll only pay the difference (£10). You can also downgrade from Pro to Standard, which will take effect at the end of your current billing period.', 'cvtransformer'); ?></p>
+                <p><?php 
+                    printf(
+                        __('Yes, you can upgrade from Standard to Pro at any time. When upgrading, you\'ll only pay the difference (£%1$s). You can also downgrade from Pro to Standard, which will take effect at the end of your current billing period.', 'cvtransformer'),
+                        esc_html($pro_price - $standard_price)
+                    ); 
+                ?></p>
             </div>
-            
+
             <div class="faq-item">
                 <h3><?php _e('Is there a free trial?', 'cvtransformer'); ?></h3>
                 <p><?php _e('Yes, all new users get a 30-day free trial with limited features. After the trial period, you\'ll need to subscribe to either the Standard or Pro plan to continue using the platform.', 'cvtransformer'); ?></p>
             </div>
-            
+
             <div class="faq-item">
                 <h3><?php _e('How secure is my payment information?', 'cvtransformer'); ?></h3>
                 <p><?php _e('All payments are processed securely through Stripe. We never store your card details on our servers.', 'cvtransformer'); ?></p>
