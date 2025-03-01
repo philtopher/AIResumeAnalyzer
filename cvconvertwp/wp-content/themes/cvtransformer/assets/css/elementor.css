@@ -1,0 +1,185 @@
+/**
+ * Elementor compatibility styles
+ * 
+ * This file contains custom styles for Elementor integration
+ */
+
+/* Ensure our theme colors are available to Elementor */
+:root {
+    --e-global-color-primary: var(--primary-color);
+    --e-global-color-secondary: var(--secondary-color);
+    --e-global-color-accent: var(--accent-color, #61CE70);
+    --e-global-color-text: var(--text-color);
+    --e-global-color-background: var(--background-color);
+}
+
+/* General container spacing */
+.elementor-section {
+    padding: 50px 0;
+}
+
+.elementor-section.elementor-section-boxed > .elementor-container {
+    max-width: 1200px;
+}
+
+/* Typography */
+.elementor-widget-heading .elementor-heading-title {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.elementor-widget-text-editor {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+/* Buttons */
+.elementor-button {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    border-radius: 0.375rem !important;
+    padding: 12px 24px !important;
+    transition: all 0.3s ease;
+}
+
+.elementor-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.elementor-button.elementor-size-xs {
+    padding: 8px 16px !important;
+}
+
+.elementor-button.elementor-size-md {
+    padding: 12px 24px !important;
+}
+
+.elementor-button.elementor-size-lg {
+    padding: 16px 32px !important;
+}
+
+.elementor-button.elementor-size-xl {
+    padding: 20px 40px !important;
+}
+
+/* Cards and Boxes */
+.elementor-widget-image-box .elementor-image-box-wrapper,
+.elementor-widget-icon-box .elementor-icon-box-wrapper {
+    transition: all 0.3s ease;
+}
+
+.elementor-widget-image-box .elementor-image-box-wrapper:hover,
+.elementor-widget-icon-box .elementor-icon-box-wrapper:hover {
+    transform: translateY(-5px);
+}
+
+/* Icons */
+.elementor-icon {
+    transition: all 0.3s ease;
+}
+
+.elementor-widget-icon-box:hover .elementor-icon,
+.elementor-widget-icon-list:hover .elementor-icon {
+    transform: scale(1.1);
+}
+
+/* Forms */
+.elementor-form .elementor-field-group .elementor-field {
+    font-family: 'Inter', sans-serif;
+    padding: 12px 15px;
+    border-radius: 0.375rem;
+    transition: all 0.3s ease;
+}
+
+.elementor-form .elementor-field-group .elementor-field:focus {
+    box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+.elementor-form .elementor-button {
+    background-color: var(--primary-color);
+}
+
+/* Tabs & Accordions */
+.elementor-widget-tabs .elementor-tab-title {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.elementor-widget-tabs .elementor-tab-title.elementor-active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.elementor-widget-toggle .elementor-toggle-title,
+.elementor-widget-accordion .elementor-accordion-title {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+/* CV Transformation specific Elementor styles */
+.elementor-cv-transform-section {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.elementor-cv-pricing-box {
+    transition: all 0.3s ease;
+    border-radius: 0.5rem;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.elementor-cv-pricing-box:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.elementor-cv-pricing-box.featured {
+    border: 2px solid var(--primary-color);
+    position: relative;
+}
+
+.elementor-cv-pricing-box.featured::before {
+    content: "Recommended";
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 5px 15px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 0 0 0 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .elementor-section {
+        padding: 30px 0;
+    }
+    
+    .elementor-section.elementor-section-boxed > .elementor-container {
+        max-width: 720px;
+    }
+}
+
+@media (max-width: 480px) {
+    .elementor-section {
+        padding: 20px 0;
+    }
+    
+    .elementor-section.elementor-section-boxed > .elementor-container {
+        max-width: 360px;
+    }
+    
+    .elementor-button {
+        width: 100%;
+    }
+}

@@ -1,12 +1,13 @@
 <?php
 /**
- * CV Transformer functions and definitions
+ * CVTransformer functions and definitions
  *
  * @package CVTransformer
  */
 
+// Exit if accessed directly
 if (!defined('ABSPATH')) {
-    exit; // Exit if accessed directly.
+    exit;
 }
 
 // Define theme constants
@@ -23,22 +24,25 @@ require_once CVTRANSFORMER_DIR . '/inc/customizer.php';
  * Sets up theme defaults and registers support for various WordPress features.
  */
 function cvtransformer_setup() {
-    // Add default posts and comments RSS feed links to head.
+    // Load theme text domain for translation
+    load_theme_textdomain('cvtransformer', CVTRANSFORMER_DIR . '/languages');
+
+    // Add default posts and comments RSS feed links to head
     add_theme_support('automatic-feed-links');
 
-    // Let WordPress manage the document title.
+    // Let WordPress manage the document title
     add_theme_support('title-tag');
 
-    // Enable support for Post Thumbnails on posts and pages.
+    // Enable support for Post Thumbnails on posts and pages
     add_theme_support('post-thumbnails');
 
-    // This theme uses wp_nav_menu() in two locations.
+    // This theme uses wp_nav_menu() in one location.
     register_nav_menus(array(
         'primary' => esc_html__('Primary Menu', 'cvtransformer'),
         'footer' => esc_html__('Footer Menu', 'cvtransformer'),
     ));
 
-    // Switch default core markup for search form, comment form, and comments to output valid HTML5.
+    // Switch default core markup to output valid HTML5
     add_theme_support('html5', array(
         'search-form',
         'comment-form',
@@ -50,16 +54,30 @@ function cvtransformer_setup() {
     // Add theme support for selective refresh for widgets.
     add_theme_support('customize-selective-refresh-widgets');
 
-    // Add support for full and wide align images.
-    add_theme_support('align-wide');
+    // Add support for core custom logo
+    add_theme_support('custom-logo', array(
+        'height' => 250,
+        'width' => 250,
+        'flex-width' => true,
+        'flex-height' => true,
+    ));
 
     // Add support for responsive embeds.
     add_theme_support('responsive-embeds');
+
+    // Add WooCommerce support
+    add_theme_support('woocommerce');
+    add_theme_support('wc-product-gallery-zoom');
+    add_theme_support('wc-product-gallery-lightbox');
+    add_theme_support('wc-product-gallery-slider');
+
+    // Add Elementor support
+    add_theme_support('elementor');
 }
 add_action('after_setup_theme', 'cvtransformer_setup');
 
 /**
- * Register widget areas.
+ * Register widget area.
  */
 function cvtransformer_widgets_init() {
     register_sidebar(array(
@@ -75,9 +93,22 @@ function cvtransformer_widgets_init() {
     // Footer widget areas
     for ($i = 1; $i <= 4; $i++) {
         register_sidebar(array(
-            'name'          => sprintf(esc_html__('Footer %d', 'cvtransformer'), $i),
+            'name'          => esc_html__('Footer ' . $i, 'cvtransformer'),
             'id'            => 'footer-' . $i,
-            'description'   => sprintf(esc_html__('Add widgets here for footer column %d.', 'cvtransformer'), $i),
+            'description'   => esc_html__('Add footer widgets here.', 'cvtransformer'),
+            'before_widget' => '<div id="%1$s" class="widget %2$s">',
+            'after_widget'  => '</div>',
+            'before_title'  => '<h3 class="widget-title">',
+            'after_title'   => '</h3>',
+        ));
+    }
+
+    // WooCommerce shop sidebar
+    if (class_exists('WooCommerce')) {
+        register_sidebar(array(
+            'name'          => esc_html__('Shop Sidebar', 'cvtransformer'),
+            'id'            => 'shop-sidebar',
+            'description'   => esc_html__('Appears on WooCommerce shop pages.', 'cvtransformer'),
             'before_widget' => '<div id="%1$s" class="widget %2$s">',
             'after_widget'  => '</div>',
             'before_title'  => '<h3 class="widget-title">',
@@ -91,32 +122,33 @@ add_action('widgets_init', 'cvtransformer_widgets_init');
  * Enqueue scripts and styles.
  */
 function cvtransformer_scripts() {
-    // Enqueue Google Fonts
-    wp_enqueue_style('cvtransformer-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap', array(), null);
-
-    // Enqueue theme stylesheet
+    // Enqueue styles
     wp_enqueue_style('cvtransformer-style', get_stylesheet_uri(), array(), CVTRANSFORMER_VERSION);
+    wp_enqueue_style('font-awesome', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css', array(), '5.15.3');
+    wp_enqueue_style('google-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', array(), CVTRANSFORMER_VERSION);
 
-    // Enqueue Font Awesome for icons
-    wp_enqueue_style('font-awesome', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css', array(), '6.0.0');
+    // Enqueue scripts
+    wp_enqueue_script('cvtransformer-navigation', CVTRANSFORMER_URI . '/assets/js/main.js', array('jquery'), CVTRANSFORMER_VERSION, true);
 
-    // Enqueue custom JavaScript
-    wp_enqueue_script('cvtransformer-script', CVTRANSFORMER_URI . '/assets/js/main.js', array('jquery'), CVTRANSFORMER_VERSION, true);
+    // Stripe integration
+    if (is_page('pricing') || is_page('account')) {
+        wp_enqueue_script('cvtransformer-stripe', CVTRANSFORMER_URI . '/assets/js/stripe-integration.js', array('jquery'), CVTRANSFORMER_VERSION, true);
+        wp_localize_script('cvtransformer-stripe', 'stripe_params', array(
+            'publishable_key' => get_option('cvtransformer_stripe_publishable_key'),
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('cvtransformer_nonce'),
+        ));
+    }
 
-    // Add localized data for AJAX requests
-    wp_localize_script('cvtransformer-script', 'cvtransformer_params', array(
+    // Localize script with AJAX URL for all pages
+    wp_localize_script('cvtransformer-navigation', 'cvtransformer_params', array(
         'ajax_url' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('cvtransformer_nonce'),
     ));
 
-    // Stripe JavaScript
-    if (is_page('pricing') || is_page('checkout') || is_page('account')) {
-        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', array(), null, true);
-        wp_enqueue_script('cvtransformer-stripe', CVTRANSFORMER_URI . '/assets/js/stripe-integration.js', array('jquery', 'stripe-js'), CVTRANSFORMER_VERSION, true);
-
-        wp_localize_script('cvtransformer-stripe', 'stripe_params', array(
-            'publishable_key' => get_option('cvtransformer_stripe_publishable_key'),
-        ));
+    // Elementor compatibility
+    if (class_exists('\Elementor\Plugin')) {
+        wp_enqueue_style('cvtransformer-elementor', CVTRANSFORMER_URI . '/assets/css/elementor.css', array(), CVTRANSFORMER_VERSION);
     }
 }
 add_action('wp_enqueue_scripts', 'cvtransformer_scripts');
@@ -125,7 +157,7 @@ add_action('wp_enqueue_scripts', 'cvtransformer_scripts');
  * Register Custom Post Types
  */
 function cvtransformer_register_post_types() {
-    // CV Transformations Post Type
+    // CV Transformation Post Type
     $labels = array(
         'name'                  => _x('CV Transformations', 'Post type general name', 'cvtransformer'),
         'singular_name'         => _x('CV Transformation', 'Post type singular name', 'cvtransformer'),
@@ -159,7 +191,7 @@ function cvtransformer_register_post_types() {
 
     register_post_type('cv_transformation', $args);
 
-    // Subscription Plans Post Type
+    // Subscription Plan Post Type
     $labels = array(
         'name'                  => _x('Subscription Plans', 'Post type general name', 'cvtransformer'),
         'singular_name'         => _x('Subscription Plan', 'Post type singular name', 'cvtransformer'),
@@ -196,489 +228,25 @@ function cvtransformer_register_post_types() {
 add_action('init', 'cvtransformer_register_post_types');
 
 /**
- * Register Custom Meta Boxes
+ * Process CV Transformation
+ * AJAX handler for transforming uploaded CV
  */
-function cvtransformer_register_meta_boxes() {
-    // CV Transformation Meta Box
-    add_meta_box(
-        'cv_transformation_details',
-        __('CV Transformation Details', 'cvtransformer'),
-        'cvtransformer_cv_transformation_meta_box_callback',
-        'cv_transformation',
-        'normal',
-        'high'
-    );
-
-    // Subscription Plan Meta Box
-    add_meta_box(
-        'subscription_plan_details',
-        __('Subscription Plan Details', 'cvtransformer'),
-        'cvtransformer_subscription_plan_meta_box_callback',
-        'subscription_plan',
-        'normal',
-        'high'
-    );
-}
-add_action('add_meta_boxes', 'cvtransformer_register_meta_boxes');
-
-/**
- * CV Transformation Meta Box Callback
- */
-function cvtransformer_cv_transformation_meta_box_callback($post) {
-    // Add a nonce field
-    wp_nonce_field('cvtransformer_cv_transformation_meta_box', 'cvtransformer_cv_transformation_meta_box_nonce');
-
-    // Get the current values
-    $user_id = get_post_meta($post->ID, '_user_id', true);
-    $original_content = get_post_meta($post->ID, '_original_content', true);
-    $transformed_content = get_post_meta($post->ID, '_transformed_content', true);
-    $target_role = get_post_meta($post->ID, '_target_role', true);
-    $job_description = get_post_meta($post->ID, '_job_description', true);
-    $score = get_post_meta($post->ID, '_score', true);
-    $feedback = get_post_meta($post->ID, '_feedback', true);
-
-    // Output fields
-    ?>
-    <div class="cvtransformer-meta-box">
-        <p>
-            <label for="cvtransformer-user-id"><?php _e('User ID:', 'cvtransformer'); ?></label>
-            <input type="text" id="cvtransformer-user-id" name="cvtransformer_user_id" value="<?php echo esc_attr($user_id); ?>" readonly>
-        </p>
-        <p>
-            <label for="cvtransformer-target-role"><?php _e('Target Role:', 'cvtransformer'); ?></label>
-            <input type="text" id="cvtransformer-target-role" name="cvtransformer_target_role" value="<?php echo esc_attr($target_role); ?>">
-        </p>
-        <p>
-            <label for="cvtransformer-score"><?php _e('Match Score:', 'cvtransformer'); ?></label>
-            <input type="number" id="cvtransformer-score" name="cvtransformer_score" value="<?php echo esc_attr($score); ?>" min="0" max="100">
-        </p>
-        <div class="cvtransformer-content-comparison">
-            <div class="cvtransformer-content-column">
-                <h3><?php _e('Original CV Content', 'cvtransformer'); ?></h3>
-                <textarea name="cvtransformer_original_content" rows="10" style="width:100%;"><?php echo esc_textarea($original_content); ?></textarea>
-            </div>
-            <div class="cvtransformer-content-column">
-                <h3><?php _e('Transformed CV Content', 'cvtransformer'); ?></h3>
-                <textarea name="cvtransformer_transformed_content" rows="10" style="width:100%;"><?php echo esc_textarea($transformed_content); ?></textarea>
-            </div>
-        </div>
-        <div>
-            <h3><?php _e('Job Description', 'cvtransformer'); ?></h3>
-            <textarea name="cvtransformer_job_description" rows="5" style="width:100%;"><?php echo esc_textarea($job_description); ?></textarea>
-        </div>
-        <div>
-            <h3><?php _e('Feedback', 'cvtransformer'); ?></h3>
-            <textarea name="cvtransformer_feedback" rows="5" style="width:100%;"><?php echo esc_textarea($feedback); ?></textarea>
-        </div>
-    </div>
-    <style>
-        .cvtransformer-content-comparison {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-gap: 20px;
-        }
-        @media (max-width: 768px) {
-            .cvtransformer-content-comparison {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-    <?php
-}
-
-/**
- * Subscription Plan Meta Box Callback
- */
-function cvtransformer_subscription_plan_meta_box_callback($post) {
-    // Add a nonce field
-    wp_nonce_field('cvtransformer_subscription_plan_meta_box', 'cvtransformer_subscription_plan_meta_box_nonce');
-
-    // Get the current values
-    $price = get_post_meta($post->ID, '_price', true);
-    $is_pro = get_post_meta($post->ID, '_is_pro', true);
-    $stripe_price_id = get_post_meta($post->ID, '_stripe_price_id', true);
-
-    // Output fields
-    ?>
-    <div class="cvtransformer-meta-box">
-        <p>
-            <label for="cvtransformer-price"><?php _e('Monthly Price (£):', 'cvtransformer'); ?></label>
-            <input type="number" id="cvtransformer-price" name="cvtransformer_price" value="<?php echo esc_attr($price); ?>" step="0.01" min="0">
-        </p>
-        <p>
-            <label for="cvtransformer-is-pro"><?php _e('Is Pro Plan:', 'cvtransformer'); ?></label>
-            <input type="checkbox" id="cvtransformer-is-pro" name="cvtransformer_is_pro" value="1" <?php checked($is_pro, '1'); ?>>
-        </p>
-        <p>
-            <label for="cvtransformer-stripe-price-id"><?php _e('Stripe Price ID:', 'cvtransformer'); ?></label>
-            <input type="text" id="cvtransformer-stripe-price-id" name="cvtransformer_stripe_price_id" value="<?php echo esc_attr($stripe_price_id); ?>">
-        </p>
-    </div>
-    <?php
-}
-
-/**
- * Save CV Transformation Meta
- */
-function cvtransformer_save_cv_transformation_meta($post_id) {
-    // Check if our nonce is set and verify it
-    if (!isset($_POST['cvtransformer_cv_transformation_meta_box_nonce']) || 
-        !wp_verify_nonce($_POST['cvtransformer_cv_transformation_meta_box_nonce'], 'cvtransformer_cv_transformation_meta_box')) {
-        return;
-    }
-
-    // Check the user's permissions
-    if (!current_user_can('edit_post', $post_id)) {
-        return;
-    }
-
-    // Update the meta fields
-    if (isset($_POST['cvtransformer_target_role'])) {
-        update_post_meta($post_id, '_target_role', sanitize_text_field($_POST['cvtransformer_target_role']));
-    }
-
-    if (isset($_POST['cvtransformer_score'])) {
-        update_post_meta($post_id, '_score', intval($_POST['cvtransformer_score']));
-    }
-
-    if (isset($_POST['cvtransformer_original_content'])) {
-        update_post_meta($post_id, '_original_content', wp_kses_post($_POST['cvtransformer_original_content']));
-    }
-
-    if (isset($_POST['cvtransformer_transformed_content'])) {
-        update_post_meta($post_id, '_transformed_content', wp_kses_post($_POST['cvtransformer_transformed_content']));
-    }
-
-    if (isset($_POST['cvtransformer_job_description'])) {
-        update_post_meta($post_id, '_job_description', wp_kses_post($_POST['cvtransformer_job_description']));
-    }
-
-    if (isset($_POST['cvtransformer_feedback'])) {
-        update_post_meta($post_id, '_feedback', wp_kses_post($_POST['cvtransformer_feedback']));
-    }
-}
-add_action('save_post_cv_transformation', 'cvtransformer_save_cv_transformation_meta');
-
-/**
- * Save Subscription Plan Meta
- */
-function cvtransformer_save_subscription_plan_meta($post_id) {
-    // Check if our nonce is set and verify it
-    if (!isset($_POST['cvtransformer_subscription_plan_meta_box_nonce']) || 
-        !wp_verify_nonce($_POST['cvtransformer_subscription_plan_meta_box_nonce'], 'cvtransformer_subscription_plan_meta_box')) {
-        return;
-    }
-
-    // Check the user's permissions
-    if (!current_user_can('edit_post', $post_id)) {
-        return;
-    }
-
-    // Update the meta fields
-    if (isset($_POST['cvtransformer_price'])) {
-        update_post_meta($post_id, '_price', floatval($_POST['cvtransformer_price']));
-    }
-
-    $is_pro = isset($_POST['cvtransformer_is_pro']) ? '1' : '0';
-    update_post_meta($post_id, '_is_pro', $is_pro);
-
-    if (isset($_POST['cvtransformer_stripe_price_id'])) {
-        update_post_meta($post_id, '_stripe_price_id', sanitize_text_field($_POST['cvtransformer_stripe_price_id']));
-    }
-}
-add_action('save_post_subscription_plan', 'cvtransformer_save_subscription_plan_meta');
-
-/**
- * Add Subscription Status to User Profile
- */
-function cvtransformer_add_user_subscription_meta($user) {
-    if (!current_user_can('edit_user', $user->ID)) {
-        return;
-    }
-
-    // Get user subscription status
-    $subscription_status = get_user_meta($user->ID, '_subscription_status', true);
-    $is_pro = get_user_meta($user->ID, '_subscription_is_pro', true);
-    $stripe_customer_id = get_user_meta($user->ID, '_stripe_customer_id', true);
-    $stripe_subscription_id = get_user_meta($user->ID, '_stripe_subscription_id', true);
-    $subscription_expiry = get_user_meta($user->ID, '_subscription_expiry', true);
-
-    ?>
-    <h3><?php _e('Subscription Information', 'cvtransformer'); ?></h3>
-    <table class="form-table">
-        <tr>
-            <th><label for="subscription_status"><?php _e('Subscription Status', 'cvtransformer'); ?></label></th>
-            <td>
-                <select name="subscription_status" id="subscription_status">
-                    <option value="" <?php selected($subscription_status, ''); ?>><?php _e('None', 'cvtransformer'); ?></option>
-                    <option value="active" <?php selected($subscription_status, 'active'); ?>><?php _e('Active', 'cvtransformer'); ?></option>
-                    <option value="cancelled" <?php selected($subscription_status, 'cancelled'); ?>><?php _e('Cancelled', 'cvtransformer'); ?></option>
-                    <option value="expired" <?php selected($subscription_status, 'expired'); ?>><?php _e('Expired', 'cvtransformer'); ?></option>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <th><label for="is_pro_subscription"><?php _e('Pro Subscription', 'cvtransformer'); ?></label></th>
-            <td>
-                <input type="checkbox" name="is_pro_subscription" id="is_pro_subscription" value="1" <?php checked($is_pro, '1'); ?>>
-                <span class="description"><?php _e('User has a Pro plan subscription', 'cvtransformer'); ?></span>
-            </td>
-        </tr>
-        <tr>
-            <th><label for="stripe_customer_id"><?php _e('Stripe Customer ID', 'cvtransformer'); ?></label></th>
-            <td>
-                <input type="text" name="stripe_customer_id" id="stripe_customer_id" value="<?php echo esc_attr($stripe_customer_id); ?>" class="regular-text">
-            </td>
-        </tr>
-        <tr>
-            <th><label for="stripe_subscription_id"><?php _e('Stripe Subscription ID', 'cvtransformer'); ?></label></th>
-            <td>
-                <input type="text" name="stripe_subscription_id" id="stripe_subscription_id" value="<?php echo esc_attr($stripe_subscription_id); ?>" class="regular-text">
-            </td>
-        </tr>
-        <tr>
-            <th><label for="subscription_expiry"><?php _e('Subscription Expiry', 'cvtransformer'); ?></label></th>
-            <td>
-                <input type="date" name="subscription_expiry" id="subscription_expiry" value="<?php echo esc_attr($subscription_expiry); ?>" class="regular-text">
-            </td>
-        </tr>
-    </table>
-    <?php
-}
-add_action('edit_user_profile', 'cvtransformer_add_user_subscription_meta');
-add_action('show_user_profile', 'cvtransformer_add_user_subscription_meta');
-
-/**
- * Save User Subscription Meta
- */
-function cvtransformer_save_user_subscription_meta($user_id) {
-    if (!current_user_can('edit_user', $user_id)) {
-        return false;
-    }
-
-    update_user_meta($user_id, '_subscription_status', sanitize_text_field($_POST['subscription_status']));
-    update_user_meta($user_id, '_subscription_is_pro', isset($_POST['is_pro_subscription']) ? '1' : '0');
-    update_user_meta($user_id, '_stripe_customer_id', sanitize_text_field($_POST['stripe_customer_id']));
-    update_user_meta($user_id, '_stripe_subscription_id', sanitize_text_field($_POST['stripe_subscription_id']));
-    update_user_meta($user_id, '_subscription_expiry', sanitize_text_field($_POST['subscription_expiry']));
-}
-add_action('personal_options_update', 'cvtransformer_save_user_subscription_meta');
-add_action('edit_user_profile_update', 'cvtransformer_save_user_subscription_meta');
-
-/**
- * Create Stripe Payment Link
- * AJAX handler for creating Stripe payment session
- */
-function cvtransformer_create_payment_link() {
-    // Check nonce
-    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
-        wp_send_json_error('Invalid nonce');
-    }
-
-    // Check if user is logged in
-    if (!is_user_logged_in()) {
-        wp_send_json_error('User not authenticated');
-    }
-
-    // Get current user
-    $user_id = get_current_user_id();
-    $user = get_userdata($user_id);
-
-    // Get subscription plan
-    $plan_id = isset($_POST['plan_id']) ? intval($_POST['plan_id']) : 0;
-    $action = isset($_POST['action_type']) ? sanitize_text_field($_POST['action_type']) : 'subscribe';
-
-    if (!$plan_id) {
-        wp_send_json_error('Plan ID is required');
-    }
-
-    // Get plan details
-    $price = get_post_meta($plan_id, '_price', true);
-    $is_pro = get_post_meta($plan_id, '_is_pro', true) === '1';
-    $stripe_price_id = get_post_meta($plan_id, '_stripe_price_id', true);
-
-    if (!$stripe_price_id) {
-        wp_send_json_error('Invalid plan configuration');
-    }
-
-    // Check current subscription status
-    $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-    $current_is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
-
-    // Check if this is an upgrade from Standard to Pro
-    $is_upgrade = $action === 'upgrade' && $subscription_status === 'active' && !$current_is_pro && $is_pro;
-
-    try {
-        // Load Stripe PHP SDK
-        require_once CVTRANSFORMER_DIR . '/includes/stripe/init.php';
-
-        // Set your secret key
-        \Stripe\Stripe::setApiKey(get_option('cvtransformer_stripe_secret_key'));
-
-        // Create Stripe checkout session
-        $session = \Stripe\Checkout\Session::create([
-            'payment_method_types' => ['card'],
-            'line_items' => [
-                [
-                    'price' => $stripe_price_id,
-                    'quantity' => 1,
-                ],
-            ],
-            'mode' => 'subscription',
-            'success_url' => home_url('/payment-success/?user_id=' . $user_id),
-            'cancel_url' => home_url('/pricing/'),
-            'customer_email' => $user->user_email,
-            'client_reference_id' => strval($user_id),
-            'metadata' => [
-                'user_id' => $user_id,
-                'plan_id' => $plan_id,
-                'is_pro' => $is_pro ? 'true' : 'false',
-                'is_upgrade' => $is_upgrade ? 'true' : 'false',
-            ],
-        ]);
-
-        wp_send_json_success(['url' => $session->url]);
-
-    } catch (Exception $e) {
-        wp_send_json_error($e->getMessage());
-    }
-}
-add_action('wp_ajax_cvtransformer_create_payment_link', 'cvtransformer_create_payment_link');
-
-/**
- * Verify Subscription Status
- * AJAX handler for confirming payment and subscription
- */
-function cvtransformer_verify_subscription() {
-    // Check nonce
-    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
-        wp_send_json_error('Invalid nonce');
-    }
-
-    // Get user ID
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-
-    if (!$user_id) {
-        wp_send_json_error('User ID is required');
-    }
-
-    try {
-        // Check for subscription
-        $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-        $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
-
-        if ($subscription_status !== 'active') {
-            wp_send_json_error(['is_subscribed' => false, 'message' => 'No active subscription found']);
-        }
-
-        wp_send_json_success([
-            'is_subscribed' => true,
-            'is_pro' => $is_pro,
-        ]);
-
-    } catch (Exception $e) {
-        wp_send_json_error($e->getMessage());
-    }
-}
-add_action('wp_ajax_cvtransformer_verify_subscription', 'cvtransformer_verify_subscription');
-
-/**
- * Downgrade Subscription
- * AJAX handler for downgrading from Pro to Standard
- */
-function cvtransformer_downgrade_subscription() {
-    // Check nonce
-    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
-        wp_send_json_error('Invalid nonce');
-    }
-
-    // Check if user is logged in
-    if (!is_user_logged_in()) {
-        wp_send_json_error('User not authenticated');
-    }
-
-    // Get current user
-    $user_id = get_current_user_id();
-
-    // Check current subscription status
-    $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-    $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
-    $stripe_subscription_id = get_user_meta($user_id, '_stripe_subscription_id', true);
-
-    if ($subscription_status !== 'active' || !$is_pro || !$stripe_subscription_id) {
-        wp_send_json_error('No active Pro subscription found');
-    }
-
-    try {
-        // Load Stripe PHP SDK
-        require_once CVTRANSFORMER_DIR . '/includes/stripe/init.php';
-
-        // Set your secret key
-        \Stripe\Stripe::setApiKey(get_option('cvtransformer_stripe_secret_key'));
-
-        // Get Standard plan price ID
-        $standard_plan_price_id = '';
-        $standard_plans = get_posts([
-            'post_type' => 'subscription_plan',
-            'posts_per_page' => 1,
-            'meta_query' => [
-                [
-                    'key' => '_is_pro',
-                    'value' => '0',
-                    'compare' => '=',
-                ],
-            ],
-        ]);
-
-        if (!empty($standard_plans)) {
-            $standard_plan_price_id = get_post_meta($standard_plans[0]->ID, '_stripe_price_id', true);
-        }
-
-        if (!$standard_plan_price_id) {
-            wp_send_json_error('Standard plan not configured');
-        }
-
-        // Retrieve the subscription
-        $subscription = \Stripe\Subscription::retrieve($stripe_subscription_id);
-
-        // Get the first subscription item ID
-        $item_id = $subscription->items->data[0]->id;
-
-        // Update the subscription to Standard plan
-        \Stripe\Subscription::update(
-            $stripe_subscription_id,
-            [
-                'items' => [
-                    [
-                        'id' => $item_id,
-                        'price' => $standard_plan_price_id,
-                    ],
-                ],
-                'proration_behavior' => 'create_prorations',
-            ]
-        );
-
-        // Update user meta
-        update_user_meta($user_id, '_subscription_is_pro', '0');
-
-        wp_send_json_success(['message' => 'Successfully downgraded to Standard plan']);
-
-    } catch (Exception $e) {
-        wp_send_json_error($e->getMessage());
-    }
-}
-add_action('wp_ajax_cvtransformer_downgrade_subscription', 'cvtransformer_downgrade_subscription');
-
-// Process CV Transformation
 function cvtransformer_process_cv_transformation() {
+    // Add logging for debugging
+    error_log('CV Transformation AJAX request received');
+
     // Check nonce
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
-        wp_send_json_error('Invalid nonce');
+        error_log('CV Transformation: Invalid nonce');
+        wp_send_json_error('Invalid security token. Please refresh the page and try again.');
+        return;
     }
 
     // Check if user is logged in
     if (!is_user_logged_in()) {
-        wp_send_json_error('User not authenticated');
+        error_log('CV Transformation: User not authenticated');
+        wp_send_json_error('You must be logged in to use this feature. Please log in and try again.');
+        return;
     }
 
     // Get current user
@@ -688,34 +256,72 @@ function cvtransformer_process_cv_transformation() {
     $subscription_status = get_user_meta($user_id, '_subscription_status', true);
 
     if ($subscription_status !== 'active') {
-        wp_send_json_error('Active subscription required');
+        error_log('CV Transformation: Active subscription required');
+        wp_send_json_error('An active subscription is required to use this feature. Please subscribe to a plan.');
+        return;
     }
+
+    // Debug uploaded files
+    error_log('CV Transformation: FILES data: ' . print_r($_FILES, true));
 
     // Check file upload
     if (empty($_FILES['cv_file']) || $_FILES['cv_file']['error'] !== UPLOAD_ERR_OK) {
-        wp_send_json_error('CV file is required');
+        $error_message = 'File upload failed. ';
+        if (!empty($_FILES['cv_file']['error'])) {
+            $error_message .= 'Error code: ' . $_FILES['cv_file']['error'];
+        } else {
+            $error_message .= 'No file was uploaded.';
+        }
+        error_log('CV Transformation: ' . $error_message);
+        wp_send_json_error($error_message);
+        return;
     }
 
     // Get form data
     $target_role = isset($_POST['target_role']) ? sanitize_text_field($_POST['target_role']) : '';
     $job_description = isset($_POST['job_description']) ? sanitize_textarea_field($_POST['job_description']) : '';
 
+    error_log('CV Transformation: Target role: ' . $target_role);
+    error_log('CV Transformation: Job description length: ' . strlen($job_description));
+
     if (empty($target_role) || empty($job_description)) {
-        wp_send_json_error('Target role and job description are required');
+        error_log('CV Transformation: Missing form data');
+        wp_send_json_error('Target role and job description are required. Please complete all fields.');
+        return;
     }
 
     // Check file type
     $file_type = strtolower(pathinfo($_FILES['cv_file']['name'], PATHINFO_EXTENSION));
     if (!in_array($file_type, ['pdf', 'docx'])) {
-        wp_send_json_error('Only PDF and DOCX files are supported');
+        error_log('CV Transformation: Invalid file type: ' . $file_type);
+        wp_send_json_error('Only PDF and DOCX files are supported. Please upload a file in one of these formats.');
+        return;
     }
 
     // Process the CV file
     try {
+        // Create uploads directory if it doesn't exist
+        $upload_dir = wp_upload_dir();
+        $cv_dir = $upload_dir['basedir'] . '/cv_transformer';
+
+        if (!file_exists($cv_dir)) {
+            wp_mkdir_p($cv_dir);
+        }
+
+        // Move uploaded file to temporary location
+        $temp_file = $cv_dir . '/' . uniqid('cv_') . '.' . $file_type;
+        if (!move_uploaded_file($_FILES['cv_file']['tmp_name'], $temp_file)) {
+            error_log('CV Transformation: Failed to move uploaded file');
+            wp_send_json_error('Failed to process uploaded file. Please try again.');
+            return;
+        }
+
+        error_log('CV Transformation: File moved to: ' . $temp_file);
+
         // Get file content (simulate CV transformation)
+        // In a real implementation, you would extract text and process the CV here
         $original_content = 'Original CV content would be extracted here';
 
-        // In a real implementation, you would extract text and process the CV
         // For demonstration, we'll create a simulated transformed content
         $transformed_content = "TRANSFORMED CV FOR: {$target_role}\n\n";
         $transformed_content .= "CONTACT INFORMATION\n";
@@ -764,10 +370,13 @@ function cvtransformer_process_cv_transformation() {
             'post_title' => "CV Transformation - {$target_role} - " . current_time('mysql'),
             'post_type' => 'cv_transformation',
             'post_status' => 'publish',
+            'post_author' => $user_id,
         ]);
 
         if (is_wp_error($post_id)) {
-            wp_send_json_error($post_id->get_error_message());
+            error_log('CV Transformation: Error creating post: ' . $post_id->get_error_message());
+            wp_send_json_error('Failed to save transformation record. Please try again.');
+            return;
         }
 
         // Save meta data
@@ -779,6 +388,12 @@ function cvtransformer_process_cv_transformation() {
         update_post_meta($post_id, '_score', $score);
         update_post_meta($post_id, '_feedback', $feedback);
 
+        // Clean up temporary file
+        @unlink($temp_file);
+
+        error_log('CV Transformation: Successful transformation, post ID: ' . $post_id);
+
+        // Return success response
         wp_send_json_success([
             'id' => $post_id,
             'transformed_content' => $transformed_content,
@@ -787,7 +402,8 @@ function cvtransformer_process_cv_transformation() {
         ]);
 
     } catch (Exception $e) {
-        wp_send_json_error($e->getMessage());
+        error_log('CV Transformation: Exception: ' . $e->getMessage());
+        wp_send_json_error('An error occurred during transformation: ' . $e->getMessage());
     }
 }
 add_action('wp_ajax_cvtransformer_process_cv_transformation', 'cvtransformer_process_cv_transformation');
@@ -797,14 +413,30 @@ add_action('wp_ajax_cvtransformer_process_cv_transformation', 'cvtransformer_pro
  * AJAX handler for public/free CV transformation (with limitations)
  */
 function cvtransformer_process_public_cv_transformation() {
+    // Add logging for debugging
+    error_log('Public CV Transformation AJAX request received');
+
     // Check nonce
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
-        wp_send_json_error('Invalid nonce');
+        error_log('Public CV Transformation: Invalid nonce');
+        wp_send_json_error('Invalid security token. Please refresh the page and try again.');
+        return;
     }
+
+    // Debug uploaded files
+    error_log('Public CV Transformation: FILES data: ' . print_r($_FILES, true));
 
     // Check file upload
     if (empty($_FILES['cv_file']) || $_FILES['cv_file']['error'] !== UPLOAD_ERR_OK) {
-        wp_send_json_error('CV file is required');
+        $error_message = 'File upload failed. ';
+        if (!empty($_FILES['cv_file']['error'])) {
+            $error_message .= 'Error code: ' . $_FILES['cv_file']['error'];
+        } else {
+            $error_message .= 'No file was uploaded.';
+        }
+        error_log('Public CV Transformation: ' . $error_message);
+        wp_send_json_error($error_message);
+        return;
     }
 
     // Get form data
@@ -812,29 +444,51 @@ function cvtransformer_process_public_cv_transformation() {
     $job_description = isset($_POST['job_description']) ? sanitize_textarea_field($_POST['job_description']) : '';
 
     if (empty($target_role) || empty($job_description)) {
-        wp_send_json_error('Target role and job description are required');
+        error_log('Public CV Transformation: Missing form data');
+        wp_send_json_error('Target role and job description are required. Please complete all fields.');
+        return;
     }
 
     // Check file type
     $file_type = strtolower(pathinfo($_FILES['cv_file']['name'], PATHINFO_EXTENSION));
     if (!in_array($file_type, ['pdf', 'docx'])) {
-        wp_send_json_error('Only PDF and DOCX files are supported');
+        error_log('Public CV Transformation: Invalid file type: ' . $file_type);
+        wp_send_json_error('Only PDF and DOCX files are supported. Please upload a file in one of these formats.');
+        return;
     }
 
     // Process the CV file (for public demo with limitations)
     try {
+        // Create uploads directory if it doesn't exist
+        $upload_dir = wp_upload_dir();
+        $cv_dir = $upload_dir['basedir'] . '/cv_transformer';
+
+        if (!file_exists($cv_dir)) {
+            wp_mkdir_p($cv_dir);
+        }
+
+        // Move uploaded file to temporary location
+        $temp_file = $cv_dir . '/' . uniqid('cv_public_') . '.' . $file_type;
+        if (!move_uploaded_file($_FILES['cv_file']['tmp_name'], $temp_file)) {
+            error_log('Public CV Transformation: Failed to move uploaded file');
+            wp_send_json_error('Failed to process uploaded file. Please try again.');
+            return;
+        }
+
+        error_log('Public CV Transformation: File moved to: ' . $temp_file);
+
         // Get file content (simulate CV transformation)
         $original_content = 'Original CV content would be extracted here';
 
         // Create a more limited transformed content for public demo
         $transformed_content = "DEMO TRANSFORMED CV FOR: {$target_role}\n\n";
         $transformed_content .= "This is a limited public demo of our CV transformation service.\n";
-        $transformed_content .= "For full functionality, please sign up for a subscription.\n\n";
+        $transformed_content .= "Subscribe to unlock full features and personalized CV transformation.\n\n";
         $transformed_content .= "PROFESSIONAL SUMMARY\n";
-        $transformed_content .= "Experienced professional with expertise relevant to the {$target_role} position. " .
-                               "Proven track record of success in delivering projects and exceeding expectations.\n\n";
+        $transformed_content .= "Professional with experience relevant to {$target_role} roles.\n\n";
         $transformed_content .= "WORK EXPERIENCE\n";
-        $transformed_content .= "[Full work experience transformation available with subscription]\n\n";
+        $transformed_content .= "- Led key projects with measurable results\n";
+        $transformed_content .= "- Managed teams efficiently\n\n";
         $transformed_content .= "SKILLS\n";
         $transformed_content .= "- Programming languages relevant to {$target_role}\n";
         $transformed_content .= "- Project management\n";
@@ -843,15 +497,15 @@ function cvtransformer_process_public_cv_transformation() {
         // Generate limited feedback
         $feedback = [
             'strengths' => [
-                'Strong technical skills relevant to the role',
-                'Clear presentation format',
+                'Good overall structure',
+                'Clear sections for easy reading',
             ],
             'weaknesses' => [
-                'Limited customization in public demo',
-                'Full analysis requires subscription',
+                'Limited keyword optimization',
+                'Generic content could be more specific',
             ],
             'suggestions' => [
-                'Sign up for full CV transformation service',
+                'Subscribe for personalized transformation',
                 'Consider adding more specific achievements',
             ],
         ];
@@ -868,6 +522,12 @@ function cvtransformer_process_public_cv_transformation() {
             'created_at' => time(),
         ], 3600); // Expire after 1 hour
 
+        // Clean up temporary file
+        @unlink($temp_file);
+
+        error_log('Public CV Transformation: Success, transformation ID: ' . $transformation_id);
+
+        // Return success response
         wp_send_json_success([
             'id' => $transformation_id,
             'transformed_content' => $transformed_content,
@@ -876,7 +536,8 @@ function cvtransformer_process_public_cv_transformation() {
         ]);
 
     } catch (Exception $e) {
-        wp_send_json_error($e->getMessage());
+        error_log('Public CV Transformation: Exception: ' . $e->getMessage());
+        wp_send_json_error('An error occurred during transformation: ' . $e->getMessage());
     }
 }
 add_action('wp_ajax_nopriv_cvtransformer_process_public_cv_transformation', 'cvtransformer_process_public_cv_transformation');
@@ -884,7 +545,7 @@ add_action('wp_ajax_cvtransformer_process_public_cv_transformation', 'cvtransfor
 
 /**
  * Get Public CV Content
- * AJAX handler for retrieving public transformation content
+ * AJAX handler for retrieving public CV transformation
  */
 function cvtransformer_get_public_cv_content() {
     // Check nonce
@@ -912,18 +573,25 @@ add_action('wp_ajax_nopriv_cvtransformer_get_public_cv_content', 'cvtransformer_
 add_action('wp_ajax_cvtransformer_get_public_cv_content', 'cvtransformer_get_public_cv_content');
 
 /**
- * Pro Feature: Analyze Interviewer
- * AJAX handler for analyzing interviewer details
+ * Pro Feature: Analyze Organization
+ * AJAX handler for analyzing organization details
  */
-function cvtransformer_analyze_interviewer() {
+function cvtransformer_analyze_organization() {
+    // Add logging for debugging
+    error_log('Analyze Organization request received');
+
     // Check nonce
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
-        wp_send_json_error('Invalid nonce');
+        error_log('Analyze Organization: Invalid nonce');
+        wp_send_json_error('Invalid security token. Please refresh the page and try again.');
+        return;
     }
 
     // Check if user is logged in
     if (!is_user_logged_in()) {
-        wp_send_json_error('User not authenticated');
+        error_log('Analyze Organization: User not authenticated');
+        wp_send_json_error('You must be logged in to use this feature.');
+        return;
     }
 
     // Get current user
@@ -934,7 +602,106 @@ function cvtransformer_analyze_interviewer() {
     $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
 
     if ($subscription_status !== 'active' || !$is_pro) {
-        wp_send_json_error('Pro subscription required');
+        error_log('Analyze Organization: Pro subscription required');
+        wp_send_json_error('This feature requires a Pro subscription.');
+        return;
+    }
+
+    // Get form data
+    $organization_name = isset($_POST['organization_name']) ? sanitize_text_field($_POST['organization_name']) : '';
+    $website = isset($_POST['website']) ? esc_url_raw($_POST['website']) : '';
+
+    if (empty($organization_name)) {
+        error_log('Analyze Organization: Organization name missing');
+        wp_send_json_error('Organization name is required.');
+        return;
+    }
+
+    // Simulate organization analysis (in a real implementation, this would use an AI service)
+    $mock_analysis = [
+        'industryPosition' => "Leading provider of software solutions in the finance sector, with a growing presence in healthcare technology.",
+        'competitors' => [
+            "FinTech Solutions Inc.",
+            "GlobalSoft Technologies",
+            "InnovateSystems Ltd.",
+            "TechVanguard Corp."
+        ],
+        'recentDevelopments' => [
+            "Recently expanded operations to APAC region",
+            "Launched new machine learning division",
+            "Acquired a smaller competitor specializing in mobile applications",
+            "Announced partnership with major cloud provider"
+        ],
+        'culture' => [
+            "Known for promoting work-life balance",
+            "Emphasis on continuous learning",
+            "Collaborative team environment",
+            "Regular hackathons and innovation challenges"
+        ],
+        'techStack' => [
+            "Java/Spring for backend systems",
+            "React for frontend applications",
+            "AWS cloud infrastructure",
+            "PostgreSQL databases",
+            "Kubernetes for container orchestration"
+        ]
+    ];
+
+    // Save the analysis
+    $post_id = wp_insert_post([
+        'post_title' => "Organization Analysis - {$organization_name} - " . current_time('mysql'),
+        'post_type' => 'organization_insight',
+        'post_status' => 'private',
+        'post_author' => $user_id,
+    ]);
+
+    if (!is_wp_error($post_id)) {
+        update_post_meta($post_id, '_organization_name', $organization_name);
+        update_post_meta($post_id, '_website', $website);
+        update_post_meta($post_id, '_analysis', $mock_analysis);
+    }
+
+    error_log('Analyze Organization: Success for ' . $organization_name);
+
+    wp_send_json_success([
+        'analysis' => $mock_analysis
+    ]);
+}
+add_action('wp_ajax_cvtransformer_analyze_organization', 'cvtransformer_analyze_organization');
+
+/**
+ * Pro Feature: Analyze Interviewer
+ * AJAX handler for analyzing interviewer details
+ */
+function cvtransformer_analyze_interviewer() {
+    // Add logging for debugging
+    error_log('Analyze Interviewer request received');
+
+    // Check nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
+        error_log('Analyze Interviewer: Invalid nonce');
+        wp_send_json_error('Invalid security token. Please refresh the page and try again.');
+        return;
+    }
+
+    // Check if user is logged in
+    if (!is_user_logged_in()) {
+        error_log('Analyze Interviewer: User not authenticated');
+        wp_send_json_error('You must be logged in to use this feature.');
+        return;
+    }
+
+    // Get current user
+    $user_id = get_current_user_id();
+
+    // Check subscription status
+    $subscription_status = get_user_meta($user_id, '_subscription_status', true);
+    $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
+
+    if ($subscription_status !== 'active' || !$is_pro) {
+        error_log('Analyze Interviewer: Pro subscription required');
+        wp_send_json_error('This feature requires a Pro subscription.');
+        return;
     }
 
     // Get form data
@@ -943,7 +710,9 @@ function cvtransformer_analyze_interviewer() {
     $organization_name = isset($_POST['organization_name']) ? sanitize_text_field($_POST['organization_name']) : '';
 
     if (empty($interviewer_name) || empty($organization_name)) {
-        wp_send_json_error('Interviewer name and organization are required');
+        error_log('Analyze Interviewer: Missing required fields');
+        wp_send_json_error('Interviewer name and organization are required.');
+        return;
     }
 
     // Simulate interviewer analysis (in a real implementation, this would use an AI service)
@@ -989,6 +758,8 @@ function cvtransformer_analyze_interviewer() {
         update_post_meta($post_id, '_insights', $mock_insights);
     }
 
+    error_log('Analyze Interviewer: Success for ' . $interviewer_name);
+
     wp_send_json_success([
         'insights' => $mock_insights
     ]);
@@ -996,460 +767,188 @@ function cvtransformer_analyze_interviewer() {
 add_action('wp_ajax_cvtransformer_analyze_interviewer', 'cvtransformer_analyze_interviewer');
 
 /**
- * Pro Feature: Analyze Organization
- * AJAX handler for analyzing organization details
+ * WooCommerce Integration Functions
  */
-function cvtransformer_analyze_organization() {
-    // Check nonce
-    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cvtransformer_nonce')) {
-        wp_send_json_error('Invalid nonce');
+if (class_exists('WooCommerce')) {
+    // Remove default WooCommerce styles
+    add_filter('woocommerce_enqueue_styles', '__return_empty_array');
+
+    // Add custom WooCommerce styles
+    function cvtransformer_woocommerce_scripts() {
+        wp_enqueue_style('cvtransformer-woocommerce', CVTRANSFORMER_URI . '/assets/css/woocommerce.css', array(), CVTRANSFORMER_VERSION);
     }
+    add_action('wp_enqueue_scripts', 'cvtransformer_woocommerce_scripts');
 
-    // Check if user is logged in
-    if (!is_user_logged_in()) {
-        wp_send_json_error('User not authenticated');
+    // Custom number of products per page
+    function cvtransformer_woocommerce_products_per_page() {
+        return 12;
     }
+    add_filter('loop_shop_per_page', 'cvtransformer_woocommerce_products_per_page');
 
-    // Get current user
-    $user_id = get_current_user_id();
-
-    // Check subscription status
-    $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-    $is_pro = get_user_meta($user_id, '_subscription_is_pro', true) === '1';
-
-    if ($subscription_status !== 'active' || !$is_pro) {
-        wp_send_json_error('Pro subscription required');
+    // Override WooCommerce templates
+    function cvtransformer_woocommerce_template_path() {
+        return 'woocommerce/';
     }
-
-    // Get form data
-    $organization_name = isset($_POST['organization_name']) ? sanitize_text_field($_POST['organization_name']) : '';
-    $website = isset($_POST['website']) ? esc_url_raw($_POST['website']) : '';
-
-    if (empty($organization_name)) {
-        wp_send_json_error('Organization name is required');
-    }
-
-    // Simulate organization analysis (in a real implementation, this would use an AI service)
-    $mock_analysis = [
-        'industryPosition' => "Leading provider of software solutions in the finance sector, with a growing presence in healthcare technology.",
-        'competitors' => [
-            "FinTech Solutions Inc.",
-            "GlobalSoft Technologies",
-            "InnovateSystems Ltd.",
-            "TechVanguard Corp."
-        ],
-        'recentDevelopments' => [
-            "Recently expanded operations to APAC region",
-            "Launched new machine learning division",
-            "Acquired a smaller competitor specializing in mobile applications",
-            "Announced partnership with major cloud provider"
-        ],
-        'culture' => [
-            "Known for promoting work-life balance",
-            "Emphasis on continuous learning",
-            "Collaborative team environment",
-            "Regular hackathons and innovation challenges"
-        ],
-        'techStack' => [
-            "Java/Spring for backend systems",
-            "React for frontend applications",
-            "AWS cloud infrastructure",
-            "PostgreSQL databases",
-            "Kubernetes for container orchestration"
-        ]
-    ];
-
-    // Save the analysis
-    $post_id = wp_insert_post([
-        'post_title' => "Organization Analysis - {$organization_name} - " . current_time('mysql'),
-        'post_type' => 'organization_analysis',
-        'post_status' => 'private',
-        'post_author' => $user_id,
-    ]);
-
-    if (!is_wp_error($post_id)) {
-        update_post_meta($post_id, '_organization_name', $organization_name);
-        update_post_meta($post_id, '_website', $website);
-        update_post_meta($post_id, '_analysis', $mock_analysis);
-    }
-
-    wp_send_json_success([
-        'analysis' => $mock_analysis
-    ]);
+    add_filter('woocommerce_template_path', 'cvtransformer_woocommerce_template_path');
 }
-add_action('wp_ajax_cvtransformer_analyze_organization', 'cvtransformer_analyze_organization');
 
 /**
- * Email Verification Redirection to Payment
- * 
- * This functions modifies the default login behavior to:
- * 1. Redirect users to payment page after email verification
- * 2. Check subscription status on login
- * 3. Enforce subscription requirements
+ * Mailchimp Integration Helper Functions
  */
+function cvtransformer_mailchimp_subscribe($email, $fname = '', $lname = '') {
+    // This is a helper function that can be used if the site has Mailchimp for WP plugin
+    // It allows subscription to be triggered programmatically
+    if (function_exists('mc4wp_add_subscriber')) {
+        $subscriber_data = [
+            'email_address' => $email,
+        ];
 
-// Add custom verification endpoint
-add_action('init', function() {
-    add_rewrite_rule(
-        'verify-email/([^/]+)/?$',
-        'index.php?verify_token=$matches[1]',
-        'top'
-    );
-});
-
-add_filter('query_vars', function($vars) {
-    $vars[] = 'verify_token';
-    return $vars;
-});
-
-// Process verification and redirect to payment
-add_action('template_redirect', function() {
-    $verify_token = get_query_var('verify_token');
-
-    if (!empty($verify_token)) {
-        // Find user with this token
-        $users = get_users([
-            'meta_key' => '_email_verification_token',
-            'meta_value' => $verify_token,
-            'number' => 1,
-        ]);
-
-        if (empty($users)) {
-            wp_redirect(home_url('/login/?verification=invalid'));
-            exit;
+        if (!empty($fname)) {
+            $subscriber_data['merge_fields']['FNAME'] = $fname;
         }
 
-        $user = $users[0];
-        $expiry = get_user_meta($user->ID, '_email_verification_expiry', true);
-
-        // Check if token has expired
-        if (!empty($expiry) && time() > strtotime($expiry)) {
-            wp_redirect(home_url('/login/?verification=expired'));
-            exit;
+        if (!empty($lname)) {
+            $subscriber_data['merge_fields']['LNAME'] = $lname;
         }
 
-        // Mark as verified and remove token
-        update_user_meta($user->ID, '_email_verified', true);
-        delete_user_meta($user->ID, '_email_verification_token');
-        delete_user_meta($user->ID, '_email_verification_expiry');
-
-        // Automatically log in the user
-        wp_set_auth_cookie($user->ID);
-
-        // Redirect to payment page
-        wp_redirect(home_url('/pricing/?verified=true'));
-        exit;
+        $result = mc4wp_add_subscriber($subscriber_data);
+        return $result;
     }
-});
-
-// Check subscription status on login
-function cvtransformer_verify_subscription_on_login($user_login, $user) {
-    // Check if email is verified
-    $email_verified = get_user_meta($user->ID, '_email_verified', true);
-
-    if (!$email_verified) {
-        // Generate new verification token
-        $token = wp_generate_password(32, false);
-        $expiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
-
-        update_user_meta($user->ID, '_email_verification_token', $token);
-        update_user_meta($user->ID, '_email_verification_expiry', $expiry);
-
-        // Send verification email
-        $verify_url = home_url('/verify-email/' . $token);
-        $subject = __('Verify your email address', 'cvtransformer');
-        $message = sprintf(
-            __('Hello %s,
-
-Please verify your email address by clicking the link below:
-
-%s
-
-This link will expire in 24 hours.
-
-Thank you,
-CV Transformer Team', 'cvtransformer'),
-            $user->display_name,
-            $verify_url
-        );
-
-        wp_mail($user->user_email, $subject, $message);
-
-        // Redirect to verification page
-        wp_redirect(home_url('/login/?verification=needed'));
-        exit;
-    }
-
-    // Check subscription status
-    $subscription_status = get_user_meta($user->ID, '_subscription_status', true);
-
-    if ($subscription_status !== 'active') {
-        // Set session variable to show subscription warning
-        $_SESSION['subscription_required'] = true;
-    }
+    return false;
 }
-add_action('wp_login', 'cvtransformer_verify_subscription_on_login', 10, 2);
-
-// Display subscription warning
-function cvtransformer_subscription_warning() {
-    if (isset($_SESSION['subscription_required']) && $_SESSION['subscription_required']) {
-        ?>
-        <div class="subscription-warning">
-            <p><?php _e('Your account requires an active subscription. Please subscribe to access all features.', 'cvtransformer'); ?></p>
-            <a href="<?php echo esc_url(home_url('/pricing/')); ?>" class="button"><?php _e('View Plans', 'cvtransformer'); ?></a>
-        </div>
-        <?php
-        // Clear the session variable
-        unset($_SESSION['subscription_required']);
-    }
-}
-add_action('wp_footer', 'cvtransformer_subscription_warning');
-
-// Start session for subscription warnings
-add_action('init', function() {
-    if (!session_id()) {
-        session_start();
-    }
-});
 
 /**
- * Email Sender for Subscription Notifications
+ * SMTP Email Configuration
+ * Allow the theme to use the server's SMTP configuration
  */
-function cvtransformer_send_subscription_confirmation($user_email, $username, $is_pro = false) {
-    $subject = sprintf(
-        __('%s Subscription Confirmation', 'cvtransformer'),
-        $is_pro ? 'Pro' : 'Standard'
-    );
+function cvtransformer_smtp_email_configuration($phpmailer) {
+    // Get SMTP settings from options
+    $smtp_host = get_option('smtp_host', '');
+    $smtp_port = get_option('smtp_port', 587);
+    $smtp_username = get_option('smtp_username', '');
+    $smtp_password = get_option('smtp_password', '');
+    $smtp_encryption = get_option('smtp_encryption', 'tls');
+    $from_email = get_option('from_email', get_option('admin_email'));
+    $from_name = get_option('from_name', get_option('blogname'));
 
-    $message = sprintf(
-        __('Hello %s,
-
-Thank you for subscribing to the %s Plan!
-
-You now have access to:
-%s
-
-Your subscription is active and will be billed at £%s per month.
-
-Thank you for choosing CV Transformer!
-
-Best regards,
-CV Transformer Team', 'cvtransformer'),
-        $username,
-        $is_pro ? 'Pro' : 'Standard',
-        $is_pro ? 
-            "- Advanced CV transformation
-- Detailed feedback and analysis
-- Organization insights
-- Interviewer analysis
-- Priority support" : 
-            "- CV transformation
-- Basic feedback
-- Keyword optimization",
-        $is_pro ? '15' : '5'
-    );
-
-    return wp_mail($user_email, $subject, $message);
-}
-
-// Register hook for successful Stripe payments
-add_action('wp', function() {
-    if (isset($_GET['user_id']) && isset($_GET['payment']) && $_GET['payment'] === 'success') {
-        $user_id = intval($_GET['user_id']);
-        $user = get_userdata($user_id);
-
-        if ($user) {
-            // Get subscription details from Stripe (in real implementation)
-            $is_pro = isset($_GET['plan']) && $_GET['plan'] === 'pro';
-
-            // Update subscription status
-            update_user_meta($user_id, '_subscription_status', 'active');
-            update_user_meta($user_id, '_subscription_is_pro', $is_pro ? '1' : '0');
-
-            // Send confirmation email
-            cvtransformer_send_subscription_confirmation($user->user_email, $user->user_login, $is_pro);
-        }
+    // Only configure if SMTP settings are provided
+    if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
+        $phpmailer->isSMTP();
+        $phpmailer->Host = $smtp_host;
+        $phpmailer->SMTPAuth = true;
+        $phpmailer->Port = $smtp_port;
+        $phpmailer->Username = $smtp_username;
+        $phpmailer->Password = $smtp_password;
+        $phpmailer->SMTPSecure = $smtp_encryption;
+        $phpmailer->From = $from_email;
+        $phpmailer->FromName = $from_name;
     }
-});
+}
+add_action('phpmailer_init', 'cvtransformer_smtp_email_configuration');
 
 /**
- * Stripe Webhook Handler
+ * SMTP Settings Page
  */
-function cvtransformer_handle_stripe_webhook() {
-    $payload = @file_get_contents('php://input');
-    $event = null;
-
-    try {
-        // Load Stripe PHP SDK
-        require_once CVTRANSFORMER_DIR . '/includes/stripe/init.php';
-
-        // Set your secret key
-        \Stripe\Stripe::setApiKey(get_option('cvtransformer_stripe_secret_key'));
-
-        // Parse event
-        $event = \Stripe\Event::constructFrom(
-            json_decode($payload, true)
-        );
-
-        // Handle specific event types
-        switch ($event->type) {
-            case 'checkout.session.completed':
-                $session = $event->data->object;
-                $user_id = intval($session->client_reference_id);
-
-                if ($user_id) {
-                    $user = get_userdata($user_id);
-
-                    if ($user) {
-                        // Get subscription details
-                        $is_pro = isset($session->metadata->is_pro) && $session->metadata->is_pro === 'true';
-
-                        // Update subscription status
-                        update_user_meta($user_id, '_subscription_status', 'active');
-                        update_user_meta($user_id, '_subscription_is_pro', $is_pro ? '1' : '0');
-                        update_user_meta($user_id, '_stripe_customer_id', $session->customer);
-                        update_user_meta($user_id, '_stripe_subscription_id', $session->subscription);
-
-                        // Set subscription expiry (1 month from now)
-                        $expiry = date('Y-m-d', strtotime('+1 month'));
-                        update_user_meta($user_id, '_subscription_expiry', $expiry);
-
-                        // Send confirmation email
-                        cvtransformer_send_subscription_confirmation($user->user_email, $user->user_login, $is_pro);
-                    }
-                }
-                break;
-
-            case 'customer.subscription.updated':
-                $subscription = $event->data->object;
-
-                // Find user with this subscription ID
-                $users = get_users([
-                    'meta_key' => '_stripe_subscription_id',
-                    'meta_value' => $subscription->id,
-                    'number' => 1,
-                ]);
-
-                if (!empty($users)) {
-                    $user = $users[0];
-
-                    // Check if subscription was canceled
-                    if ($subscription->cancel_at_period_end) {
-                        update_user_meta($user->ID, '_subscription_status', 'cancelled');
-                    }
-
-                    // Check for plan change
-                    $is_pro = false;
-
-                    // In a real implementation, you would check the price ID
-                    // to determine if it's the Pro plan
-                    $price_id = $subscription->items->data[0]->price->id;
-
-                    // For demonstration, we're using hardcoded price IDs
-                    if ($price_id === 'price_pro' || $price_id === 'price_1QsdCqIPzZXVDbyyVqZTTL9Y') {
-                        $is_pro = true;
-                    }
-
-                    update_user_meta($user->ID, '_subscription_is_pro', $is_pro ? '1' : '0');
-                }
-                break;
-
-            case 'customer.subscription.deleted':
-                $subscription = $event->data->object;
-
-                // Find user with this subscription ID
-                $users = get_users([
-                    'meta_key' => '_stripe_subscription_id',
-                    'meta_value' => $subscription->id,
-                    'number' => 1,
-                ]);
-
-                if (!empty($users)) {
-                    $user = $users[0];
-                    update_user_meta($user->ID, '_subscription_status', 'expired');
-                }
-                break;
-        }
-
-        http_response_code(200);
-        echo json_encode(['status' => 'success']);
-
-    } catch (Exception $e) {
-        http_response_code(400);
-        echo json_encode(['error' => $e->getMessage()]);
-    }
-
-    exit;
-}
-add_action('wp_ajax_nopriv_cvtransformer_stripe_webhook', 'cvtransformer_handle_stripe_webhook');
-add_action('wp_ajax_cvtransformer_stripe_webhook', 'cvtransformer_handle_stripe_webhook');
-
-/**
- * Settings Page
- */
-function cvtransformer_admin_settings_page() {
-    add_menu_page(
-        __('CV Transformer Settings', 'cvtransformer'),
-        __('CV Settings', 'cvtransformer'),
+function cvtransformer_add_smtp_settings_page() {
+    add_options_page(
+        'SMTP Settings',
+        'SMTP Settings',
         'manage_options',
-        'cvtransformer-settings',
-        'cvtransformer_settings_page_callback',
-        'dashicons-admin-generic',
-        50
+        'cvtransformer-smtp-settings',
+        'cvtransformer_smtp_settings_page_html'
     );
 }
-add_action('admin_menu', 'cvtransformer_admin_settings_page');
+add_action('admin_menu', 'cvtransformer_add_smtp_settings_page');
 
-function cvtransformer_settings_page_callback() {
-    // Save settings
-    if (isset($_POST['cvtransformer_settings_nonce']) && wp_verify_nonce($_POST['cvtransformer_settings_nonce'], 'cvtransformer_save_settings')) {
-        if (isset($_POST['stripe_public_key'])) {
-            update_option('cvtransformer_stripe_publishable_key', sanitize_text_field($_POST['stripe_public_key']));
+function cvtransformer_smtp_settings_page_html() {
+    // Check user capabilities
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    // Save settings if form is submitted
+    if (isset($_POST['cvtransformer_smtp_save'])) {
+        check_admin_referer('cvtransformer_smtp_settings');
+
+        update_option('smtp_host', sanitize_text_field($_POST['smtp_host']));
+        update_option('smtp_port', intval($_POST['smtp_port']));
+        update_option('smtp_username', sanitize_text_field($_POST['smtp_username']));
+
+        if (!empty($_POST['smtp_password'])) {
+            update_option('smtp_password', sanitize_text_field($_POST['smtp_password']));
         }
 
-        if (isset($_POST['stripe_secret_key'])) {
-            update_option('cvtransformer_stripe_secret_key', sanitize_text_field($_POST['stripe_secret_key']));
-        }
+        update_option('smtp_encryption', sanitize_text_field($_POST['smtp_encryption']));
+        update_option('from_email', sanitize_email($_POST['from_email']));
+        update_option('from_name', sanitize_text_field($_POST['from_name']));
 
-        echo '<div class="notice notice-success is-dismissible"><p>' . __('Settings saved successfully.', 'cvtransformer') . '</p></div>';
+        echo '<div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>';
     }
 
     // Get current settings
-    $stripe_public_key = get_option('cvtransformer_stripe_publishable_key', '');
-    $stripe_secret_key = get_option('cvtransformer_stripe_secret_key', '');
+    $smtp_host = get_option('smtp_host', '');
+    $smtp_port = get_option('smtp_port', 587);
+    $smtp_username = get_option('smtp_username', '');
+    $smtp_password = get_option('smtp_password', '');
+    $smtp_encryption = get_option('smtp_encryption', 'tls');
+    $from_email = get_option('from_email', get_option('admin_email'));
+    $from_name = get_option('from_name', get_option('blogname'));
 
     ?>
     <div class="wrap">
-        <h1><?php _e('CV Transformer Settings', 'cvtransformer'); ?></h1>
-
-        <form method="post" action="">
-            <?php wp_nonce_field('cvtransformer_save_settings', 'cvtransformer_settings_nonce'); ?>
-
-            <h2><?php _e('Stripe API Keys', 'cvtransformer'); ?></h2>
+        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+        <form method="post">
+            <?php wp_nonce_field('cvtransformer_smtp_settings'); ?>
             <table class="form-table">
                 <tr>
-                    <th scope="row"><label for="stripe_public_key"><?php _e('Publishable Key', 'cvtransformer'); ?></label></th>
+                    <th scope="row"><label for="smtp_host">SMTP Host</label></th>
                     <td>
-                        <input type="text" id="stripe_public_key" name="stripe_public_key" value="<?php echo esc_attr($stripe_public_key); ?>" class="regular-text">
-                        <p class="description"><?php _e('Enter your Stripe Publishable Key.', 'cvtransformer'); ?></p>
+                        <input type="text" name="smtp_host" id="smtp_host" value="<?php echo esc_attr($smtp_host); ?>" class="regular-text">
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row"><label for="stripe_secret_key"><?php _e('Secret Key', 'cvtransformer'); ?></label></th>
+                    <th scope="row"><label for="smtp_port">SMTP Port</label></th>
                     <td>
-                        <input type="password" id="stripe_secret_key" name="stripe_secret_key" value="<?php echo esc_attr($stripe_secret_key); ?>" class="regular-text">
-                        <p class="description"><?php _e('Enter your Stripe Secret Key.', 'cvtransformer'); ?></p>
+                        <input type="number" name="smtp_port" id="smtp_port" value="<?php echo esc_attr($smtp_port); ?>" class="small-text">
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="smtp_username">SMTP Username</label></th>
+                    <td>
+                        <input type="text" name="smtp_username" id="smtp_username" value="<?php echo esc_attr($smtp_username); ?>" class="regular-text">
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="smtp_password">SMTP Password</label></th>
+                    <td>
+                        <input type="password" name="smtp_password" id="smtp_password" value="" class="regular-text" placeholder="Leave blank to keep existing password">
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="smtp_encryption">Encryption</label></th>
+                    <td>
+                        <select name="smtp_encryption" id="smtp_encryption">
+                            <option value="none" <?php selected($smtp_encryption, 'none'); ?>>None</option>
+                            <option value="tls" <?php selected($smtp_encryption, 'tls'); ?>>TLS</option>
+                            <option value="ssl" <?php selected($smtp_encryption, 'ssl'); ?>>SSL</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="from_email">From Email</label></th>
+                    <td>
+                        <input type="email" name="from_email" id="from_email" value="<?php echo esc_attr($from_email); ?>" class="regular-text">
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="from_name">From Name</label></th>
+                    <td>
+                        <input type="text" name="from_name" id="from_name" value="<?php echo esc_attr($from_name); ?>" class="regular-text">
                     </td>
                 </tr>
             </table>
-
-            <h2><?php _e('Subscription Plans', 'cvtransformer'); ?></h2>
-            <p><?php _e('Configure your subscription plans in the Subscription Plans section.', 'cvtransformer'); ?></p>
-            <p><?php _e('Standard Plan: £5/month', 'cvtransformer'); ?></p>
-            <p><?php _e('Pro Plan: £15/month', 'cvtransformer'); ?></p>
-
             <p class="submit">
-                <input type="submit" name="submit" id="submit" class="button button-primary" value="<?php _e('Save Settings', 'cvtransformer'); ?>">
+                <input type="submit" name="cvtransformer_smtp_save" class="button button-primary" value="Save Settings">
             </p>
         </form>
     </div>
@@ -1457,149 +956,53 @@ function cvtransformer_settings_page_callback() {
 }
 
 /**
- * Create Default Subscription Plans
+ * Ensure theme is compatible with security plugins
  */
-function cvtransformer_create_default_plans() {
-    // Check if plans already exist
-    $existing_plans = get_posts([
-        'post_type' => 'subscription_plan',
-        'posts_per_page' => -1,
-    ]);
+function cvtransformer_security_plugin_compatibility() {
+    // Ensure compatibility with Ninja Firewall
+    if (class_exists('NinjaFirewall')) {
+        // Add our AJAX endpoints to Ninja Firewall's exceptions if needed
+        add_filter('nfw_excluded_urls', function($urls) {
+            $urls[] = 'wp-admin/admin-ajax.php';
+            return $urls;
+        });
+    }
 
-    if (empty($existing_plans)) {
-        // Create Standard Plan
-        $standard_plan_id = wp_insert_post([
-            'post_title' => 'Standard Plan',
-            'post_content' => 'Basic CV transformation features with keyword optimization.',
-            'post_type' => 'subscription_plan',
-            'post_status' => 'publish',
-        ]);
-
-        if (!is_wp_error($standard_plan_id)) {
-            update_post_meta($standard_plan_id, '_price', 5);
-            update_post_meta($standard_plan_id, '_is_pro', '0');
-            update_post_meta($standard_plan_id, '_stripe_price_id', 'price_1QsdBjIPzZXVDbyymTKeUnsC');
-        }
-
-        // Create Pro Plan
-        $pro_plan_id = wp_insert_post([
-            'post_title' => 'Pro Plan',
-            'post_content' => 'Advanced CV transformation with organization and interviewer insights.',
-            'post_type' => 'subscription_plan',
-            'post_status' => 'publish',
-        ]);
-
-        if (!is_wp_error($pro_plan_id)) {
-            update_post_meta($pro_plan_id, '_price', 15);
-            update_post_meta($pro_plan_id, '_is_pro', '1');
-            update_post_meta($pro_plan_id, '_stripe_price_id', 'price_1QsdCqIPzZXVDbyyVqZTTL9Y');
-        }
+    // Ensure compatibility with Loginizer
+    if (class_exists('Loginizer')) {
+        // Add our custom login endpoints to Loginizer's exceptions if needed
+        add_filter('loginizer_whitelist_ips', function($ips) {
+            // This is where we would add exceptions if needed
+            return $ips;
+        });
     }
 }
-add_action('admin_init', 'cvtransformer_create_default_plans');
-
-// Add hook for trial period expiration check
-add_action('wp_login', function($user_login, $user) {
-    // Check if user has trial period set
-    $trial_started_at = get_user_meta($user->ID, '_trial_started_at', true);
-
-    if ($trial_started_at) {
-        $trial_end_date = strtotime($trial_started_at . ' + 30 days');
-
-        if (time() > $trial_end_date) {
-            // Trial expired - check if they have a subscription
-            $subscription_status = get_user_meta($user->ID, '_subscription_status', true);
-
-            if ($subscription_status !== 'active') {
-                // Set session variable to show trial expired warning
-                $_SESSION['trial_expired'] = true;
-            }
-        }
-    }
-}, 10, 2);
-
-// Display trial expired warning
-function cvtransformer_trial_expired_warning() {
-    if (isset($_SESSION['trial_expired']) && $_SESSION['trial_expired']) {
-        ?>
-        <div class="trial-expired-warning">
-            <p><?php _e('Your 30-day trial period has expired. Please subscribe to continue using all features.', 'cvtransformer'); ?></p>
-            <a href="<?php echo esc_url(home_url('/pricing/')); ?>" class="button"><?php _e('Subscribe Now', 'cvtransformer'); ?></a>
-        </div>
-        <?php
-        // Clear the session variable
-        unset($_SESSION['trial_expired']);
-    }
-}
-add_action('wp_footer', 'cvtransformer_trial_expired_warning');
+add_action('init', 'cvtransformer_security_plugin_compatibility');
 
 /**
- * Register activation hook to set trial periods for existing users
+ * Add custom template loader for Elementor compatibility
  */
-function cvtransformer_theme_activation() {
-    // Get all users
-    $users = get_users();
+function cvtransformer_elementor_compatibility() {
+    if (class_exists('\Elementor\Plugin')) {
+        if (!class_exists('Elementor_Theme_Compatibility')) {
+            class Elementor_Theme_Compatibility {
+                public function __construct() {
+                    add_action('elementor/theme/register_locations', array($this, 'register_locations'));
+                }
 
-    foreach ($users as $user) {
-        // Check if trial period is already set
-        $trial_started_at = get_user_meta($user->ID, '_trial_started_at', true);
-
-        if (!$trial_started_at) {
-            // Set trial start date to today
-            update_user_meta($user->ID, '_trial_started_at', date('Y-m-d H:i:s'));
-        }
-    }
-}
-// Since WordPress themes don't have direct activation hooks, we'll hook into after_switch_theme
-add_action('after_switch_theme', 'cvtransformer_theme_activation');
-
-/**
- * Register hook for new user registration to set trial period
- */
-add_action('user_register', function($user_id) {
-    // Set trial start date to registration date
-    update_user_meta($user_id, '_trial_started_at', date('Y-m-d H:i:s'));
-});
-
-/**
- * Redirect non-paying users after trial expiration
- */
-add_action('template_redirect', function() {
-    // Only check on protected pages
-    if (is_page('cv-transform')) {
-        // Check if user is logged in
-        if (is_user_logged_in()) {
-            $user_id = get_current_user_id();
-
-            // Check subscription status
-            $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-
-            if ($subscription_status !== 'active') {
-                // Check trial period
-                $trial_started_at = get_user_meta($user_id, '_trial_started_at', true);
-
-                if ($trial_started_at) {
-                    $trial_end_date = strtotime($trial_started_at . ' + 30 days');
-
-                    if (time() > $trial_end_date) {
-                        // Trial expired and no active subscription
-                        wp_redirect(home_url('/pricing/?trial=expired'));
-                        exit;
-                    }
-                } else {
-                    // No trial period set, redirect to pricing
-                    wp_redirect(home_url('/pricing/'));
-                    exit;
+                public function register_locations($elementor_theme_manager) {
+                    $elementor_theme_manager->register_location('header');
+                    $elementor_theme_manager->register_location('footer');
+                    $elementor_theme_manager->register_location('single');
+                    $elementor_theme_manager->register_location('archive');
                 }
             }
-        } else {
-            // Not logged in, redirect to login
-            wp_redirect(home_url('/login/'));
-            exit;
+
+            new Elementor_Theme_Compatibility();
         }
     }
-});
-
+}
+add_action('after_setup_theme', 'cvtransformer_elementor_compatibility');
 
 /**
  * Include required files
@@ -1612,5 +1015,105 @@ require_once CVTRANSFORMER_DIR . '/includes/subscription-handler.php';
 
 // Initialize email notifications
 require_once CVTRANSFORMER_DIR . '/includes/email-handler.php';
+
+/**
+ * Create default subscription plans if they don't exist
+ */
+function cvtransformer_create_default_subscription_plans() {
+    // Check if we've already created plans
+    if (get_option('cvtransformer_plans_created')) {
+        return;
+    }
+
+    // Get standard plan prices from customizer
+    $standard_price = get_theme_mod('standard_plan_price', 5);
+    $pro_price = get_theme_mod('pro_plan_price', 15);
+
+    // Create Standard plan
+    $standard_plan_id = wp_insert_post([
+        'post_title' => 'Standard Plan',
+        'post_content' => 'Basic CV transformation features with keyword optimization.',
+        'post_type' => 'subscription_plan',
+        'post_status' => 'publish',
+    ]);
+
+    if (!is_wp_error($standard_plan_id)) {
+        update_post_meta($standard_plan_id, '_price', $standard_price);
+        update_post_meta($standard_plan_id, '_is_pro', '0');
+        update_post_meta($standard_plan_id, '_stripe_price_id', 'price_1234567890'); // Replace with actual Stripe price ID
+    }
+
+    // Create Pro plan
+    $pro_plan_id = wp_insert_post([
+        'post_title' => 'Pro Plan',
+        'post_content' => 'Advanced CV transformation with organization and interviewer insights.',
+        'post_type' => 'subscription_plan',
+        'post_status' => 'publish',
+    ]);
+
+    if (!is_wp_error($pro_plan_id)) {
+        update_post_meta($pro_plan_id, '_price', $pro_price);
+        update_post_meta($pro_plan_id, '_is_pro', '1');
+        update_post_meta($pro_plan_id, '_stripe_price_id', 'price_0987654321'); // Replace with actual Stripe price ID
+    }
+
+    // Mark as created
+    update_option('cvtransformer_plans_created', 1);
+}
+add_action('admin_init', 'cvtransformer_create_default_subscription_plans');
+
+/**
+ * Upload directory protection
+ * Prevent direct access to CV uploads directory
+ */
+function cvtransformer_protect_uploads() {
+    $upload_dir = wp_upload_dir();
+    $cv_dir = $upload_dir['basedir'] . '/cv_transformer';
+
+    if (file_exists($cv_dir) && !file_exists($cv_dir . '/.htaccess')) {
+        $htaccess_content = "# Prevent direct access to files\n";
+        $htaccess_content .= "<FilesMatch \"\\.(pdf|docx|txt)\$\">\n";
+        $htaccess_content .= "Order Allow,Deny\n";
+        $htaccess_content .= "Deny from all\n";
+        $htaccess_content .= "</FilesMatch>\n";
+
+        @file_put_contents($cv_dir . '/.htaccess', $htaccess_content);
+    }
+}
+add_action('admin_init', 'cvtransformer_protect_uploads');
+
+/**
+ * Add debug information to help with troubleshooting
+ */
+function cvtransformer_add_debug_info() {
+    if (current_user_can('manage_options') && isset($_GET['cvtransformer_debug'])) {
+        echo '<div style="background-color: #f8f9fa; padding: 20px; margin: 20px; border: 1px solid #ddd;">';
+        echo '<h3>CVTransformer Debug Information</h3>';
+
+        echo '<h4>WordPress Setup</h4>';
+        echo '<ul>';
+        echo '<li>WordPress Version: ' . get_bloginfo('version') . '</li>';
+        echo '<li>Theme Version: ' . CVTRANSFORMER_VERSION . '</li>';
+        echo '<li>PHP Version: ' . phpversion() . '</li>';
+        echo '</ul>';
+
+        echo '<h4>Activated Plugins</h4>';
+        echo '<ul>';
+        $active_plugins = get_option('active_plugins');
+        foreach ($active_plugins as $plugin) {
+            echo '<li>' . esc_html($plugin) . '</li>';
+        }
+        echo '</ul>';
+
+        echo '<h4>Theme Settings</h4>';
+        echo '<ul>';
+        echo '<li>Standard Plan Price: ' . get_theme_mod('standard_plan_price', 5) . '</li>';
+        echo '<li>Pro Plan Price: ' . get_theme_mod('pro_plan_price', 15) . '</li>';
+        echo '</ul>';
+
+        echo '</div>';
+    }
+}
+add_action('wp_footer', 'cvtransformer_add_debug_info');
 
 ?>

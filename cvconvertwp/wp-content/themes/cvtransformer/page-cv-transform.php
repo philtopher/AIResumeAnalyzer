@@ -9,7 +9,7 @@
 if (is_user_logged_in()) {
     $user_id = get_current_user_id();
     $subscription_status = get_user_meta($user_id, '_subscription_status', true);
-    
+
     if ($subscription_status !== 'active') {
         wp_redirect(home_url('/pricing/'));
         exit;
@@ -28,7 +28,7 @@ get_header();
             <h1 class="page-title"><?php _e('Transform Your CV', 'cvtransformer'); ?></h1>
             <p class="page-description"><?php _e('Upload your CV and target job description to get an optimized CV tailored for your desired role.', 'cvtransformer'); ?></p>
         </div>
-        
+
         <div class="transform-container">
             <div class="transform-form-section">
                 <div class="card">
@@ -48,17 +48,17 @@ get_header();
                                     <?php _e('Your CV will be processed securely and automatically deleted after transformation.', 'cvtransformer'); ?>
                                 </p>
                             </div>
-                            
+
                             <div class="form-group">
                                 <label for="target-role" class="form-label"><?php _e('Target Role', 'cvtransformer'); ?></label>
                                 <input type="text" id="target-role" name="target_role" class="form-control" required>
                             </div>
-                            
+
                             <div class="form-group">
                                 <label for="job-description" class="form-label"><?php _e('Job Description', 'cvtransformer'); ?></label>
                                 <textarea id="job-description" name="job_description" class="form-control" rows="5" required></textarea>
                             </div>
-                            
+
                             <div class="form-actions">
                                 <button type="submit" class="button button-primary transform-button" id="transform-button">
                                     <span class="button-text"><?php _e('Transform CV', 'cvtransformer'); ?></span>
@@ -67,13 +67,13 @@ get_header();
                                     </span>
                                 </button>
                             </div>
-                            
+
                             <?php wp_nonce_field('cvtransformer_nonce', 'nonce'); ?>
                         </form>
                     </div>
                 </div>
             </div>
-            
+
             <div class="transform-result-section">
                 <div class="card">
                     <div class="card-header">
@@ -85,7 +85,7 @@ get_header();
                                 <i class="fas fa-file-alt"></i>
                                 <p><?php _e('Your transformed CV will appear here after processing.', 'cvtransformer'); ?></p>
                             </div>
-                            
+
                             <div class="result-content" style="display: none;">
                                 <div class="result-score">
                                     <h4><?php _e('Match Score:', 'cvtransformer'); ?></h4>
@@ -93,7 +93,7 @@ get_header();
                                         <span id="score-value">0</span><span>%</span>
                                     </div>
                                 </div>
-                                
+
                                 <div class="result-actions">
                                     <button id="view-cv-button" class="button button-secondary">
                                         <i class="fas fa-eye"></i> <?php _e('View', 'cvtransformer'); ?>
@@ -102,12 +102,12 @@ get_header();
                                         <i class="fas fa-download"></i> <?php _e('Download', 'cvtransformer'); ?>
                                     </button>
                                 </div>
-                                
+
                                 <div class="cv-preview" id="cv-preview"></div>
-                                
+
                                 <div class="feedback-section">
                                     <h4><?php _e('Feedback & Analysis', 'cvtransformer'); ?></h4>
-                                    
+
                                     <div class="feedback-category">
                                         <div class="category-header">
                                             <i class="fas fa-check-circle text-success"></i>
@@ -115,7 +115,7 @@ get_header();
                                         </div>
                                         <ul id="strengths-list" class="feedback-list"></ul>
                                     </div>
-                                    
+
                                     <div class="feedback-category">
                                         <div class="category-header">
                                             <i class="fas fa-times-circle text-danger"></i>
@@ -123,7 +123,7 @@ get_header();
                                         </div>
                                         <ul id="weaknesses-list" class="feedback-list"></ul>
                                     </div>
-                                    
+
                                     <div class="feedback-category">
                                         <div class="category-header">
                                             <i class="fas fa-lightbulb text-warning"></i>
@@ -131,7 +131,7 @@ get_header();
                                         </div>
                                         <ul id="suggestions-list" class="feedback-list"></ul>
                                     </div>
-                                    
+
                                     <?php
                                     // Check if user has Pro subscription
                                     $is_pro = get_user_meta(get_current_user_id(), '_subscription_is_pro', true) === '1';
@@ -139,7 +139,7 @@ get_header();
                                     ?>
                                     <div class="pro-insights-section">
                                         <h4><?php _e('Pro Insights', 'cvtransformer'); ?></h4>
-                                        
+
                                         <div class="insights-category">
                                             <div class="category-header">
                                                 <i class="fas fa-building text-info"></i>
@@ -155,7 +155,7 @@ get_header();
                                             </div>
                                             <div id="organization-insights-results" class="insights-results" style="display: none;"></div>
                                         </div>
-                                        
+
                                         <div class="insights-category">
                                             <div class="category-header">
                                                 <i class="fas fa-user-tie text-primary"></i>
@@ -198,7 +198,7 @@ jQuery(document).ready(function($) {
     $('#file-upload-area').on('click', function() {
         $('#cv-file').trigger('click');
     });
-    
+
     $('#cv-file').on('change', function() {
         var fileName = $(this).val().split('\\').pop();
         if (fileName) {
@@ -209,21 +209,21 @@ jQuery(document).ready(function($) {
             $('#file-upload-area').removeClass('has-file');
         }
     });
-    
+
     // CV Transformation form submission
     $('#cv-transform-form').on('submit', function(e) {
         e.preventDefault();
-        
+
         // Validate form
         var cvFile = $('#cv-file')[0].files[0];
         var targetRole = $('#target-role').val();
         var jobDescription = $('#job-description').val();
-        
+
         if (!cvFile || !targetRole || !jobDescription) {
             alert('<?php _e('Please fill in all required fields.', 'cvtransformer'); ?>');
             return;
         }
-        
+
         // Prepare form data
         var formData = new FormData();
         formData.append('action', 'cvtransformer_process_cv_transformation');
@@ -231,86 +231,93 @@ jQuery(document).ready(function($) {
         formData.append('cv_file', cvFile);
         formData.append('target_role', targetRole);
         formData.append('job_description', jobDescription);
-        
+
         // Update UI to show loading state
         $('#transform-button .button-text').hide();
         $('#transform-button .button-loading').show();
         $('#transform-button').attr('disabled', true);
-        
+
+        console.log('Submitting CV transformation request...');
+
         // Submit AJAX request
         $.ajax({
-            url: cvtransformer_params.ajax_url,
+            url: '<?php echo admin_url('admin-ajax.php'); ?>',
             type: 'POST',
             data: formData,
             processData: false,
             contentType: false,
             success: function(response) {
+                console.log('CV transformation response received:', response);
+
                 // Reset loading state
                 $('#transform-button .button-text').show();
                 $('#transform-button .button-loading').hide();
                 $('#transform-button').attr('disabled', false);
-                
+
                 if (response.success) {
                     // Store transformation data
                     window.transformationData = response.data;
-                    
+
                     // Update result UI
                     $('.no-result-message').hide();
                     $('.result-content').show();
-                    
+
                     // Update score
                     $('#score-value').text(response.data.score);
-                    
+
                     // Update CV preview
                     $('#cv-preview').html(response.data.transformed_content.replace(/\n/g, '<br>'));
-                    
+
                     // Update feedback lists
                     $('#strengths-list').empty();
                     $.each(response.data.feedback.strengths, function(i, strength) {
                         $('#strengths-list').append('<li>' + strength + '</li>');
                     });
-                    
+
                     $('#weaknesses-list').empty();
                     $.each(response.data.feedback.weaknesses, function(i, weakness) {
                         $('#weaknesses-list').append('<li>' + weakness + '</li>');
                     });
-                    
+
                     $('#suggestions-list').empty();
                     $.each(response.data.feedback.suggestions, function(i, suggestion) {
                         $('#suggestions-list').append('<li>' + suggestion + '</li>');
                     });
-                    
+
                     // Scroll to result
                     $('html, body').animate({
                         scrollTop: $('.transform-result-section').offset().top - 100
                     }, 500);
                 } else {
+                    console.error('CV transformation error:', response.data);
                     alert(response.data || '<?php _e('An error occurred while processing your CV.', 'cvtransformer'); ?>');
                 }
             },
-            error: function() {
+            error: function(xhr, status, error) {
+                console.error('AJAX error:', xhr, status, error);
+
                 // Reset loading state
                 $('#transform-button .button-text').show();
                 $('#transform-button .button-loading').hide();
                 $('#transform-button').attr('disabled', false);
-                
+
                 alert('<?php _e('An error occurred while communicating with the server.', 'cvtransformer'); ?>');
             }
         });
     });
-    
+
     // View CV button
     $('#view-cv-button').on('click', function() {
         $('#cv-preview').slideToggle();
     });
-    
+
     // Download CV button
     $('#download-cv-button').on('click', function() {
         if (!window.transformationData) return;
-        
+
         var content = window.transformationData.transformed_content;
         var filename = 'transformed_cv_' + new Date().getTime() + '.txt';
-        
+
         var element = document.createElement('a');
         element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
         element.setAttribute('download', filename);
@@ -319,22 +326,22 @@ jQuery(document).ready(function($) {
         element.click();
         document.body.removeChild(element);
     });
-    
+
     <?php if ($is_pro) : ?>
     // Organization analysis
     $('#analyze-organization-button').on('click', function() {
         var organizationName = $('#organization-name').val();
         var website = $('#organization-website').val();
-        
+
         if (!organizationName) {
             alert('<?php _e('Please enter the organization name.', 'cvtransformer'); ?>');
             return;
         }
-        
+
         $(this).attr('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <?php _e('Analyzing...', 'cvtransformer'); ?>');
-        
+
         $.ajax({
-            url: cvtransformer_params.ajax_url,
+            url: '<?php echo admin_url('admin-ajax.php'); ?>',
             type: 'POST',
             data: {
                 action: 'cvtransformer_analyze_organization',
@@ -344,42 +351,42 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 $('#analyze-organization-button').attr('disabled', false).text('<?php _e('Analyze', 'cvtransformer'); ?>');
-                
+
                 if (response.success) {
                     var analysisHtml = '<div class="insights-result-content">';
                     analysisHtml += '<h5><?php _e('Industry Position', 'cvtransformer'); ?></h5>';
                     analysisHtml += '<p>' + response.data.analysis.industryPosition + '</p>';
-                    
+
                     analysisHtml += '<h5><?php _e('Competitors', 'cvtransformer'); ?></h5>';
                     analysisHtml += '<ul>';
                     $.each(response.data.analysis.competitors, function(i, competitor) {
                         analysisHtml += '<li>' + competitor + '</li>';
                     });
                     analysisHtml += '</ul>';
-                    
+
                     analysisHtml += '<h5><?php _e('Recent Developments', 'cvtransformer'); ?></h5>';
                     analysisHtml += '<ul>';
                     $.each(response.data.analysis.recentDevelopments, function(i, development) {
                         analysisHtml += '<li>' + development + '</li>';
                     });
                     analysisHtml += '</ul>';
-                    
+
                     analysisHtml += '<h5><?php _e('Company Culture', 'cvtransformer'); ?></h5>';
                     analysisHtml += '<ul>';
                     $.each(response.data.analysis.culture, function(i, item) {
                         analysisHtml += '<li>' + item + '</li>';
                     });
                     analysisHtml += '</ul>';
-                    
+
                     analysisHtml += '<h5><?php _e('Tech Stack', 'cvtransformer'); ?></h5>';
                     analysisHtml += '<ul>';
                     $.each(response.data.analysis.techStack, function(i, tech) {
                         analysisHtml += '<li>' + tech + '</li>';
                     });
                     analysisHtml += '</ul>';
-                    
+
                     analysisHtml += '</div>';
-                    
+
                     $('#organization-insights-results').html(analysisHtml).slideDown();
                 } else {
                     alert(response.data || '<?php _e('An error occurred during analysis.', 'cvtransformer'); ?>');
@@ -391,22 +398,22 @@ jQuery(document).ready(function($) {
             }
         });
     });
-    
+
     // Interviewer analysis
     $('#analyze-interviewer-button').on('click', function() {
         var interviewerName = $('#interviewer-name').val();
         var interviewerRole = $('#interviewer-role').val();
         var interviewerCompany = $('#interviewer-company').val();
-        
+
         if (!interviewerName || !interviewerCompany) {
             alert('<?php _e('Please enter the interviewer name and company.', 'cvtransformer'); ?>');
             return;
         }
-        
+
         $(this).attr('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <?php _e('Analyzing...', 'cvtransformer'); ?>');
-        
+
         $.ajax({
-            url: cvtransformer_params.ajax_url,
+            url: '<?php echo admin_url('admin-ajax.php'); ?>',
             type: 'POST',
             data: {
                 action: 'cvtransformer_analyze_interviewer',
@@ -417,40 +424,40 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 $('#analyze-interviewer-button').attr('disabled', false).text('<?php _e('Analyze', 'cvtransformer'); ?>');
-                
+
                 if (response.success) {
                     var insightsHtml = '<div class="insights-result-content">';
-                    
+
                     insightsHtml += '<h5><?php _e('Background', 'cvtransformer'); ?></h5>';
                     insightsHtml += '<ul>';
                     $.each(response.data.insights.background, function(i, item) {
                         insightsHtml += '<li>' + item + '</li>';
                     });
                     insightsHtml += '</ul>';
-                    
+
                     insightsHtml += '<h5><?php _e('Expertise Areas', 'cvtransformer'); ?></h5>';
                     insightsHtml += '<ul>';
                     $.each(response.data.insights.expertise, function(i, item) {
                         insightsHtml += '<li>' + item + '</li>';
                     });
                     insightsHtml += '</ul>';
-                    
+
                     insightsHtml += '<h5><?php _e('Recent Activity', 'cvtransformer'); ?></h5>';
                     insightsHtml += '<ul>';
                     $.each(response.data.insights.recentActivity, function(i, item) {
                         insightsHtml += '<li>' + item + '</li>';
                     });
                     insightsHtml += '</ul>';
-                    
+
                     insightsHtml += '<h5><?php _e('Common Interests', 'cvtransformer'); ?></h5>';
                     insightsHtml += '<ul>';
                     $.each(response.data.insights.commonInterests, function(i, item) {
                         insightsHtml += '<li>' + item + '</li>';
                     });
                     insightsHtml += '</ul>';
-                    
+
                     insightsHtml += '</div>';
-                    
+
                     $('#interviewer-insights-results').html(insightsHtml).slideDown();
                 } else {
                     alert(response.data || '<?php _e('An error occurred during analysis.', 'cvtransformer'); ?>');
