@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, FileText, User, Settings, Loader2, AlertTriangle } from "lucide-react";
+import { useUser } from "@/hooks/use-user";
 
 type PaymentStatus = "loading" | "success" | "error" | "invalid";
 
@@ -10,7 +11,9 @@ export default function PaymentCompletePage() {
   const [status, setStatus] = useState<PaymentStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [planType, setPlanType] = useState<"standard" | "pro">("standard");
+  const [isUpgrade, setIsUpgrade] = useState<boolean>(false);
   const [location] = useLocation();
+  const { refetch } = useUser();
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -35,7 +38,10 @@ export default function PaymentCompletePage() {
 
         if (data.status === 'success') {
           setPlanType(data.planType);
+          setIsUpgrade(data.isUpgrade || false);
           setStatus("success");
+          refetch(); // Refresh user data after successful payment
+
           try {
             const event = new Event('payment_complete');
             window.dispatchEvent(event);
@@ -54,7 +60,7 @@ export default function PaymentCompletePage() {
     };
 
     verifyPayment();
-  }, [location]);
+  }, [location, refetch]);
 
   if (status === "loading") {
     return (
@@ -112,10 +118,12 @@ export default function PaymentCompletePage() {
             <CheckCircle className="h-6 w-6 text-green-600" />
           </div>
           <CardTitle className="text-2xl mb-2">
-            Welcome to CV Transformer {planType === 'pro' ? 'Pro' : 'Standard'}!
+            {isUpgrade 
+              ? `Upgraded to CV Transformer ${planType === 'pro' ? 'Pro' : 'Standard'}!`
+              : `Welcome to CV Transformer ${planType === 'pro' ? 'Pro' : 'Standard'}!`}
           </CardTitle>
           <CardDescription className="text-lg">
-            Your account has been successfully activated
+            Your account has been successfully {isUpgrade ? 'upgraded' : 'activated'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -127,8 +135,9 @@ export default function PaymentCompletePage() {
               <li>✓ Keyword optimization</li>
               {planType === 'pro' && (
                 <>
-                  <li>✓ Interview preparation insights</li>
-                  <li>✓ Advanced analytics dashboard</li>
+                  <li>✓ Employer Competition Analysis</li>
+                  <li>✓ Interviewer LinkedIn Insights</li>
+                  <li>✓ Advanced CV scoring and analysis</li>
                   <li>✓ Priority support</li>
                 </>
               )}
@@ -151,7 +160,7 @@ export default function PaymentCompletePage() {
             <Link href="/settings">
               <Button className="w-full" variant="outline">
                 <Settings className="mr-2 h-4 w-4" />
-                Configure Account
+                Settings
               </Button>
             </Link>
           </div>

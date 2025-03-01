@@ -3,18 +3,18 @@ import { useUser } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Redirect, useLocation, useSearch } from "wouter";
-import { Loader2, Check, AlertTriangle } from "lucide-react";
+import { Loader2, Check, AlertTriangle, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function UpgradePlanPage() {
-  const { user, isLoading: userLoading } = useUser();
+  const { user, isLoading: userLoading, refetch } = useUser();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'basic' | 'pro'>('basic');
+  const [selectedPlan, setSelectedPlan] = useState<'standard' | 'pro'>('standard');
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const search = useSearch();
@@ -22,15 +22,9 @@ export default function UpgradePlanPage() {
   const paymentStatus = params.get('payment');
   const paymentUserId = params.get('userId');
 
-  // Check if user is already a Pro subscriber
-  if (!userLoading && user?.subscription?.status === "active") {
-    toast({
-      title: "Already Subscribed",
-      description: "You already have an active subscription.",
-      variant: "default",
-    });
-    return <Redirect to="/dashboard" />;
-  }
+  // Determine if user has an active subscription and what kind
+  const hasStandardPlan = !userLoading && user?.subscription?.status === "active" && !user.subscription.isPro;
+  const hasProPlan = !userLoading && user?.subscription?.status === "active" && user.subscription.isPro;
 
   useEffect(() => {
     setVerificationError(null);
@@ -49,6 +43,7 @@ export default function UpgradePlanPage() {
           console.log('Verification response:', data);
           if (data.isSubscribed) {
             setIsSubscribed(true);
+            refetch(); // Refresh user data
             toast({
               title: "Subscription Successful!",
               description: "Your subscription is now active. Check your email for confirmation.",
@@ -70,13 +65,13 @@ export default function UpgradePlanPage() {
           setIsVerifying(false);
         });
     }
-  }, [paymentStatus, paymentUserId, toast]);
+  }, [paymentStatus, paymentUserId, toast, refetch]);
 
-  const handleUpgradeClick = async () => {
+  const handleSubscriptionAction = async (action: 'subscribe' | 'upgrade' | 'downgrade') => {
     if (!user) {
       toast({
         title: "Authentication Required",
-        description: "Please log in to upgrade your account.",
+        description: "Please log in to manage your subscription.",
         variant: "destructive",
       });
       return;
@@ -84,28 +79,47 @@ export default function UpgradePlanPage() {
 
     setIsProcessing(true);
     try {
-      const response = await fetch("/api/create-payment-link", {
+      // Determine which endpoint to call based on the action
+      const endpoint = action === 'downgrade' 
+        ? "/api/downgrade-subscription" 
+        : "/api/create-payment-link";
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ plan: selectedPlan }),
+        body: JSON.stringify({ 
+          plan: selectedPlan,
+          action: action
+        }),
         credentials: "include",
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create payment link");
+        throw new Error(data.error || "Failed to process subscription request");
       }
 
-      window.location.href = data.url;
+      if (action === 'downgrade') {
+        // Handle downgrade success
+        toast({
+          title: "Downgrade Successful",
+          description: "Your subscription has been downgraded to the Standard Plan. Changes will take effect at the end of your current billing period.",
+        });
+        refetch(); // Refresh user data
+      } else {
+        // Redirect to Stripe for payment
+        window.location.href = data.url;
+      }
     } catch (error) {
-      console.error("Payment link creation error:", error);
+      console.error("Subscription action error:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to start upgrade process",
+        description: error instanceof Error ? error.message : "Failed to process your subscription request",
         variant: "destructive",
       });
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -147,37 +161,37 @@ export default function UpgradePlanPage() {
         {/* Free Plan Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Free Plan</CardTitle>
-            <CardDescription>Basic features</CardDescription>
+            <CardTitle>Free Trial</CardTitle>
+            <CardDescription>Limited time access</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>View sample CVs</span>
+                <span>30-day trial period</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>Basic formatting preview</span>
+                <span>Basic features preview</span>
               </div>
             </div>
             <Button className="w-full" variant="outline" disabled>
-              Current Plan
+              {user && !hasStandardPlan && !hasProPlan ? "Current Plan" : "Trial Period"}
             </Button>
           </CardContent>
         </Card>
 
-        {/* Basic Plan Card */}
-        <Card className={selectedPlan === 'basic' ? 'border-primary' : ''}>
+        {/* Standard Plan Card */}
+        <Card className={selectedPlan === 'standard' ? 'border-primary' : ''}>
           <CardHeader>
-            <CardTitle>Basic Plan</CardTitle>
+            <CardTitle>Standard Plan</CardTitle>
             <CardDescription>£5/month - Essential CV tools</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>All Free Plan features</span>
+                <span>All Free Trial features</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
@@ -192,23 +206,56 @@ export default function UpgradePlanPage() {
                 <span>Basic keyword optimization</span>
               </div>
             </div>
-            <Button
-              className="w-full"
-              onClick={() => {
-                setSelectedPlan('basic');
-                handleUpgradeClick();
-              }}
-              disabled={isProcessing || isSubscribed}
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                "Subscribe - £5/month"
-              )}
-            </Button>
+
+            {hasProPlan ? (
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setSelectedPlan('standard');
+                  handleSubscriptionAction('downgrade');
+                }}
+                disabled={isProcessing}
+                variant="outline"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <ArrowDown className="mr-2 h-4 w-4" />
+                    Downgrade to Standard
+                  </>
+                )}
+              </Button>
+            ) : hasStandardPlan ? (
+              <Button
+                className="w-full"
+                variant="outline"
+                disabled
+              >
+                Current Plan
+              </Button>
+            ) : (
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setSelectedPlan('standard');
+                  handleSubscriptionAction('subscribe');
+                }}
+                disabled={isProcessing || isSubscribed}
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  "Subscribe - £5/month"
+                )}
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -225,7 +272,7 @@ export default function UpgradePlanPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>All Basic Plan features</span>
+                <span>All Standard Plan features</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
@@ -244,23 +291,52 @@ export default function UpgradePlanPage() {
                 <span>Advanced CV scoring</span>
               </div>
             </div>
-            <Button
-              className="w-full"
-              onClick={() => {
-                setSelectedPlan('pro');
-                handleUpgradeClick();
-              }}
-              disabled={isProcessing || isSubscribed}
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                "Upgrade - £15/month"
-              )}
-            </Button>
+
+            {hasProPlan ? (
+              <Button
+                className="w-full"
+                variant="outline"
+                disabled
+              >
+                Current Plan
+              </Button>
+            ) : hasStandardPlan ? (
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setSelectedPlan('pro');
+                  handleSubscriptionAction('upgrade');
+                }}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  "Upgrade - £15/month"
+                )}
+              </Button>
+            ) : (
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setSelectedPlan('pro');
+                  handleSubscriptionAction('subscribe');
+                }}
+                disabled={isProcessing || isSubscribed}
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  "Subscribe - £15/month"
+                )}
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>

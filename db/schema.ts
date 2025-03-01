@@ -9,7 +9,7 @@ export const users = pgTable("users", {
   username: text("username").unique().notNull(),
   password: text("password").notNull(),
   email: text("email").unique().notNull(),
-  role: text("role", { enum: ['user', 'sub_admin', 'super_admin'] }).default("user").notNull(),
+  role: text("role", { enum: ['user', 'sub_admin', 'super_admin', 'pro_user'] }).default("user").notNull(),
   emailVerified: boolean("email_verified").default(false),
   verificationToken: text("verification_token"),
   verificationTokenExpiry: timestamp("verification_token_expiry"),
@@ -28,14 +28,17 @@ export const users = pgTable("users", {
   dataDeletionStatus: text("data_deletion_status", { enum: ['none', 'pending', 'processing', 'completed'] }).default('none'),
 });
 
-// Update subscription table with proper end date tracking
+// Update subscription table with proper end date tracking and Pro status
 export const subscriptions = pgTable("subscriptions", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   stripeCustomerId: text("stripe_customer_id").unique().notNull(),
   stripeSubscriptionId: text("stripe_subscription_id").unique().notNull(),
+  stripeItemId: text("stripe_item_id"),
   status: text("status").notNull(),
+  isPro: boolean("is_pro").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
   endedAt: timestamp("ended_at"),
 });
 

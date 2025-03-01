@@ -613,7 +613,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // In the email verification endpoint, update the redirect logic
+  // In the email verification endpoint, preserve the redirection to payment page
   app.get("/api/verify-email/:token", async (req, res) => {
     try {
       const { token } = req.params;

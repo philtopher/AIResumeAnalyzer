@@ -1,0 +1,47 @@
+Step 1: Backup and Review Existing Codebase
+Create a backup of the existing project to prevent data loss.
+Identify the key components handling:
+User registration and verification
+CV conversion logic (Ensure it's not affected)
+Email sending (Contact form, feedback, reset password, etc.)
+Payment processing for Standard and Pro Plans
+Features available for Pro Plan users
+Step 2: Implement the Payment Flow for New Standard Plan Users (£5)
+Modify the email verification page to include a Stripe payment form for £5 after email verification.
+
+Locate the existing verification logic and add a payment section to it.
+Ensure the verification process only marks a user as "verified" once they complete payment.
+Use Stripe Price ID: price_1QsdBjIPzZXVDbyymTKeUnsC
+Update the database to record users as Standard Plan after successful payment.
+Update user authentication logic:
+
+Ensure users who haven't paid cannot proceed past the verification page.
+Users who complete payment should be redirected to the CV conversion page.
+Step 3: Improve the Pro Plan Upgrade System
+Allow existing Standard Plan users (£5) to upgrade to Pro Plan (£15) by paying an additional £10.
+
+Modify the payment link to check if the user is on Standard Plan.
+If so, adjust the payment amount dynamically to £10 instead of £15.
+After successful payment, mark them as Pro Plan users.
+Ensure Pro Plan users get access to exclusive features:
+
+Locate where Pro Plan features are defined (AI Agent for scanning interviewers and organisations).
+Verify that only Pro Plan users see these features after logging in.
+Step 4: Allow Pro Plan Users to Downgrade to Standard Plan (£5)
+Add a downgrade feature where Pro Plan users can reduce their subscription back to £5.
+Modify Stripe subscription settings to allow this.
+Ensure the system marks them back as Standard Plan after processing.
+Prevent users from using Pro Plan features once downgraded.
+Step 5: Handle Existing Free Users
+Ensure users who signed up before this change can continue using the free plan but only for 30 days.
+Implement a check that calculates 30 days from their registration date.
+Once expired, prompt them to pay £5 to continue as a Standard Plan user.
+Redirect expired users to the payment page.
+Step 6: Testing & Deployment
+Test the following scenarios before deploying:
+
+New users: Registration → Email verification → £5 payment → Login → Access Standard Plan features.
+Standard Plan users: Upgrade to Pro Plan (£10 extra) → Get Pro Plan features → Logout/Login → Verify Pro features persist.
+Pro Plan users: Downgrade to Standard Plan (£5) → Ensure Pro features disappear.
+Free users (signed up before this change): Continue for 30 days → After 30 days, check if they are forced to pay £5.
+Ensure email sending, CV conversion, and other critical logic remain unaffected.

@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { Request, Response } from "express";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { sendEmail } from "./email";
+import { sendEmail, sendProPlanConfirmationEmail } from "./email";
 import { users, cvs, activityLogs, subscriptions, contacts, interviewerInsights, organizationAnalysis } from "@db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema";
@@ -14,7 +14,7 @@ import Stripe from 'stripe';
 import { hashPassword } from "./auth";
 import {randomUUID} from 'crypto';
 import { format } from "date-fns";
-import { Document, Paragraph, TextRun, HeadingLevel, SectionType, convertInchesToTwip } from "docx";
+import { Document, Paragraph, TextRun, HeadingLevel, SectionType } from "docx";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -302,10 +302,10 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
             properties: {
               type: SectionType.CONTINUOUS,
               margin: {
-                top: convertInchesToTwip(1),
-                right: convertInchesToTwip(1),
-                bottom: convertInchesToTwip(1),
-                left: convertInchesToTwip(1)
+                top: 1440,
+                right: 1440,
+                bottom: 1440,
+                left: 1440
               }
             },
             children: [
@@ -584,12 +584,14 @@ For detailed implementation steps, please refer to our comprehensive deployment 
     }
   });
 
-  // Add the following endpoints after the existing routes
-  app.post("/api/upgrade-to-pro", async (req: Request, res: Response) => {
+  // Create payment link endpoint - Updated to handle different subscription scenarios
+  app.post("/api/create-payment-link", async (req: Request, res: Response) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ error: "Not authenticated" });
       }
+
+      const { plan, action } = req.body;
 
       // Check current subscription status
       const [currentSubscription] = await db
@@ -599,40 +601,261 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         .orderBy(desc(subscriptions.createdAt))
         .limit(1);
 
-      const isStandardPlan = currentSubscription?.status === 'active';
+      const isStandardPlan = currentSubscription?.status === 'active' && !currentSubscription.isPro;
+      const isProPlan = currentSubscription?.status === 'active' && currentSubscription.isPro;
 
       // Initialize Stripe
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-        apiVersion: '2023-10-16',
+        apiVersion: '2023-10-16' as any,
       });
 
-      // Create Stripe checkout session with dynamic pricing
+      // Set the price ID based on the plan and action
+      let priceId = '';
+      let isUpgrade = false;
+
+      if (plan === 'pro') {
+        if (action === 'upgrade' && isStandardPlan) {
+          // Upgrading from Standard to Pro (additional £10)
+          priceId = 'price_1QsdCqIPzZXVDbyyVqZTTL9Y'; // Pro upgrade price ID
+          isUpgrade = true;
+        } else {
+          // New Pro subscription (£15)
+          priceId = 'price_1QsdCqIPzZXVDbyyVqZTTL9Y'; // Pro full price ID
+        }
+      } else {
+        // Standard plan (£5)
+        priceId = 'price_1QsdBjIPzZXVDbyymTKeUnsC'; // Standard price ID
+      }
+
+      // Create Stripe checkout session
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
           {
-            price: isStandardPlan 
-              ? 'price_standard_to_pro_upgrade' // Price ID for £10 upgrade
-              : 'price_pro_full', // Price ID for full £15 Pro plan
+            price: priceId,
             quantity: 1,
           },
         ],
         mode: 'subscription',
-        success_url: `${process.env.APP_URL}/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${process.env.APP_URL}/payment-success?userId=${req.user.id}`,
         cancel_url: `${process.env.APP_URL}/upgrade`,
         customer_email: req.user.email,
         client_reference_id: req.user.id.toString(),
         metadata: {
           userId: req.user.id,
-          plan: 'pro',
-          upgradeFromStandard: isStandardPlan
+          plan: plan,
+          isUpgrade: isUpgrade
         }
-      });
+      } as any);
 
       res.json({ url: session.url });
-    } catch (error) {
-      console.error("Pro upgrade error:", error);
-      res.status(500).json({ error: "Failed to create checkout session" });
+    } catch (error: any) {
+      console.error("Payment link creation error:", error);
+      res.status(500).json({ error: error.message || "Failed to create payment link" });
+    }
+  });
+
+  // Verify subscription endpoint (called after successful payment)
+  app.get("/api/verify-subscription/:userId", async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      if (!userId) {
+        return res.status(400).json({ error: "User ID is required" });
+      }
+
+      // Get user record
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, parseInt(userId)))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Get subscription record
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, user.id))
+        .orderBy(desc(subscriptions.createdAt))
+        .limit(1);
+
+      if (!subscription || subscription.status !== 'active') {
+        return res.status(404).json({ 
+          isSubscribed: false,
+          message: "No active subscription found" 
+        });
+      }
+
+      // Update user role based on subscription type
+      await db
+        .update(users)
+        .set({
+          role: subscription.isPro ? 'pro_user' : 'user'
+        })
+        .where(eq(users.id, user.id));
+
+      // If it's a Pro subscription, send confirmation email
+      if (subscription.isPro) {
+        await sendProPlanConfirmationEmail(user.email, user.username);
+      }
+
+      return res.json({
+        isSubscribed: true,
+        isPro: subscription.isPro
+      });
+    } catch (error: any) {
+      console.error("Subscription verification error:", error);
+      return res.status(500).json({
+        isSubscribed: false,
+        error: error.message || "Failed to verify subscription"
+      });
+    }
+  });
+
+  // Verify payment with session_id
+  app.get("/api/verify-payment", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { session_id } = req.query;
+      if (!session_id) {
+        return res.status(400).json({ error: "Session ID is required" });
+      }
+
+      // Initialize Stripe
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2023-10-16' as any,
+      });
+
+      // Retrieve the session
+      const session = await stripe.checkout.sessions.retrieve(session_id as string);
+
+      if (!session) {
+        return res.status(404).json({ 
+          status: 'error',
+          message: "Payment session not found" 
+        });
+      }
+
+      // Verify the session belongs to the authenticated user
+      if (session.client_reference_id !== req.user.id.toString()) {
+        return res.status(403).json({ 
+          status: 'error',
+          message: "Unauthorized access to payment session" 
+        });
+      }
+
+      // Get subscription information from metadata
+      const planType = session.metadata?.plan || 'standard';
+      const isUpgrade = session.metadata?.isUpgrade === 'true';
+
+      // Update user's subscription status if needed
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, req.user.id))
+        .orderBy(desc(subscriptions.createdAt))
+        .limit(1);
+
+      if (subscription) {
+        // Update subscription record if it exists
+        await db
+          .update(subscriptions)
+          .set({
+            status: 'active',
+            isPro: planType === 'pro'
+          })
+          .where(eq(subscriptions.id, subscription.id));
+      }
+
+      // Update user role
+      await db
+        .update(users)
+        .set({
+          role: planType === 'pro' ? 'pro_user' : 'user'
+        })
+        .where(eq(users.id, req.user.id));
+
+      return res.json({
+        status: 'success',
+        planType,
+        isUpgrade
+      });
+    } catch (error: any) {
+      console.error("Payment verification error:", error);
+      return res.status(500).json({
+        status: 'error',
+        message: error.message || "Failed to verify payment"
+      });
+    }
+  });
+
+  // Downgrade subscription endpoint
+  app.post("/api/downgrade-subscription", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Get current subscription
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, req.user.id))
+        .orderBy(desc(subscriptions.createdAt))
+        .limit(1);
+
+      if (!subscription || subscription.status !== 'active' || !subscription.isPro) {
+        return res.status(400).json({ error: "No active Pro subscription found" });
+      }
+
+      // Initialize Stripe
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2023-10-16' as any,
+      });
+
+      // Update the subscription to Standard plan
+      await stripe.subscriptions.update(
+        subscription.stripeSubscriptionId,
+        {
+          items: [{
+            id: subscription.stripeItemId,
+            price: 'price_1QsdBjIPzZXVDbyymTKeUnsC', // Standard plan price ID
+          }],
+          proration_behavior: 'create_prorations',
+        } as any
+      );
+
+      // Update subscription in database
+      await db
+        .update(subscriptions)
+        .set({
+          isPro: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(subscriptions.id, subscription.id));
+
+      // Update user role
+      await db
+        .update(users)
+        .set({
+          role: 'user'
+        })
+        .where(eq(users.id, req.user.id));
+
+      res.json({
+        success: true,
+        message: "Successfully downgraded to Standard plan"
+      });
+
+    } catch (error: any) {
+      console.error("Subscription downgrade error:", error);
+      res.status(500).json({ error: error.message || "Failed to downgrade subscription" });
     }
   });
 
@@ -655,7 +878,7 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         )
         .limit(1);
 
-      if (!subscription || req.user.role !== 'pro_user') {
+      if (!subscription?.isPro || req.user.role !== 'pro_user') {
         return res.status(403).json({ error: "Pro subscription required" });
       }
 
@@ -717,9 +940,9 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         success: true, 
         insights: mockInsights
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Interviewer insights error:", error);
-      res.status(500).json({ error: "Failed to gather insights" });
+      res.status(500).json({ error: error.message || "Failed to gather insights" });
     }
   });
 
@@ -742,7 +965,7 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         )
         .limit(1);
 
-      if (!subscription || req.user.role !== 'pro_user') {
+      if (!subscription?.isPro || req.user.role !== 'pro_user') {
         return res.status(403).json({ error: "Pro subscription required" });
       }
 
@@ -803,73 +1026,9 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         success: true,
         analysis: mockAnalysis
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Organization analysis error:", error);
-      res.status(500).json({ error: "Failed to analyze organization" });
-    }
-  });
-
-  // Add the following endpoint after the existing pro-related routes
-  app.post("/api/downgrade-to-standard", async (req: Request, res: Response) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-
-      // Get current subscription
-      const [subscription] = await db
-        .select()
-        .from(subscriptions)
-        .where(eq(subscriptions.userId, req.user.id))
-        .orderBy(desc(subscriptions.createdAt))
-        .limit(1);
-
-      if (!subscription || subscription.status !== 'active') {
-        return res.status(400).json({ error: "No active subscription found" });
-      }
-
-      // Initialize Stripe
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-        apiVersion: '2023-10-16',
-      });
-
-      // Update the subscription to Standard plan
-      const updatedSubscription = await stripe.subscriptions.update(
-        subscription.stripeSubscriptionId,
-        {
-          items: [{
-            id: subscription.stripeSubscriptionId,
-            price: 'price_standard_plan', // Price ID for £5 Standard plan
-          }],
-          proration_behavior: 'create_prorations',
-        }
-      );
-
-      // Update subscription in database
-      await db
-        .update(subscriptions)
-        .set({
-          status: updatedSubscription.status,
-          updatedAt: new Date(),
-        })
-        .where(eq(subscriptions.id, subscription.id));
-
-      // Update user role
-      await db
-        .update(users)
-        .set({
-          role: 'user'
-        })
-        .where(eq(users.id, req.user.id));
-
-      res.json({
-        success: true,
-        message: "Successfully downgraded to Standard plan"
-      });
-
-    } catch (error) {
-      console.error("Subscription downgrade error:", error);
-      res.status(500).json({ error: "Failed to downgrade subscription" });
+      res.status(500).json({ error: error.message || "Failed to analyze organization" });
     }
   });
 
