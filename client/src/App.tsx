@@ -32,7 +32,10 @@ import AnalysisPage from "./pages/AnalysisPage";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
 import InterviewerAnalysisPage from "./pages/InterviewerAnalysisPage";
 import { Footer } from "./components/Footer"; // Added import
-
+import LanguageSwitcher from "./components/LanguageSwitcher"; // Added import for language switcher
+import LanguagePrompt from "./components/LanguagePrompt"; // Added import for language prompt
+import { useTranslation } from "react-i18next"; // Added import for translation hook
+import "./i18n"; // Import i18n initialization
 
 // Add type for user subscription
 type User = {
@@ -42,12 +45,14 @@ type User = {
   role: "user" | "sub_admin" | "super_admin";
   subscription: {
     status: "active" | "inactive" | "canceled";
+    isPro?: boolean;
   } | null;
 };
 
 function Navigation() {
   const { user, logout } = useUser();
   const [, setLocation] = useLocation();
+  const { t } = useTranslation(); // Added translation hook
 
   const handleLogout = async () => {
     await logout();
@@ -60,32 +65,32 @@ function Navigation() {
   const isProUser = user?.subscription?.status === "active";
 
   const menuItems = [
-    { label: "About", path: "/about" },
-    { label: "How It Works", path: "/how-it-works" },
-    { label: "Contact", path: "/contact" },
+    { label: t("navigation.about"), path: "/about" },
+    { label: t("navigation.features"), path: "/how-it-works" },
+    { label: t("navigation.contact"), path: "/contact" },
   ];
 
   // Base authenticated items that all logged-in users see
   const authenticatedItems = [
-    { label: "Dashboard", path: "/dashboard" },
-    { label: "Privacy Settings", path: "/privacy-dashboard" },
+    { label: t("navigation.dashboard"), path: "/dashboard" },
+    { label: t("privacy.settings"), path: "/privacy-dashboard" },
   ];
 
   // Add Pro features for Pro users
   if (isProUser) {
     authenticatedItems.push(
-      { label: "Employer Competition Analysis", path: "/analysis" },
-      { label: "Interviewer Analysis", path: "/interviewer-analysis" }
+      { label: t("features.competitionAnalysis"), path: "/analysis" },
+      { label: t("features.interviewerAnalysis"), path: "/interviewer-analysis" }
     );
   }
   // Only show upgrade link for non-pro users
   else if (user) {
-    authenticatedItems.push({ label: "Upgrade to Pro", path: "/upgrade" });
+    authenticatedItems.push({ label: t("upgrade.toPro"), path: "/upgrade" });
   }
 
   // Add admin link if user is admin/super admin
   if (isAdmin) {
-    authenticatedItems.push({ label: "Admin", path: "/admin" });
+    authenticatedItems.push({ label: t("navigation.admin"), path: "/admin" });
   }
 
   return (
@@ -96,7 +101,7 @@ function Navigation() {
             <FileText className="w-5 h-5 text-primary-foreground" />
           </div>
           <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            CV Transformer
+            {t("appName")}
           </span>
         </Link>
 
@@ -113,24 +118,29 @@ function Navigation() {
                 <Link key={item.path} href={item.path}>
                   <Button variant="ghost">
                     {item.label}
-                    {item.label === "Employer Competition Analysis" && <Activity className="ml-2 h-4 w-4" />}
-                    {item.label === "Interviewer Analysis" && <Users className="ml-2 h-4 w-4" />}
+                    {item.path === "/analysis" && <Activity className="ml-2 h-4 w-4" />}
+                    {item.path === "/interviewer-analysis" && <Users className="ml-2 h-4 w-4" />}
                   </Button>
                 </Link>
               ))}
               <Button onClick={handleLogout} variant="ghost">
-                Logout ({user.username})
+                {t("navigation.logout")} ({user.username})
               </Button>
             </>
           ) : (
             <Link href="/auth">
-              <Button>Get Started</Button>
+              <Button>{t("navigation.register")}</Button>
             </Link>
           )}
+          {/* Add language switcher */}
+          <LanguageSwitcher />
         </div>
 
         {/* Mobile Navigation */}
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center gap-2">
+          {/* Add language switcher for mobile */}
+          <LanguageSwitcher />
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-10 w-10">
@@ -157,15 +167,15 @@ function Navigation() {
                       className="cursor-pointer"
                     >
                       {item.label}
-                      {item.label === "Employer Competition Analysis" && <Activity className="ml-2 h-4 w-4" />}
-                      {item.label === "Interviewer Analysis" && <Users className="ml-2 h-4 w-4" />}
+                      {item.path === "/analysis" && <Activity className="ml-2 h-4 w-4" />}
+                      {item.path === "/interviewer-analysis" && <Users className="ml-2 h-4 w-4" />}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuItem
                     onClick={handleLogout}
                     className="cursor-pointer text-red-500 hover:text-red-600"
                   >
-                    Logout
+                    {t("navigation.logout")}
                   </DropdownMenuItem>
                 </>
               ) : (
@@ -173,7 +183,7 @@ function Navigation() {
                   onClick={() => setLocation("/auth")}
                   className="cursor-pointer font-medium"
                 >
-                  Get Started
+                  {t("navigation.register")}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -186,6 +196,7 @@ function Navigation() {
 
 function App() {
   const { user, isLoading } = useUser();
+  const { t } = useTranslation(); // Added translation hook
 
   if (isLoading) {
     return (
@@ -243,17 +254,21 @@ function App() {
         </Switch>
       </main>
       <Footer />
+      {/* Add language prompt */}
+      <LanguagePrompt />
     </div>
   );
 }
 
 function NotFound() {
+  const { t } = useTranslation(); // Added translation hook
+
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
+        <h1 className="text-4xl font-bold mb-4">404 - {t("errors.pageNotFound")}</h1>
         <p className="text-muted-foreground">
-          The page you're looking for doesn't exist.
+          {t("errors.pageDoesntExist")}
         </p>
       </div>
     </div>

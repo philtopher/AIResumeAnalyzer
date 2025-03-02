@@ -1,0 +1,56 @@
+{
+  "appName": "CV Transformer",
+  "navigation": {
+    "home": "Home",
+    "about": "About",
+    "features": "Features",
+    "dashboard": "Dashboard",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "profile": "Profile"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "username": "Username",
+    "confirmPassword": "Confirm Password",
+    "forgotPassword": "Forgot Password?",
+    "loginButton": "Login",
+    "registerButton": "Register",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?"
+  },
+  "cv": {
+    "upload": "Upload CV",
+    "transform": "Transform CV",
+    "targetRole": "Target Role",
+    "jobDescription": "Job Description",
+    "transformButton": "Transform CV",
+    "downloadButton": "Download",
+    "viewButton": "View",
+    "recentTransformations": "Recent Transformations",
+    "noTransformations": "No recent transformations",
+    "score": "Score",
+    "strengths": "Strengths",
+    "weaknesses": "Areas for Improvement",
+    "suggestions": "Suggestions",
+    "organizationalInsights": "Organization Insights"
+  },
+  "language": {
+    "prompt": {
+      "title": "Language Suggestion",
+      "message": "Would you like to switch to {{language}}?",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "changed": "Language Changed",
+    "changedMessage": "The interface language has been changed to {{language}}"
+  },
+  "footer": {
+    "copyright": "© 2023-2025 CV Transformer. All rights reserved.",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "contact": "Contact Us"
+  }
+}
