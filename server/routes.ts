@@ -38,6 +38,370 @@ export function registerRoutes(app: Express): Express {
   // Setup authentication routes
   setupAuth(app);
 
+  // Add CV transformation endpoint (authenticated)
+  app.post("/api/cv/transform", upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      console.log("CV transformation request received (authenticated)");
+
+      // Check if user is authenticated
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Check if file was uploaded
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      console.log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes`);
+
+      // Extract job description and target role from request body
+      const { targetRole, jobDescription } = req.body;
+      console.log(`Target role: ${targetRole}, Job description length: ${jobDescription?.length || 0}`);
+
+      if (!targetRole || !jobDescription) {
+        return res.status(400).json({ error: "Target role and job description are required" });
+      }
+
+      // Extract text from the uploaded file
+      let originalContent = "";
+
+      if (req.file.mimetype === 'application/pdf') {
+        // Process PDF file
+        const pdfBytes = req.file.buffer;
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+        const pages = pdfDoc.getPages();
+
+        // Simple extraction of text from PDF (note: this is basic, a real implementation would use a more robust PDF text extractor)
+        originalContent = `PDF document with ${pages.length} pages`;
+        // In a real implementation, you would extract text from all pages
+      } else {
+        // Process DOCX file
+        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+        originalContent = result.value;
+      }
+
+      console.log(`Original content length: ${originalContent.length}`);
+
+      // In a real implementation, you would apply AI transformation logic here
+      // Mock transformation logic for now
+      const transformedContent = generateTransformedCV(originalContent, targetRole, jobDescription);
+      console.log(`Transformed content length: ${transformedContent.length}`);
+
+      // Generate feedback (in a real implementation, this would come from AI analysis)
+      const feedback = generateMockFeedback(targetRole);
+
+      // Store the transformation in the database
+      const [newTransformation] = await db.insert(cvs)
+        .values({
+          userId: req.user.id,
+          originalName: req.file.originalname,
+          originalContent,
+          transformedContent,
+          targetRole,
+          jobDescription,
+          feedback,
+          fileType: extname(req.file.originalname).replace(".", ""),
+          status: "completed",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      console.log(`Transformation saved with ID: ${newTransformation.id}`);
+
+      // Log activity
+      await db.insert(activityLogs)
+        .values({
+          userId: req.user.id,
+          activityType: "cv_transform",
+          details: {
+            cvId: newTransformation.id,
+            targetRole
+          },
+          createdAt: new Date()
+        });
+
+      res.status(201).json({
+        id: newTransformation.id,
+        status: newTransformation.status,
+        targetRole: newTransformation.targetRole,
+        feedback: newTransformation.feedback
+      });
+    } catch (error: any) {
+      console.error("CV transformation error:", error);
+      res.status(500).json({ error: error.message || "Failed to transform CV" });
+    }
+  });
+
+  // Add CV transformation endpoint (public/unauthenticated)
+  app.post("/api/cv/transform/public", upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      console.log("CV transformation request received (public)");
+
+      // Check if file was uploaded
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      console.log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes`);
+
+      // Extract job description and target role from request body
+      const { targetRole, jobDescription } = req.body;
+      console.log(`Target role: ${targetRole}, Job description length: ${jobDescription?.length || 0}`);
+
+      if (!targetRole || !jobDescription) {
+        return res.status(400).json({ error: "Target role and job description are required" });
+      }
+
+      // Extract text from the uploaded file
+      let originalContent = "";
+
+      if (req.file.mimetype === 'application/pdf') {
+        // Process PDF file
+        const pdfBytes = req.file.buffer;
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+        const pages = pdfDoc.getPages();
+
+        // Simple extraction of text from PDF
+        originalContent = `PDF document with ${pages.length} pages`;
+        // In a real implementation, you would extract text from all pages
+      } else {
+        // Process DOCX file
+        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+        originalContent = result.value;
+      }
+
+      console.log(`Original content length: ${originalContent.length}`);
+
+      // Mock transformation logic for now
+      const transformedContent = generateTransformedCV(originalContent, targetRole, jobDescription);
+      console.log(`Transformed content length: ${transformedContent.length}`);
+
+      // Generate feedback
+      const feedback = generateMockFeedback(targetRole);
+
+      // For public transformations, store the transformation without a user ID
+      const [newTransformation] = await db.insert(cvs)
+        .values({
+          userId: null, // No user ID for public transformations
+          originalName: req.file.originalname,
+          originalContent,
+          transformedContent, 
+          targetRole,
+          jobDescription,
+          feedback,
+          fileType: extname(req.file.originalname).replace(".", ""),
+          status: "completed",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      console.log(`Public transformation saved with ID: ${newTransformation.id}`);
+
+      res.status(201).json({
+        id: newTransformation.id,
+        status: newTransformation.status,
+        targetRole: newTransformation.targetRole,
+        feedback: newTransformation.feedback
+      });
+    } catch (error: any) {
+      console.error("Public CV transformation error:", error);
+      res.status(500).json({ error: error.message || "Failed to transform CV" });
+    }
+  });
+
+  // Get CV content (authenticated)
+  app.get("/api/cv/:id/content", async (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { id } = req.params;
+
+      // Retrieve CV from database
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(
+          and(
+            eq(cvs.id, parseInt(id)),
+            eq(cvs.userId, req.user.id)
+          )
+        )
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).json({ error: "CV not found" });
+      }
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.send(cv.transformedContent);
+    } catch (error: any) {
+      console.error("Error retrieving CV content:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve CV content" });
+    }
+  });
+
+  // Get CV content (public)
+  app.get("/api/cv/:id/content/public", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      // Retrieve CV from database (public, no user check)
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, parseInt(id)))
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).json({ error: "CV not found" });
+      }
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.send(cv.transformedContent);
+    } catch (error: any) {
+      console.error("Error retrieving public CV content:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve CV content" });
+    }
+  });
+
+  // Download CV (authenticated)
+  app.get("/api/cv/:id/download", async (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { id } = req.params;
+      const format = req.query.format || 'docx';
+
+      // Retrieve CV from database
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(
+          and(
+            eq(cvs.id, parseInt(id)),
+            eq(cvs.userId, req.user.id)
+          )
+        )
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).json({ error: "CV not found" });
+      }
+
+      // Generate Word document
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: cv.transformedContent,
+                  size: 24,
+                })
+              ],
+            })
+          ]
+        }]
+      });
+
+      // Generate buffer
+      const buffer = await doc.save();
+
+      // Set headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="transformed_cv_${cv.targetRole.replace(/\s+/g, '_')}.docx"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Error downloading CV:", error);
+      res.status(500).json({ error: error.message || "Failed to download CV" });
+    }
+  });
+
+  // Download CV (public)
+  app.get("/api/cv/:id/download/public", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const format = req.query.format || 'docx';
+
+      // Retrieve CV from database (public, no user check)
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.id, parseInt(id)))
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).json({ error: "CV not found" });
+      }
+
+      // Generate Word document
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: cv.transformedContent,
+                  size: 24,
+                })
+              ],
+            })
+          ]
+        }]
+      });
+
+      // Generate buffer
+      const buffer = await doc.save();
+
+      // Set headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="transformed_cv_${cv.targetRole.replace(/\s+/g, '_')}.docx"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Error downloading public CV:", error);
+      res.status(500).json({ error: error.message || "Failed to download CV" });
+    }
+  });
+
+  // Get CV history (authenticated)
+  app.get("/api/cv/history", async (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Retrieve user's CV transformations
+      const userCVs = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.userId, req.user.id))
+        .orderBy(desc(cvs.createdAt));
+
+      res.json(userCVs.map(cv => ({
+        id: cv.id,
+        originalName: cv.originalName,
+        targetRole: cv.targetRole,
+        createdAt: cv.createdAt,
+        status: cv.status
+      })));
+    } catch (error: any) {
+      console.error("Error retrieving CV history:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve CV history" });
+    }
+  });
+
   // Add migration guide email endpoint
   app.post("/api/send-migration-guide", async (req: Request, res: Response) => {
     try {
@@ -606,7 +970,7 @@ For detailed implementation steps, please refer to our comprehensive deployment 
 
       // Initialize Stripe
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-        apiVersion: '2023-10-16' as any,
+        apiVersion: '2023-10-16' asany,
       });
 
       // Set the price ID based on the plan and action
@@ -1033,4 +1397,72 @@ For detailed implementation steps, please refer to our comprehensive deployment 
   });
 
   return app;
+}
+
+// Helper function to generate a transformed CV (mock implementation)
+function generateTransformedCV(originalContent: string, targetRole: string, jobDescription: string): string {
+  // In a real implementation, this would use AI to transform the CV based on the job description
+  // For now, just add some mock enhancements
+  const lines = originalContent.split('\n');
+
+  // Add a title with the target role
+  const transformedContent = [
+    `${targetRole.toUpperCase()}`,
+    '',
+    ...lines,
+    '',
+    '--- Enhanced Skills ---',
+    'Excellent communication skills',
+    'Problem-solving abilities',
+    'Team collaboration',
+    'Proficient in relevant technologies',
+    '',
+    '--- Professional Summary ---',
+    `Experienced professional seeking a ${targetRole} position to leverage expertise in creating value and driving results.`,
+    'Demonstrated history of success in developing and implementing innovative solutions.',
+    'Committed to continuous learning and professional development.',
+  ].join('\n');
+
+  return transformedContent;
+}
+
+// Helper function to generate mock feedback
+function generateMockFeedback(targetRole: string): any {
+  return {
+    strengths: [
+      "Clear professional summary",
+      "Relevant skills highlighted",
+      "Good formatting structure"
+    ],
+    weaknesses: [
+      "Could use more quantifiable achievements",
+      "Technical skills section could be expanded",
+      "Consider adding more role-specific keywords"
+    ],
+    suggestions: [
+      `Add more ${targetRole}-specific accomplishments`,
+      "Quantify achievements with percentages or numbers",
+      "Include a skills matrix highlighting proficiency levels"
+    ],
+    organizationalInsights: [
+      // Glassdoor reviews
+      [
+        "Positive work-life balance mentioned by employees",
+        "Collaborative team environment",
+        "Opportunities for professional growth"
+      ],
+      // Indeed reviews
+      [
+        "Competitive compensation package",
+        "Challenging but rewarding work environment",
+        "Emphasis on continuous learning"
+      ],
+      // Latest news
+      [
+        "Company recently expanded to new markets",
+        "Announced new product/service offerings",
+        "Received industry recognition for innovation"
+      ]
+    ]
+  };
 }
