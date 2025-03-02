@@ -630,7 +630,7 @@ psql -h $RDS_ENDPOINT -U $RDS_USER -d $RDS_DB -c "SELECT COUNT(*) FROM users;"
 1. Update application configuration:
 \`\`\`hcl
 output "database_url" {
-  value = "postgres://${var.database_username}:${var.database_password}@${aws_db_instance.postgresql.endpoint}/${var.database_name}"
+  value = "postgres://\${var.database_username}:\${var.database_password}@\${aws_db_instance.postgresql.endpoint}/\${var.database_name}"
   sensitive = true
 }
 \`\`\`
@@ -1430,69 +1430,74 @@ For detailed implementation steps, please refer to our comprehensive deployment 
   return app;
 }
 
-// Helper function to generate a transformed CV (mock implementation)
+// Utility function to generate a mock transformed CV
 function generateTransformedCV(originalContent: string, targetRole: string, jobDescription: string): string {
-  // In a real implementation, this would use AI to transform the CV based on the job description
-  // For now, just add some mock enhancements
-  const lines = originalContent.split('\n');
+  // In a real implementation, you would use AI/ML to transform the CV for the target role
+  // based on the original content and job description
 
-  // Add a title with the target role
-  const transformedContent = [
-    `${targetRole.toUpperCase()}`,
-    '',
-    ...lines,
-    '',
-    '--- Enhanced Skills ---',
-    'Excellent communication skills',
-    'Problem-solving abilities',
-    'Team collaboration',
-    'Proficient in relevant technologies',
-    '',
-    '--- Professional Summary ---',
-    `Experienced professional seeking a ${targetRole} position to leverage expertise in creating value and driving results.`,
-    'Demonstrated history of success in developing and implementing innovative solutions.',
-    'Committed to continuous learning and professional development.',
-  ].join('\n');
+  // Mock implementation
+  return `${targetRole.toUpperCase()} - TRANSFORMED CV
 
-  return transformedContent;
+PROFESSIONAL SUMMARY
+Experienced professional with a strong background in ${targetRole}. Skilled in ${getSkillsFromJobDescription(jobDescription)}.
+
+WORK EXPERIENCE
+- Led initiatives resulting in significant improvements
+- Collaborated with cross-functional teams
+- Delivered projects on time and under budget
+
+EDUCATION
+- Bachelor's Degree in relevant field
+
+SKILLS
+${getSkillsFromJobDescription(jobDescription)}
+
+PROJECTS
+- Successfully implemented solutions for complex challenges
+- Optimized processes for efficiency
+`;
 }
 
-// Helper function to generate mock feedback
+// Helper function to extract skills from job description
+function getSkillsFromJobDescription(jobDescription: string): string {
+  // In a real implementation, you would use NLP to extract relevant skills
+  // For this mock, we'll just return a fixed set of skills
+  return "Problem Solving, Communication, Leadership, Project Management, Technical Expertise";
+}
+
+// Utility function to generate mock feedback for the transformed CV
 function generateMockFeedback(targetRole: string): any {
   return {
     strengths: [
-      "Clear professional summary",
+      "Clear professional summary aligned with the target role",
       "Relevant skills highlighted",
-      "Good formatting structure"
+      "Concise presentation of experience"
     ],
     weaknesses: [
-      "Could use more quantifiable achievements",
+      "Could include more specific achievements",
       "Technical skills section could be expanded",
-      "Consider adding more role-specific keywords"
+      "Consider adding certifications relevant to this role"
     ],
     suggestions: [
-      `Add more ${targetRole}-specific accomplishments`,
-      "Quantify achievements with percentages or numbers",
-      "Include a skills matrix highlighting proficiency levels"
+      "Add specific metrics to quantify your achievements",
+      "Include more keywords from the job description",
+      "Consider a skills-based format for better ATS optimization"
     ],
     organizationalInsights: [
-      // Glassdoor reviews
       [
-        "Positive work-life balance mentioned by employees",
-        "Collaborative team environment",
-        "Opportunities for professional growth"
+        "Company culture emphasizes collaboration",
+        "Fast-paced environment with opportunity for growth",
+        "Values innovative thinking and problem-solving"
       ],
-      // Indeed reviews
       [
-        "Competitive compensation package",
-        "Challenging but rewarding work environment",
-        "Emphasis on continuous learning"
+        "Recent positive employee reviews mention work-life balance",
+        "Company known for professional development opportunities",
+        "Leadership style described as supportive but demanding"
       ],
-      // Latest news
       [
-        "Company recently expanded to new markets",
-        "Announced new product/service offerings",
-        "Received industry recognition for innovation"
+        "Recently expanded into new markets",
+        "Investing in new technologies relevant to your skills",
+        "Currently growing the team in your target department"
       ]
     ]
   };
