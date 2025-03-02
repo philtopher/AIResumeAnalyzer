@@ -411,7 +411,7 @@ export function registerRoutes(app: Express): Express {
   app.post("/api/send-migration-guide", async (req: Request, res: Response) => {
     try {
       const manualMigrationGuide = `# Manual PostgreSQL Migration to AWS RDS Guide
-## Prerequisites
+## Prerequisites:
 - AWS Account with RDS access
 - PostgreSQL client (psql) installed locally
 - Access to source PostgreSQL database
@@ -481,7 +481,7 @@ DATABASE_URL=postgres://<RDS_USER>:<RDS_PASSWORD>@<RDS_ENDPOINT>:5432/<RDS_DB>
 
       const terraformMigrationGuide = `# PostgreSQL Migration to AWS RDS Using Terraform
 
-## Prerequisites
+## Prerequisites:
 - Terraform installed (v1.0.0+)
 - AWS CLI configured
 - Access to source PostgreSQL database
@@ -861,13 +861,13 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
   app.post("/api/send-deployment-guide", async (req: Request, res: Response) => {
     try {
       const deploymentGuide = `# CV Transformer AWS Deployment Guide
-## Prerequisites
+## Prerequisites:
 - AWS Account with appropriate permissions
 - Terraform installed (v1.0.0 or later)
 - Git installed
 - GitHub account
 
-## Environment Variables
+## Environment Variables:
 Configure your environment variables in a .env file:
 
 \`\`\`bash
@@ -876,7 +876,7 @@ export STRIPE_SECRET_KEY=""
 export SENDGRID_API_KEY=""
 \`\`\`
 
-## Project Structure
+## Project Structure:
 \`\`\`
 terraform/
 ├── modules/
@@ -911,7 +911,7 @@ terraform/
 └── versions.tf            # Required provider versions
 \`\`\`
 
-## Deployment Steps
+## Deployment Steps:
 
 1. Clone the repository and initialize Terraform
 2. Configure AWS credentials and environment variables
@@ -998,7 +998,6 @@ For detailed implementation steps, please refer to our comprehensive deployment 
 
       // Create Stripe checkout session
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
         line_items: [
           {
             price: priceId,
@@ -1116,7 +1115,6 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         apiVersion: '2023-10-16' as any,
       });
 
-      // Retrieve the session
       const session = await stripe.checkout.sessions.retrieve(session_id as string);
 
       if (!session) {
@@ -1523,5 +1521,5 @@ async function handleSubscriptionUpdated(subscription: any) {
 
 async function handleSubscriptionDeleted(subscription: any) {
   console.log('Subscription deleted:', subscription.id);
-  // Implementation for subscription deletion
+  // Implementation for subscription cancellations
 }
