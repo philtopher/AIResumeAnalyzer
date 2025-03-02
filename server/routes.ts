@@ -15,8 +15,6 @@ import { hashPassword } from "./auth";
 import {randomUUID} from 'crypto';
 import { format } from "date-fns";
 import { Document, Paragraph, TextRun, HeadingLevel, SectionType, Packer } from "docx";
-import geoip from 'geoip-lite';
-import { getSuggestedLanguage } from './geoLanguageMap';
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -1429,53 +1427,6 @@ For detailed implementation steps, please refer to our comprehensive deployment 
     }
   });
 
-  // Detect user's language based on IP
-  app.get("/api/detect-language", (req: Request, res: Response) => {
-    try {
-      // Get client IP
-      const ip = req.headers['x-forwarded-for'] || 
-                 req.connection.remoteAddress || 
-                 req.socket.remoteAddress;
-
-      // For local development/testing
-      if (ip === '::1' || ip === '127.0.0.1') {
-        // Return a default for local testing
-        return res.json({ 
-          detectedCountry: 'US',
-          suggestedLanguage: null 
-        });
-      }
-
-      // Look up IP in geoip database
-      const geo = geoip.lookup(ip as string);
-
-      if (!geo) {
-        return res.json({ 
-          detectedCountry: null,
-          suggestedLanguage: null 
-        });
-      }
-
-      // Get country code
-      const countryCode = geo.country;
-
-      // Get suggested language based on country
-      const suggestedLanguage = getSuggestedLanguage(countryCode);
-
-      res.json({
-        detectedCountry: countryCode,
-        suggestedLanguage
-      });
-    } catch (error: any) {
-      console.error("Error detecting language:", error);
-      res.status(500).json({ 
-        error: error.message || "Failed to detect language",
-        detectedCountry: null,
-        suggestedLanguage: null
-      });
-    }
-  });
-
   return app;
 }
 
@@ -1486,6 +1437,7 @@ function generateTransformedCV(originalContent: string, targetRole: string, jobD
 
   // Mock implementation
   return `${targetRole.toUpperCase()} - TRANSFORMED CV
+
 PROFESSIONAL SUMMARY
 Experienced professional with a strong background in ${targetRole}. Skilled in ${getSkillsFromJobDescription(jobDescription)}.
 
