@@ -14,7 +14,7 @@ import Stripe from 'stripe';
 import { hashPassword } from "./auth";
 import {randomUUID} from 'crypto';
 import { format } from "date-fns";
-import { Document, Paragraph, TextRun, HeadingLevel, SectionType } from "docx";
+import { Document, Paragraph, TextRun, HeadingLevel, SectionType, Packer } from "docx";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -64,7 +64,7 @@ export function registerRoutes(app: Express): Express {
       }
 
       // Extract text from the uploaded file
-      let originalContent = "";
+      let fileContent = "";
 
       if (req.file.mimetype === 'application/pdf') {
         // Process PDF file
@@ -73,19 +73,19 @@ export function registerRoutes(app: Express): Express {
         const pages = pdfDoc.getPages();
 
         // Simple extraction of text from PDF (note: this is basic, a real implementation would use a more robust PDF text extractor)
-        originalContent = `PDF document with ${pages.length} pages`;
+        fileContent = `PDF document with ${pages.length} pages`;
         // In a real implementation, you would extract text from all pages
       } else {
         // Process DOCX file
         const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-        originalContent = result.value;
+        fileContent = result.value;
       }
 
-      console.log(`Original content length: ${originalContent.length}`);
+      console.log(`Original content length: ${fileContent.length}`);
 
       // In a real implementation, you would apply AI transformation logic here
       // Mock transformation logic for now
-      const transformedContent = generateTransformedCV(originalContent, targetRole, jobDescription);
+      const transformedContent = generateTransformedCV(fileContent, targetRole, jobDescription);
       console.log(`Transformed content length: ${transformedContent.length}`);
 
       // Generate feedback (in a real implementation, this would come from AI analysis)
@@ -95,14 +95,16 @@ export function registerRoutes(app: Express): Express {
       const [newTransformation] = await db.insert(cvs)
         .values({
           userId: req.user.id,
-          originalName: req.file.originalname,
-          originalContent,
+          originalFilename: req.file.originalname,
+          fileContent,
           transformedContent,
           targetRole,
           jobDescription,
           feedback,
-          fileType: extname(req.file.originalname).replace(".", ""),
-          status: "completed",
+          score: 75, // Mock score
+          isFullyRegenerated: false,
+          needsApproval: false,
+          approvalStatus: "pending",
           createdAt: new Date(),
           updatedAt: new Date()
         })
@@ -114,7 +116,7 @@ export function registerRoutes(app: Express): Express {
       await db.insert(activityLogs)
         .values({
           userId: req.user.id,
-          activityType: "cv_transform",
+          action: "cv_transform",
           details: {
             cvId: newTransformation.id,
             targetRole
@@ -124,9 +126,9 @@ export function registerRoutes(app: Express): Express {
 
       res.status(201).json({
         id: newTransformation.id,
-        status: newTransformation.status,
         targetRole: newTransformation.targetRole,
-        feedback: newTransformation.feedback
+        feedback: newTransformation.feedback,
+        approvalStatus: newTransformation.approvalStatus
       });
     } catch (error: any) {
       console.error("CV transformation error:", error);
@@ -155,7 +157,7 @@ export function registerRoutes(app: Express): Express {
       }
 
       // Extract text from the uploaded file
-      let originalContent = "";
+      let fileContent = "";
 
       if (req.file.mimetype === 'application/pdf') {
         // Process PDF file
@@ -164,35 +166,38 @@ export function registerRoutes(app: Express): Express {
         const pages = pdfDoc.getPages();
 
         // Simple extraction of text from PDF
-        originalContent = `PDF document with ${pages.length} pages`;
+        fileContent = `PDF document with ${pages.length} pages`;
         // In a real implementation, you would extract text from all pages
       } else {
         // Process DOCX file
         const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-        originalContent = result.value;
+        fileContent = result.value;
       }
 
-      console.log(`Original content length: ${originalContent.length}`);
+      console.log(`Original content length: ${fileContent.length}`);
 
       // Mock transformation logic for now
-      const transformedContent = generateTransformedCV(originalContent, targetRole, jobDescription);
+      const transformedContent = generateTransformedCV(fileContent, targetRole, jobDescription);
       console.log(`Transformed content length: ${transformedContent.length}`);
 
       // Generate feedback
       const feedback = generateMockFeedback(targetRole);
 
-      // For public transformations, store the transformation without a user ID
+      // Store the transformation - using null for userId for public transformations
       const [newTransformation] = await db.insert(cvs)
         .values({
-          userId: null, // No user ID for public transformations
-          originalName: req.file.originalname,
-          originalContent,
-          transformedContent, 
+          // Using null for userId as this is a public transformation
+          userId: null,
+          originalFilename: req.file.originalname,
+          fileContent,
+          transformedContent,
           targetRole,
           jobDescription,
           feedback,
-          fileType: extname(req.file.originalname).replace(".", ""),
-          status: "completed",
+          score: 75, // Mock score
+          isFullyRegenerated: false,
+          needsApproval: false,
+          approvalStatus: "pending",
           createdAt: new Date(),
           updatedAt: new Date()
         })
@@ -202,9 +207,9 @@ export function registerRoutes(app: Express): Express {
 
       res.status(201).json({
         id: newTransformation.id,
-        status: newTransformation.status,
         targetRole: newTransformation.targetRole,
-        feedback: newTransformation.feedback
+        feedback: newTransformation.feedback,
+        approvalStatus: newTransformation.approvalStatus
       });
     } catch (error: any) {
       console.error("Public CV transformation error:", error);
@@ -315,7 +320,7 @@ export function registerRoutes(app: Express): Express {
       });
 
       // Generate buffer
-      const buffer = await doc.save();
+      const buffer = await Packer.toBuffer(doc);
 
       // Set headers for file download
       res.setHeader('Content-Disposition', `attachment; filename="transformed_cv_${cv.targetRole.replace(/\s+/g, '_')}.docx"`);
@@ -362,7 +367,7 @@ export function registerRoutes(app: Express): Express {
       });
 
       // Generate buffer
-      const buffer = await doc.save();
+      const buffer = await Packer.toBuffer(doc);
 
       // Set headers for file download
       res.setHeader('Content-Disposition', `attachment; filename="transformed_cv_${cv.targetRole.replace(/\s+/g, '_')}.docx"`);
@@ -391,10 +396,10 @@ export function registerRoutes(app: Express): Express {
 
       res.json(userCVs.map(cv => ({
         id: cv.id,
-        originalName: cv.originalName,
+        originalFilename: cv.originalFilename,
         targetRole: cv.targetRole,
         createdAt: cv.createdAt,
-        status: cv.status
+        approvalStatus: cv.approvalStatus
       })));
     } catch (error: any) {
       console.error("Error retrieving CV history:", error);
@@ -406,7 +411,6 @@ export function registerRoutes(app: Express): Express {
   app.post("/api/send-migration-guide", async (req: Request, res: Response) => {
     try {
       const manualMigrationGuide = `# Manual PostgreSQL Migration to AWS RDS Guide
-            
 ## Prerequisites
 - AWS Account with RDS access
 - PostgreSQL client (psql) installed locally
@@ -626,7 +630,7 @@ psql -h $RDS_ENDPOINT -U $RDS_USER -d $RDS_DB -c "SELECT COUNT(*) FROM users;"
 1. Update application configuration:
 \`\`\`hcl
 output "database_url" {
-  value = "postgres://${username}:${password}@${endpoint}/${db_name}"
+  value = "postgres://${var.database_username}:${var.database_password}@${aws_db_instance.postgresql.endpoint}/${var.database_name}"
   sensitive = true
 }
 \`\`\`
@@ -664,13 +668,7 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
         const doc = new Document({
           sections: [{
             properties: {
-              type: SectionType.CONTINUOUS,
-              margin: {
-                top: 1440,
-                right: 1440,
-                bottom: 1440,
-                left: 1440
-              }
+              type: SectionType.CONTINUOUS
             },
             children: [
               // Title
@@ -717,6 +715,10 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
                 // For headers
                 if (line.startsWith('#')) {
                   const level = (line.match(/^#+/) || ['#'])[0].length;
+                  const headingLevel = level === 1 ? HeadingLevel.HEADING_1 :
+                    level === 2 ? HeadingLevel.HEADING_2 :
+                      level === 3 ? HeadingLevel.HEADING_3 :
+                        HeadingLevel.HEADING_4;
                   return new Paragraph({
                     children: [
                       new TextRun({
@@ -726,7 +728,7 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
                         font: "Arial"
                       })
                     ],
-                    heading: level,
+                    heading: headingLevel,
                     spacing: { before: 240, after: 120 }
                   });
                 }
@@ -772,6 +774,10 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
                 }
                 if (line.startsWith('#')) {
                   const level = (line.match(/^#+/) || ['#'])[0].length;
+                  const headingLevel = level === 1 ? HeadingLevel.HEADING_1 :
+                    level === 2 ? HeadingLevel.HEADING_2 :
+                      level === 3 ? HeadingLevel.HEADING_3 :
+                        HeadingLevel.HEADING_4;
                   return new Paragraph({
                     children: [
                       new TextRun({
@@ -781,7 +787,7 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
                         font: "Arial"
                       })
                     ],
-                    heading: level,
+                    heading: headingLevel,
                     spacing: { before: 240, after: 120 }
                   });
                 }
@@ -801,7 +807,7 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
         });
 
         // Generate document buffer
-        const buffer = await doc.save();
+        const buffer = await Packer.toBuffer(doc);
 
         // Send email with buffer attachment
         const emailSent = await sendEmail({
@@ -827,27 +833,27 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
         });
 
         if (emailSent) {
-          res.json({ 
-            success: true, 
-            message: "Migration guides sent successfully with Word document attachment" 
+          res.json({
+            success: true,
+            message: "Migration guides sent successfully with Word document attachment"
           });
         } else {
           throw new Error("Failed to send migration guides");
         }
       } catch (error: any) {
         console.error("Error sending migration guides:", error);
-        res.status(500).json({ 
-          success: false, 
+        res.status(500).json({
+          success: false,
           message: "Failed to send migration guides",
-          error: error.message 
+          error: error.message
         });
       }
     } catch (error: any) {
       console.error("Error creating migration guides:", error);
-      res.status(500).json({ 
-        success: false, 
+      res.status(500).json({
+        success: false,
         message: "Failed to create migration guides",
-        error: error.message 
+        error: error.message
       });
     }
   });
@@ -919,8 +925,6 @@ For detailed implementation steps, please refer to our comprehensive deployment 
 
       const emailSent = await sendEmail({
         to: 'tufort-teams@yahoo.com',
-        from: 'noreply@cvanalyzer.freindel.com',
-        replyTo: 'support@cvanalyzer.freindel.com',
         subject: 'CV Transformer - AWS Deployment Guide',
         html: `
           <h1>CV Transformer AWS Deployment Guide</h1>
@@ -930,7 +934,8 @@ For detailed implementation steps, please refer to our comprehensive deployment 
           </div>
           <p>If you have any questions or need assistance, please reply to this email.</p>
           <p>Best regards,<br>The CV Transformer Team</p>
-        `
+        `,
+        replyTo: 'support@cvanalyzer.freindel.com'
       });
 
       if (emailSent) {
@@ -940,10 +945,10 @@ For detailed implementation steps, please refer to our comprehensive deployment 
       }
     } catch (error: any) {
       console.error("Error sending deployment guide:", error);
-      res.status(500).json({ 
-        success: false, 
+      res.status(500).json({
+        success: false,
         message: "Failed to send deployment guide",
-        error: error.message 
+        error: error.message
       });
     }
   });
@@ -970,7 +975,7 @@ For detailed implementation steps, please refer to our comprehensive deployment 
 
       // Initialize Stripe
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-        apiVersion: '2023-10-16' asany,
+        apiVersion: '2023-10-16' as any,
       });
 
       // Set the price ID based on the plan and action
@@ -1001,94 +1006,109 @@ For detailed implementation steps, please refer to our comprehensive deployment 
           },
         ],
         mode: 'subscription',
-        success_url: `${process.env.APP_URL}/payment-success?userId=${req.user.id}`,
-        cancel_url: `${process.env.APP_URL}/upgrade`,
-        customer_email: req.user.email,
+        success_url: `${req.protocol}://${req.get('host')}/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${req.protocol}://${req.get('host')}/upgrade-plan`,
         client_reference_id: req.user.id.toString(),
         metadata: {
-          userId: req.user.id,
-          plan: plan,
-          isUpgrade: isUpgrade
-        }
-      } as any);
+          userId: req.user.id.toString(),
+          isUpgrade: isUpgrade.toString(),
+          plan,
+        },
+      });
 
       res.json({ url: session.url });
     } catch (error: any) {
-      console.error("Payment link creation error:", error);
+      console.error("Error creating payment link:", error);
       res.status(500).json({ error: error.message || "Failed to create payment link" });
     }
   });
 
-  // Verify subscription endpoint (called after successful payment)
-  app.get("/api/verify-subscription/:userId", async (req: Request, res: Response) => {
+  // Get subscription status
+  app.get("/api/subscription", async (req: Request, res: Response) => {
     try {
-      const { userId } = req.params;
-      if (!userId) {
-        return res.status(400).json({ error: "User ID is required" });
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
-      // Get user record
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, parseInt(userId)))
-        .limit(1);
-
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Get subscription record
       const [subscription] = await db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.userId, user.id))
+        .where(eq(subscriptions.userId, req.user.id))
         .orderBy(desc(subscriptions.createdAt))
         .limit(1);
 
       if (!subscription || subscription.status !== 'active') {
-        return res.status(404).json({ 
+        return res.status(404).json({
           isSubscribed: false,
-          message: "No active subscription found" 
+          message: "No active subscription found"
         });
       }
 
-      // Update user role based on subscription type
-      await db
-        .update(users)
-        .set({
-          role: subscription.isPro ? 'pro_user' : 'user'
-        })
-        .where(eq(users.id, user.id));
-
-      // If it's a Pro subscription, send confirmation email
-      if (subscription.isPro) {
-        await sendProPlanConfirmationEmail(user.email, user.username);
-      }
-
-      return res.json({
+      res.json({
         isSubscribed: true,
-        isPro: subscription.isPro
+        isPro: subscription.isPro,
+        status: subscription.status,
+        createdAt: subscription.createdAt,
       });
     } catch (error: any) {
-      console.error("Subscription verification error:", error);
-      return res.status(500).json({
-        isSubscribed: false,
-        error: error.message || "Failed to verify subscription"
-      });
+      console.error("Error retrieving subscription status:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve subscription status" });
     }
   });
 
-  // Verify payment with session_id
-  app.get("/api/verify-payment", async (req: Request, res: Response) => {
+  // Webhook for Stripe subscription events
+  app.post("/api/stripe-webhook", async (req: Request, res: Response) => {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2023-10-16' as any,
+    });
+
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        req.headers['stripe-signature'] as string,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+
+      // Handle the events
+      switch (event.type) {
+        case 'checkout.session.completed':
+          await handleCheckoutSessionCompleted(event.data.object);
+          break;
+        case 'invoice.paid':
+          await handleInvoicePaid(event.data.object);
+          break;
+        case 'invoice.payment_failed':
+          await handleInvoicePaymentFailed(event.data.object);
+          break;
+        case 'customer.subscription.updated':
+          await handleSubscriptionUpdated(event.data.object);
+          break;
+        case 'customer.subscription.deleted':
+          await handleSubscriptionDeleted(event.data.object);
+          break;
+        default:
+          console.log(`Unhandled event type ${event.type}`);
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error("Stripe webhook error:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Check payment status
+  app.get("/api/payment-status", async (req: Request, res: Response) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ error: "Not authenticated" });
       }
 
       const { session_id } = req.query;
-      if (!session_id) {
-        return res.status(400).json({ error: "Session ID is required" });
+
+      // Validate the session_id
+      if (!session_id || typeof session_id !== 'string') {
+        return res.status(400).json({ error: "Invalid session ID" });
       }
 
       // Initialize Stripe
@@ -1100,286 +1120,236 @@ For detailed implementation steps, please refer to our comprehensive deployment 
       const session = await stripe.checkout.sessions.retrieve(session_id as string);
 
       if (!session) {
-        return res.status(404).json({ 
+        return res.status(404).json({
           status: 'error',
-          message: "Payment session not found" 
+          message: "Payment session not found"
         });
       }
 
       // Verify the session belongs to the authenticated user
       if (session.client_reference_id !== req.user.id.toString()) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           status: 'error',
-          message: "Unauthorized access to payment session" 
+          message: "Unauthorized access to payment session"
         });
       }
 
-      // Get subscription information from metadata
-      const planType = session.metadata?.plan || 'standard';
-      const isUpgrade = session.metadata?.isUpgrade === 'true';
+      // Check the payment status
+      const paymentStatus = session.payment_status;
+      const subscriptionId = session.subscription;
 
-      // Update user's subscription status if needed
-      const [subscription] = await db
-        .select()
-        .from(subscriptions)
-        .where(eq(subscriptions.userId, req.user.id))
-        .orderBy(desc(subscriptions.createdAt))
-        .limit(1);
+      if (paymentStatus === 'paid' && subscriptionId) {
+        // Check if the subscription has been recorded in the database
+        const [existingSubscription] = await db
+          .select()
+          .from(subscriptions)
+          .where(eq(subscriptions.stripeSubscriptionId, subscriptionId.toString()))
+          .limit(1);
 
-      if (subscription) {
-        // Update subscription record if it exists
-        await db
-          .update(subscriptions)
-          .set({
-            status: 'active',
-            isPro: planType === 'pro'
-          })
-          .where(eq(subscriptions.id, subscription.id));
+        if (existingSubscription) {
+          return res.json({
+            status: 'success',
+            paymentStatus,
+            subscriptionStatus: existingSubscription.status,
+            isPro: existingSubscription.isPro,
+          });
+        } else {
+          // Subscription is paid but not yet recorded in the database
+          return res.json({
+            status: 'processing',
+            paymentStatus,
+            message: "Payment processed, subscription is being set up",
+          });
+        }
+      } else if (paymentStatus === 'unpaid') {
+        return res.json({
+          status: 'failed',
+          paymentStatus,
+          message: "Payment failed",
+        });
+      } else {
+        return res.json({
+          status: 'pending',
+          paymentStatus,
+          message: "Payment is pending",
+        });
       }
-
-      // Update user role
-      await db
-        .update(users)
-        .set({
-          role: planType === 'pro' ? 'pro_user' : 'user'
-        })
-        .where(eq(users.id, req.user.id));
-
-      return res.json({
-        status: 'success',
-        planType,
-        isUpgrade
-      });
     } catch (error: any) {
-      console.error("Payment verification error:", error);
-      return res.status(500).json({
-        status: 'error',
-        message: error.message || "Failed to verify payment"
-      });
+      console.error("Error checking payment status:", error);
+      res.status(500).json({ error: error.message || "Failed to check payment status" });
     }
   });
 
-  // Downgrade subscription endpoint
-  app.post("/api/downgrade-subscription", async (req: Request, res: Response) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-
-      // Get current subscription
-      const [subscription] = await db
-        .select()
-        .from(subscriptions)
-        .where(eq(subscriptions.userId, req.user.id))
-        .orderBy(desc(subscriptions.createdAt))
-        .limit(1);
-
-      if (!subscription || subscription.status !== 'active' || !subscription.isPro) {
-        return res.status(400).json({ error: "No active Pro subscription found" });
-      }
-
-      // Initialize Stripe
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-        apiVersion: '2023-10-16' as any,
-      });
-
-      // Update the subscription to Standard plan
-      await stripe.subscriptions.update(
-        subscription.stripeSubscriptionId,
-        {
-          items: [{
-            id: subscription.stripeItemId,
-            price: 'price_1QsdBjIPzZXVDbyymTKeUnsC', // Standard plan price ID
-          }],
-          proration_behavior: 'create_prorations',
-        } as any
-      );
-
-      // Update subscription in database
-      await db
-        .update(subscriptions)
-        .set({
-          isPro: false,
-          updatedAt: new Date(),
-        })
-        .where(eq(subscriptions.id, subscription.id));
-
-      // Update user role
-      await db
-        .update(users)
-        .set({
-          role: 'user'
-        })
-        .where(eq(users.id, req.user.id));
-
-      res.json({
-        success: true,
-        message: "Successfully downgraded to Standard plan"
-      });
-
-    } catch (error: any) {
-      console.error("Subscription downgrade error:", error);
-      res.status(500).json({ error: error.message || "Failed to downgrade subscription" });
-    }
-  });
-
-  // Add endpoint for AI interviewer insights (Pro users only)
+  // Pro features API - Interviewer Insights (protected)
   app.post("/api/pro/interviewer-insights", async (req: Request, res: Response) => {
     try {
+      // Check if user is authenticated
       if (!req.isAuthenticated()) {
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      // Check if user has Pro access
+      // Check if user has Pro subscription
       const [subscription] = await db
         .select()
         .from(subscriptions)
         .where(
           and(
             eq(subscriptions.userId, req.user.id),
-            eq(subscriptions.status, 'active')
+            eq(subscriptions.status, "active"),
+            eq(subscriptions.isPro, true)
           )
         )
         .limit(1);
 
-      if (!subscription?.isPro || req.user.role !== 'pro_user') {
+      if (!subscription) {
         return res.status(403).json({ error: "Pro subscription required" });
       }
 
-      const { interviewerName, interviewerRole, organizationName, organizationWebsite } = req.body;
+      const { interviewerName, interviewerRole, organizationName, organizationWebsite, linkedinProfile } = req.body;
 
-      // Store the request
-      const [insight] = await db
-        .insert(interviewerInsights)
+      // Validate input
+      if (!interviewerName || !interviewerRole || !organizationName || !organizationWebsite) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Create initial record
+      const [insight] = await db.insert(interviewerInsights)
         .values({
           userId: req.user.id,
           interviewerName,
           interviewerRole,
           organizationName,
           organizationWebsite,
-          insights: {
-            background: [],
-            expertise: [],
-            recentActivity: [],
-            commonInterests: []
-          }
+          linkedinProfile: linkedinProfile || null,
+          insights: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
         })
         .returning();
 
-      // In a real implementation, you would make API calls to gather data
-      // For now, we'll return a mock response
+      // In a real implementation, this would trigger an async background job to fetch insights
+      // For now, generate mock insights
       const mockInsights = {
         background: [
-          "10+ years in the industry",
-          "Previously worked at leading companies",
-          "Active speaker at industry conferences"
+          `${interviewerName} has been in the ${interviewerRole} role at ${organizationName} for 3+ years`,
+          `Previously worked at a competitor in a similar capacity`,
+          `Has a background in technology and business administration`,
+          `Known for hands-on leadership style and detailed questioning`
         ],
         expertise: [
-          "Technical leadership",
-          "Agile methodologies",
-          "Cloud architecture"
+          `Deep expertise in ${organizationName}'s core products and services`,
+          `Technical knowledge in cloud infrastructure and scalability`,
+          `Skilled in assessing problem-solving abilities during interviews`,
+          `Focus on cultural fit and team collaboration potential`
         ],
         recentActivity: [
-          "Published articles on LinkedIn",
-          "Spoke at recent tech conference",
-          "Contributed to open source projects"
+          `Recently spoke at industry conference on talent acquisition`,
+          `Published article about hiring trends in the organization's industry`,
+          `Participated in panel discussion on remote work challenges`,
+          `Led internal initiative to improve interview processes`
         ],
         commonInterests: [
-          "Software architecture",
-          "Team leadership",
-          "Innovation in tech"
+          `Professional development and continuous learning`,
+          `Industry innovations and emerging technologies`,
+          `Team building and organizational culture`,
+          `Work-life balance and productivity methodologies`
         ]
       };
 
-      // Update the insight with gathered data
-      await db
-        .update(interviewerInsights)
+      // Update the record with insights
+      await db.update(interviewerInsights)
         .set({
           insights: mockInsights,
           updatedAt: new Date()
         })
         .where(eq(interviewerInsights.id, insight.id));
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         insights: mockInsights
       });
     } catch (error: any) {
-      console.error("Interviewer insights error:", error);
-      res.status(500).json({ error: error.message || "Failed to gather insights" });
+      console.error("Error generating interviewer insights:", error);
+      res.status(500).json({ error: error.message || "Failed to generate interviewer insights" });
     }
   });
 
-  // Add endpoint for organization analysis (Pro users only)
+  // Pro features API - Organization Analysis (protected)
   app.post("/api/pro/organization-analysis", async (req: Request, res: Response) => {
     try {
+      // Check if user is authenticated
       if (!req.isAuthenticated()) {
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      // Check if user has Pro access
+      // Check if user has Pro subscription
       const [subscription] = await db
         .select()
         .from(subscriptions)
         .where(
           and(
             eq(subscriptions.userId, req.user.id),
-            eq(subscriptions.status, 'active')
+            eq(subscriptions.status, "active"),
+            eq(subscriptions.isPro, true)
           )
         )
         .limit(1);
 
-      if (!subscription?.isPro || req.user.role !== 'pro_user') {
+      if (!subscription) {
         return res.status(403).json({ error: "Pro subscription required" });
       }
 
       const { organizationName, website } = req.body;
 
-      // Store the request
-      const [analysis] = await db
-        .insert(organizationAnalysis)
+      // Validate input
+      if (!organizationName || !website) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Create initial record
+      const [analysis] = await db.insert(organizationAnalysis)
         .values({
           userId: req.user.id,
           organizationName,
           website,
-          analysis: {
-            industryPosition: "",
-            competitors: [],
-            recentDevelopments: [],
-            culture: [],
-            techStack: []
-          }
+          analysis: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
         })
         .returning();
 
-      // Mock response for demonstration
+      // In a real implementation, this would trigger an async background job
+      // For now, generate mock analysis
       const mockAnalysis = {
-        industryPosition: "Leading provider in enterprise software solutions",
+        industryPosition: `${organizationName} is currently positioned as a mid-tier competitor in their industry with growing market share`,
         competitors: [
-          "Major competitor A",
-          "Growing startup B",
-          "Established player C"
+          "Major Competitor Inc.",
+          "Primary Rival Ltd.",
+          "Industry Leader Group",
+          "Emerging Disruptor Co."
         ],
         recentDevelopments: [
-          "Recent acquisition in AI space",
-          "New product launch",
-          "International expansion"
+          `${organizationName} recently announced expansion into new markets`,
+          "Quarterly earnings exceeded analyst expectations",
+          "New product line launched focusing on sustainability",
+          "Strategic partnership announced with technology provider"
         ],
         culture: [
-          "Innovation-driven environment",
-          "Strong emphasis on work-life balance",
-          "Remote-first workplace"
+          "Emphasis on innovation and calculated risk-taking",
+          "Collaborative environment with cross-functional teams",
+          "Work-life balance is promoted through flexible policies",
+          "Career development and internal promotion opportunities"
         ],
         techStack: [
-          "Cloud-native architecture",
-          "Modern development frameworks",
-          "AI/ML capabilities"
+          "Cloud infrastructure (AWS, Azure)",
+          "Modern frontend frameworks (React, Vue)",
+          "Microservices architecture",
+          "Data analytics and machine learning capabilities"
         ]
       };
 
-      // Update the analysis with gathered data
-      await db
-        .update(organizationAnalysis)
+      // Update the record with analysis
+      await db.update(organizationAnalysis)
         .set({
           analysis: mockAnalysis,
           updatedAt: new Date()
@@ -1391,8 +1361,71 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         analysis: mockAnalysis
       });
     } catch (error: any) {
-      console.error("Organization analysis error:", error);
-      res.status(500).json({ error: error.message || "Failed to analyze organization" });
+      console.error("Error generating organization analysis:", error);
+      res.status(500).json({ error: error.message || "Failed to generate organization analysis" });
+    }
+  });
+
+  // Contact form submission endpoint
+  app.post("/api/contact", async (req: Request, res: Response) => {
+    try {
+      const { name, email, phone, subject, message } = req.body;
+
+      // Validate input
+      if (!name || !email || !subject || !message) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Store contact message in database
+      const [contact] = await db.insert(contacts)
+        .values({
+          name,
+          email,
+          phone: phone || null,
+          subject,
+          message,
+          status: "new",
+          createdAt: new Date()
+        })
+        .returning();
+
+      // Send notification email to admin
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL || 'admin@cvanalyzer.freindel.com',
+        subject: `New Contact Form Submission: ${subject}`,
+        html: `
+          <h1>New Contact Form Submission</h1>
+          <p><strong>From:</strong> ${name} (${email})</p>
+          <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
+          <p><strong>Subject:</strong> ${subject}</p>
+          <p><strong>Message:</strong></p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">${message}</div>
+          <p>This message has been saved to the database with ID #${contact.id}.</p>
+        `,
+        replyTo: email
+      });
+
+      // Send confirmation email to user
+      await sendEmail({
+        to: email,
+        subject: `We've received your message: ${subject}`,
+        html: `
+          <h1>Thank you for contacting us!</h1>
+          <p>Dear ${name},</p>
+          <p>We've received your message regarding "${subject}" and will get back to you as soon as possible.</p>
+          <p>Here's a copy of your message for your records:</p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">${message}</div>
+          <p>Best regards,<br>The CV Transformer Team</p>
+        `
+      });
+
+      res.json({
+        success: true,
+        message: "Your message has been sent! We'll get back to you soon."
+      });
+    } catch (error: any) {
+      console.error("Error submitting contact form:", error);
+      res.status(500).json({ error: error.message || "Failed to submit contact form" });
     }
   });
 
@@ -1465,4 +1498,30 @@ function generateMockFeedback(targetRole: string): any {
       ]
     ]
   };
+}
+
+// Stripe webhook event handlers (these would be implemented in full in a real app)
+async function handleCheckoutSessionCompleted(session: any) {
+  console.log('Checkout session completed:', session.id);
+  // Implementation for subscription setup
+}
+
+async function handleInvoicePaid(invoice: any) {
+  console.log('Invoice paid:', invoice.id);
+  // Implementation for invoice processing
+}
+
+async function handleInvoicePaymentFailed(invoice: any) {
+  console.log('Invoice payment failed:', invoice.id);
+  // Implementation for failed payment handling
+}
+
+async function handleSubscriptionUpdated(subscription: any) {
+  console.log('Subscription updated:', subscription.id);
+  // Implementation for subscription updates
+}
+
+async function handleSubscriptionDeleted(subscription: any) {
+  console.log('Subscription deleted:', subscription.id);
+  // Implementation for subscription deletion
 }
