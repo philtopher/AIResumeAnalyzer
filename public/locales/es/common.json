@@ -3,12 +3,13 @@
   "navigation": {
     "home": "Inicio",
     "about": "Acerca de",
-    "features": "Características",
+    "features": "Cómo Funciona",
     "dashboard": "Panel de Control",
     "login": "Iniciar Sesión",
-    "register": "Registrarse",
+    "register": "Comenzar",
     "logout": "Cerrar Sesión",
-    "profile": "Perfil"
+    "profile": "Perfil",
+    "admin": "Administrador"
   },
   "auth": {
     "email": "Correo Electrónico",
@@ -36,6 +37,20 @@
     "weaknesses": "Áreas de Mejora",
     "suggestions": "Sugerencias",
     "organizationalInsights": "Información de la Organización"
+  },
+  "privacy": {
+    "settings": "Configuración de Privacidad"
+  },
+  "features": {
+    "competitionAnalysis": "Análisis de Competencia Laboral",
+    "interviewerAnalysis": "Análisis de Entrevistadores"
+  },
+  "upgrade": {
+    "toPro": "Actualizar a Pro"
+  },
+  "errors": {
+    "pageNotFound": "Página No Encontrada",
+    "pageDoesntExist": "La página que busca no existe."
   },
   "language": {
     "prompt": {

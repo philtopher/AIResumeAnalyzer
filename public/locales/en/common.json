@@ -3,12 +3,13 @@
   "navigation": {
     "home": "Home",
     "about": "About",
-    "features": "Features",
+    "features": "How It Works",
     "dashboard": "Dashboard",
     "login": "Login",
-    "register": "Register",
+    "register": "Get Started",
     "logout": "Logout",
-    "profile": "Profile"
+    "profile": "Profile",
+    "admin": "Admin"
   },
   "auth": {
     "email": "Email",
@@ -36,6 +37,20 @@
     "weaknesses": "Areas for Improvement",
     "suggestions": "Suggestions",
     "organizationalInsights": "Organization Insights"
+  },
+  "privacy": {
+    "settings": "Privacy Settings"
+  },
+  "features": {
+    "competitionAnalysis": "Employer Competition Analysis",
+    "interviewerAnalysis": "Interviewer Analysis"
+  },
+  "upgrade": {
+    "toPro": "Upgrade to Pro"
+  },
+  "errors": {
+    "pageNotFound": "Page Not Found",
+    "pageDoesntExist": "The page you're looking for doesn't exist."
   },
   "language": {
     "prompt": {
