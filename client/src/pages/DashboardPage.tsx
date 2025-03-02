@@ -27,6 +27,117 @@ export default function DashboardPage() {
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin" || user?.role === "admin";
   const hasPro = isAdmin || subscription?.status === "active";
 
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!file) return;
+
+    setIsProcessing(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append(
+      "targetRole",
+      (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value
+    );
+    formData.append(
+      "jobDescription",
+      (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement)
+        .value
+    );
+
+    try {
+      const response = await fetch("/api/cv/transform", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const result = await response.json();
+      setTransformedCV(result);
+
+      const contentResponse = await fetch(`/api/cv/${result.id}/content`);
+      if (contentResponse.ok) {
+        const content = await contentResponse.text();
+        setTransformedContent(content);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/cv/history"] });
+
+      toast({
+        title: "CV Transformed Successfully",
+        description: "Your CV has been updated for the target role.",
+      });
+
+      setFile(null);
+      if (formRef.current) {
+        formRef.current.reset();
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle downloading a CV
+  const handleDownload = async (cvId: number) => {
+    try {
+      const response = await fetch(`/api/cv/${cvId}/download`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "transformed_cv.docx";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle viewing a CV
+  const handleView = async (cvId: number) => {
+    try {
+      const response = await fetch(`/api/cv/${cvId}/content`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const content = await response.text();
+      setTransformedContent(content);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoadingSubscription) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -218,112 +329,4 @@ export default function DashboardPage() {
       </main>
     </div>
   );
-}
-
-async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-  e.preventDefault();
-  if (!file) return;
-
-  setIsProcessing(true);
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append(
-    "targetRole",
-    (e.currentTarget.elements.namedItem("role") as HTMLInputElement).value
-  );
-  formData.append(
-    "jobDescription",
-    (e.currentTarget.elements.namedItem("description") as HTMLTextAreaElement)
-      .value
-  );
-
-  try {
-    const response = await fetch("/api/cv/transform", {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    const result = await response.json();
-    setTransformedCV(result);
-
-    const contentResponse = await fetch(`/api/cv/${result.id}/content`);
-    if (contentResponse.ok) {
-      const content = await contentResponse.text();
-      setTransformedContent(content);
-    }
-
-    await queryClient.invalidateQueries({ queryKey: ["/api/cv/history"] });
-
-    toast({
-      title: "CV Transformed Successfully",
-      description: "Your CV has been updated for the target role.",
-    });
-
-    setFile(null);
-    if (formRef.current) {
-      formRef.current.reset();
-    }
-  } catch (error: any) {
-    toast({
-      title: "Error",
-      description: error.message,
-      variant: "destructive",
-    });
-  } finally {
-    setIsProcessing(false);
-  }
-}
-
-async function handleDownload(cvId: number) {
-  try {
-    const response = await fetch(`/api/cv/${cvId}/download`, {
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "transformed_cv.docx";
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  } catch (error: any) {
-    toast({
-      title: "Error",
-      description: error.message,
-      variant: "destructive",
-    });
-  }
-}
-
-async function handleView(cvId: number) {
-  try {
-    const response = await fetch(`/api/cv/${cvId}/content`, {
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    const content = await response.text();
-    setTransformedContent(content);
-  } catch (error: any) {
-    toast({
-      title: "Error",
-      description: error.message,
-      variant: "destructive",
-    });
-  }
 }
