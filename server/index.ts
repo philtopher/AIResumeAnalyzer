@@ -45,9 +45,13 @@ async function startServer(initialPort: number) {
     // Register API routes before setting up Vite/static files
     registerRoutes(app);
 
+    // Create HTTP server
+    const server = createServer(app);
+
     // Set up Vite or serve static files based on environment
     if (app.get("env") === "development") {
-      await setupVite(app);
+      // Fix: Pass both app and server to setupVite
+      await setupVite(app, server);
     } else {
       serveStatic(app);
     }
@@ -64,9 +68,6 @@ async function startServer(initialPort: number) {
       console.error("Error:", err);
       res.status(status).json({ message });
     });
-
-    // Create HTTP server
-    const server = createServer(app);
 
     // Try to start the server with retries
     let currentPort = initialPort;
