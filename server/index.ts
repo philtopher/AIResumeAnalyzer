@@ -40,18 +40,23 @@ app.get("/api/health", (_req, res) => {
 
 async function startServer(initialPort: number) {
   try {
-    await updateAdminPassword();
+    console.log("Starting server initialization...");
+    // Temporarily comment out the potentially slow admin update
+    // We'll defer this until after the server has started
+    // await updateAdminPassword();
 
+    console.log("Creating HTTP server...");
+    // Create HTTP server first
+    const server = createServer(app);
+
+    console.log("Registering API routes...");
     // Register API routes before setting up Vite/static files
     registerRoutes(app);
 
-    // Create HTTP server
-    const server = createServer(app);
-
+    console.log("Setting up Vite or static files...");
     // Set up Vite or serve static files based on environment
     if (app.get("env") === "development") {
-      // Fix: Pass both app and server to setupVite
-      await setupVite(app, server);
+      await setupVite(app, server); // Fixed: Now passing both app and server
     } else {
       serveStatic(app);
     }
@@ -78,6 +83,7 @@ async function startServer(initialPort: number) {
         await new Promise<void>((resolve, reject) => {
           server.once('error', (err: NodeJS.ErrnoException) => {
             if (err.code === 'EADDRINUSE') {
+              console.log(`Port ${currentPort} in use, trying ${currentPort + 1}...`);
               currentPort++;
               server.close();
               resolve();
@@ -89,6 +95,13 @@ async function startServer(initialPort: number) {
           server.listen(currentPort, "0.0.0.0", () => {
             const address = server.address() as AddressInfo;
             log(`Server is running on port ${address.port}`);
+
+            // Run updateAdminPassword after server has started
+            // This way, the slower operation won't block server startup
+            updateAdminPassword().catch(error => {
+              console.error("Failed to update admin password:", error);
+            });
+
             resolve();
           });
         });

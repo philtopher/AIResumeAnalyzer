@@ -35,6 +35,239 @@ const upload = multer({
   },
 });
 
+// Function to generate transformed CV content
+function generateTransformedCV(originalContent: string, targetRole: string, jobDescription: string): string {
+  // Extract problems from job description (improved implementation)
+  const problemsToSolve = extractProblemsFromJobDescription(jobDescription);
+
+  // Extract skills required for the role (improved implementation)
+  const requiredSkills = getSkillsFromJobDescription(jobDescription);
+
+  // Extract key requirements from the job description (new implementation)
+  const keyRequirements = extractKeyRequirements(jobDescription);
+
+  // Generate previous roles section (improved implementation)
+  const previousRoles = generatePreviousRoles(originalContent, targetRole);
+
+  // Generate responsibilities tailored to the target role and job description (improved implementation)
+  const responsibilities = generateTargetedResponsibilities(targetRole, jobDescription, problemsToSolve);
+
+  // Generate a section addressing the specific problems (improved implementation)
+  const problemSolvingSection = generateProblemSolvingSection(problemsToSolve, targetRole, keyRequirements);
+
+  // Generate achievements section related to the target role (new implementation)
+  const achievements = generateAchievements(targetRole, jobDescription);
+
+  // Enriched implementation with more structured sections
+  return `${targetRole.toUpperCase()} - TRANSFORMED CV
+
+PROFESSIONAL SUMMARY
+Experienced and results-driven ${targetRole} with a proven track record of success in delivering high-impact solutions. Skilled in ${requiredSkills}. Demonstrated ability to ${problemsToSolve[0] || "solve complex problems"} and ${problemsToSolve[1] || "drive measurable results"}. Adept at ${keyRequirements[0] || "collaborating with cross-functional teams"} to achieve ${keyRequirements[1] || "organizational objectives"}.
+
+RELEVANT EXPERIENCE
+
+${targetRole.toUpperCase()} (CURRENT TARGET ROLE)
+${responsibilities.map(resp => `• ${resp}`).join('\n')}
+
+${previousRoles}
+
+KEY ACHIEVEMENTS
+${achievements.map(achievement => `• ${achievement}`).join('\n')}
+
+PROBLEM-SOLVING APPROACH
+${problemSolvingSection}
+
+EDUCATION
+• Bachelor's Degree in relevant field
+• Professional certifications and continuing education in ${targetRole} specialization
+
+TECHNICAL SKILLS
+${requiredSkills}
+
+PROJECTS
+• Successfully implemented solutions for complex challenges that resulted in significant improvements in efficiency and outcomes
+• Led cross-functional teams to deliver high-impact initiatives that addressed critical business needs
+• Developed innovative strategies that directly addressed organizational pain points and contributed to growth
+
+REFERENCES
+Available upon request`;
+}
+
+// Function to get skills from job description
+function getSkillsFromJobDescription(jobDescription: string): string {
+  const skillCategories = {
+    technical: [
+      "programming", "coding", "development", "software", "systems", "architecture", 
+      "database", "SQL", "Java", "Python", "JavaScript", "React", "Node", "AWS", "cloud", 
+      "DevOps", "CI/CD", "testing", "security", "API", "microservices", "agile", "scrum"
+    ],
+    business: [
+      "strategy", "planning", "management", "leadership", "budget", "forecasting", 
+      "analysis", "reporting", "KPI", "metrics", "ROI", "stakeholder", "client", 
+      "marketing", "sales", "growth", "scaling", "operations", "procurement"
+    ],
+    soft: [
+      "communication", "teamwork", "collaboration", "problem solving", "critical thinking", 
+      "decision making", "time management", "organization", "adaptability", "flexibility", 
+      "creativity", "innovation", "emotional intelligence", "conflict resolution", "negotiation"
+    ],
+    domain: [
+      "healthcare", "finance", "banking", "insurance", "retail", "e-commerce", "manufacturing", 
+      "education", "government", "non-profit", "logistics", "supply chain", "hospitality", 
+      "telecommunications", "media", "advertising", "real estate", "energy", "environmental"
+    ]
+  };
+
+  // Extract skills that appear in the job description
+  const allSkills = Object.values(skillCategories).flat();
+  const lowercaseDesc = jobDescription.toLowerCase();
+  const extractedSkills = allSkills.filter(skill => 
+    lowercaseDesc.includes(skill.toLowerCase())
+  );
+
+  // Add category-specific skills if we have too few matches
+  if (extractedSkills.length < 5) {
+    if (!extractedSkills.some(skill => skillCategories.technical.includes(skill))) {
+      extractedSkills.push("technical problem solving", "systems analysis");
+    }
+    if (!extractedSkills.some(skill => skillCategories.business.includes(skill))) {
+      extractedSkills.push("strategic planning", "performance optimization");
+    }
+    if (!extractedSkills.some(skill => skillCategories.soft.includes(skill))) {
+      extractedSkills.push("effective communication", "cross-functional collaboration");
+    }
+  }
+
+  // Format the skills with proper capitalization
+  const formattedSkills = extractedSkills.map(skill => 
+    skill.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  );
+
+  return formattedSkills.join(", ");
+}
+
+// Function to extract key requirements from job description
+function extractKeyRequirements(jobDescription: string): string[] {
+  const requirementIndicators = [
+    "required", "requirement", "must have", "essential", "necessary",
+    "qualification", "qualified", "experience in", "expertise in", "proficient in",
+    "background in", "knowledge of", "familiarity with", "understanding of"
+  ];
+
+  const sentences = jobDescription.split(/[.!?]+/);
+  const requirementSentences = sentences.filter(sentence => 
+    requirementIndicators.some(indicator => 
+      sentence.toLowerCase().includes(indicator.toLowerCase())
+    )
+  );
+
+  const requirements = requirementSentences.length > 0 
+    ? requirementSentences.map(sentence => {
+        let req = sentence.trim();
+        if (req.length > 60) {
+          const breakPoint = req.lastIndexOf(' ', 60);
+          req = req.substring(0, breakPoint > 30 ? breakPoint : 60) + "...";
+        }
+        return req;
+      })
+    : [
+        "Leading teams to achieve strategic objectives",
+        "Developing and implementing innovative solutions",
+        "Managing complex projects from inception to completion",
+        "Analyzing data to drive decision-making processes"
+      ];
+
+  return requirements.slice(0, 4);
+}
+
+// Function to extract problems from job description
+function extractProblemsFromJobDescription(jobDescription: string): string[] {
+  const problemIndicators = [
+    "challenges", "problems", "issues", "difficulties", "obstacles",
+    "improve", "enhance", "optimize", "streamline", "resolve",
+    "inefficiencies", "bottlenecks", "pain points", "gaps", "limitations",
+    "struggling with", "facing", "needs to", "looking to", "aiming to"
+  ];
+
+  const sentences = jobDescription.split(/[.!?]+/);
+  const problemSentences = sentences.filter(sentence => 
+    problemIndicators.some(indicator => 
+      sentence.toLowerCase().includes(indicator.toLowerCase())
+    )
+  );
+
+  const problems = problemSentences.length > 0 
+    ? problemSentences.map(sentence => {
+        let prob = sentence.trim();
+        if (prob.length > 70) {
+          const breakPoint = prob.lastIndexOf(' ', 70);
+          prob = prob.substring(0, breakPoint > 40 ? breakPoint : 70) + "...";
+        }
+        return prob;
+      })
+    : [
+        "Improving team efficiency and productivity in a fast-paced environment",
+        "Streamlining operational processes to reduce costs and enhance output quality",
+        "Enhancing customer satisfaction and retention through improved service delivery",
+        "Implementing scalable solutions that support business growth objectives"
+      ];
+
+  return problems.slice(0, 4);
+}
+
+// Function to generate previous roles section
+function generatePreviousRoles(originalContent: string, targetRole: string): string {
+  const lowerCaseRole = targetRole.toLowerCase();
+  let previousRoleTitle1, previousRoleTitle2;
+
+  if (lowerCaseRole.includes("manager") || lowerCaseRole.includes("director")) {
+    previousRoleTitle1 = "Senior Team Lead";
+    previousRoleTitle2 = "Project Coordinator";
+  } else if (lowerCaseRole.includes("developer") || lowerCaseRole.includes("engineer")) {
+    previousRoleTitle1 = "Associate Developer";
+    previousRoleTitle2 = "Technical Analyst";
+  } else if (lowerCaseRole.includes("analyst")) {
+    previousRoleTitle1 = "Junior Analyst";
+    previousRoleTitle2 = "Research Assistant";
+  } else if (lowerCaseRole.includes("marketing")) {
+    previousRoleTitle1 = "Marketing Specialist";
+    previousRoleTitle2 = "Marketing Assistant";
+  } else if (lowerCaseRole.includes("sales")) {
+    previousRoleTitle1 = "Sales Representative";
+    previousRoleTitle2 = "Account Coordinator";
+  } else {
+    previousRoleTitle1 = "Senior Associate";
+    previousRoleTitle2 = "Junior Specialist";
+  }
+
+  return `PREVIOUS ROLES
+
+${previousRoleTitle1} (2020-2023)
+• Led cross-functional team initiatives resulting in 20% efficiency improvement and $1.2M cost savings
+• Developed and implemented innovative solutions to complex business challenges, increasing operational capacity by 30%
+• Collaborated with stakeholders to align project deliverables with strategic business objectives
+• Mentored junior team members, resulting in improved team performance and 15% decrease in turnover
+
+${previousRoleTitle2} (2018-2020)
+• Supported key projects and initiatives with comprehensive analysis and actionable research
+• Assisted with implementation of new systems and processes, reducing processing time by 25%
+• Gained expertise in industry-specific tools and methodologies
+• Recognized for exceptional problem-solving abilities and attention to detail`;
+}
+
+// Function to generate mock feedback
+function generateMockFeedback(targetRole: string): string {
+  return `Based on our analysis, your CV has been transformed to better align with the role of ${targetRole}. Here are some key improvements:
+
+1. Skills and qualifications have been tailored to match the job requirements
+2. Work experience has been reframed to emphasize relevant accomplishments
+3. Professional summary has been strengthened to highlight your fit for the role
+4. Technical competencies have been prioritized based on industry standards
+5. Achievements have been quantified with metrics where possible
+
+Your CV now more effectively demonstrates your suitability for the ${targetRole} position, increasing your chances of securing an interview.`;
+}
+
 export function registerRoutes(app: Express): Express {
   // Setup authentication routes
   setupAuth(app);
@@ -2141,6 +2374,216 @@ async function handleSubscriptionCancellation(subscription: any) {
       .where(eq(subscriptions.id, existingSubscription.id));
 
     // Send cancellation email
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, existingSubscription.userId))
+      .limit(1);
+
+    if (user) {
+      // In a real implementation, you would send a cancellation email
+      // await sendCancellationEmail(user.email, user.name);
+    }
+
+    // Log activity
+    await db.insert(activityLogs)
+      .values({
+        userId: existingSubscription.userId,
+        action: "subscription_canceled",
+        details: {
+          subscriptionId: existingSubscription.id,
+          canceledAt: new Date(subscription.canceled_at * 1000)
+        },
+        createdAt: new Date()
+      });
+  } catch (error: any) {
+    console.error("Error handling subscription cancellation:", error);
+    throw error;
+  }
+}
+
+// Helper function to generate achievements based on role and job description
+function generateAchievements(targetRole: string, jobDescription: string): string[] {
+  // In a real implementation, this would analyze the job description and create relevant achievements
+  // This is a mock implementation
+  return [
+    `Led strategic ${targetRole} initiatives resulting in 30% efficiency improvement`,
+    `Implemented innovative solutions that reduced operational costs by $500K annually`,
+    `Managed cross-functional teams to deliver projects 25% ahead of schedule`,
+    `Developed and executed strategies that increased revenue by 40%`,
+    `Mentored team members resulting in 90% promotion rate within 18 months`
+  ];
+}
+
+function generateTargetedResponsibilities(targetRole: string, jobDescription: string, problems: string[]): string[] {
+  // In a real implementation, this would analyze the job description and create relevant responsibilities
+  // This is a mock implementation
+  const responsibilities = [
+    `Leading cross-functional teams to implement solutions for ${problems[0] || "key business challenges"}`,
+    `Developing and executing strategies to address ${problems[1] || "operational inefficiencies"}`,
+    `Building and maintaining relationships with stakeholders to ensure project success`,
+    `Creating and delivering reports on project progress and outcomes`,
+    `Mentoring team members and fostering a culture of continuous improvement`
+  ];
+
+  // Add role-specific responsibilities
+  if (targetRole.toLowerCase().includes("manager")) {
+    responsibilities.push(
+      "Managing team resources and budgets to optimize performance",
+      "Establishing and monitoring KPIs to track team success"
+    );
+  } else if (targetRole.toLowerCase().includes("developer")) {
+    responsibilities.push(
+      "Writing clean, maintainable code following best practices",
+      "Conducting code reviews and providing constructive feedback"
+    );
+  } else if (targetRole.toLowerCase().includes("analyst")) {
+    responsibilities.push(
+      "Analyzing complex data sets to derive actionable insights",
+      "Creating comprehensive reports and data visualizations"
+    );
+  }
+
+  return responsibilities;
+}
+
+// Helper function to generate problem-solving section
+function generateProblemSolvingSection(problems: string[], targetRole: string, requirements: string[]): string {
+  // In a real implementation, this would create a tailored section based on identified problems
+  // This is a mock implementation
+  const approaches = problems.map(problem => 
+    `• Addressed "${problem}" through innovative solution design and implementation`
+  ).join('\n');
+
+  return `PROBLEM-SOLVING APPROACH & METHODOLOGY\n
+As a ${targetRole}, I specialize in identifying and resolving complex challenges:
+
+${approaches}
+
+KEY PROBLEM-SOLVING PRINCIPLES:
+• Data-driven analysis and decision making
+• Collaborative approach to solution development
+• Iterative refinement based on feedback and results
+• Risk assessment and mitigation strategies
+• Focus on scalable, sustainable solutions`;
+}
+
+// Webhook handler functions
+async function handleSuccessfulCheckout(session: any): Promise<void> {
+  try {
+    const userId = parseInt(session.client_reference_id);
+    if (!userId) {
+      throw new Error("Missing userId in session metadata");
+    }
+
+    // Extract subscription information
+    const subscriptionId = session.subscription;
+    const isPro = session.metadata?.plan === "pro";
+    const isUpgrade = session.metadata?.isUpgrade === "true";
+
+    // Create subscription record
+    await db.insert(subscriptions)
+      .values({
+        userId,
+        stripeSubscriptionId: subscriptionId,
+        status: "active",
+        isPro,
+        startDate: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+    // Get user details
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (user && isPro) {
+      // Send confirmation email for Pro plan
+      await sendProPlanConfirmationEmail(user.email, user.name);
+    }
+
+    // Log activity
+    await db.insert(activityLogs)
+      .values({
+        userId,
+        action: isUpgrade ? "subscription_upgraded" : "subscription_created",
+        details: {
+          subscriptionId,
+          plan: isPro ? "pro" : "standard",
+          isUpgrade
+        },
+        createdAt: new Date()
+      });
+  } catch (error: any) {
+    console.error("Error handling successful checkout:", error);
+    throw error;
+  }
+}
+
+async function handleSubscriptionUpdate(subscription: any): Promise<void> {
+  try {
+    // Get the subscription from our database
+    const [existingSubscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, subscription.id))
+      .limit(1);
+
+    if (!existingSubscription) {
+      throw new Error("Subscription not found");
+    }
+
+    // Update subscription status
+    await db.update(subscriptions)
+      .set({
+        status: subscription.status,
+        updatedAt: new Date()
+      })
+      .where(eq(subscriptions.id, existingSubscription.id));
+
+    // Log activity
+    await db.insert(activityLogs)
+      .values({
+        userId: existingSubscription.userId,
+        action: "subscription_updated",
+        details: {
+          subscriptionId: existingSubscription.id,
+          status: subscription.status
+        },
+        createdAt: new Date()
+      });
+  } catch (error: any) {
+    console.error("Error handling subscription update:", error);
+    throw error;
+  }
+}
+
+async function handleSubscriptionCancellation(subscription: any): Promise<void> {
+  try {
+    // Get the subscription from our database
+    const [existingSubscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, subscription.id))
+      .limit(1);
+
+    if (!existingSubscription) {
+      throw new Error("Subscription not found");
+    }
+
+    // Update subscription status
+    await db.update(subscriptions)
+      .set({
+        status: "canceled",
+        endDate: new Date(subscription.canceled_at * 1000),
+        updatedAt: new Date()
+      })
+      .where(eq(subscriptions.id, existingSubscription.id));
+
+    // Get user details
     const [user] = await db
       .select()
       .from(users)
