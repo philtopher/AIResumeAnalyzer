@@ -32,7 +32,7 @@ const upload = multer({
   },
 });
 
-// Function to generate transformed CV content
+// Update the generateTransformedCV function to create richer content and include previous roles
 function generateTransformedCV(originalContent: string, targetRole: string, jobDescription: string): string {
   // Extract problems from job description (improved implementation)
   const problemsToSolve = extractProblemsFromJobDescription(jobDescription);
@@ -43,23 +43,31 @@ function generateTransformedCV(originalContent: string, targetRole: string, jobD
   // Extract key requirements from the job description (new implementation)
   const keyRequirements = extractKeyRequirements(jobDescription);
 
-  // Generate previous roles section (improved implementation)
-  const previousRoles = generatePreviousRoles(originalContent, targetRole);
+  // Generate richer responsibilities tailored to the target role and job description
+  const responsibilities = generateRicherResponsibilities(targetRole, jobDescription, problemsToSolve);
 
-  // Generate responsibilities tailored to the target role and job description (improved implementation)
-  const responsibilities = generateTargetedResponsibilities(targetRole, jobDescription, problemsToSolve);
+  // Extract previous roles from the original CV content (new implementation)
+  const extractedPreviousRoles = extractPreviousRoles(originalContent);
+
+  // Generate fallback previous roles if none could be extracted
+  const previousRolesFallback = generatePreviousRoles(originalContent, targetRole);
+
+  // Use extracted roles if available, otherwise use the fallback
+  const previousRoles = extractedPreviousRoles || previousRolesFallback;
 
   // Generate a section addressing the specific problems (improved implementation)
   const problemSolvingSection = generateProblemSolvingSection(problemsToSolve, targetRole, keyRequirements);
 
-  // Generate achievements section related to the target role (new implementation)
-  const achievements = generateAchievements(targetRole, jobDescription);
+  // Generate achievements section related to the target role (enhanced implementation)
+  const achievements = generateRicherAchievements(targetRole, jobDescription);
+
+  // Generate a richer professional summary
+  const professionalSummary = generateRicherProfessionalSummary(targetRole, requiredSkills, problemsToSolve, keyRequirements);
 
   // Enriched implementation with more structured sections
   return `${targetRole.toUpperCase()} - TRANSFORMED CV
 
-PROFESSIONAL SUMMARY
-Experienced and results-driven ${targetRole} with a proven track record of success in delivering high-impact solutions. Skilled in ${requiredSkills}. Demonstrated ability to ${problemsToSolve[0] || "solve complex problems"} and ${problemsToSolve[1] || "drive measurable results"}. Adept at ${keyRequirements[0] || "collaborating with cross-functional teams"} to achieve ${keyRequirements[1] || "organizational objectives"}.
+${professionalSummary}
 
 RELEVANT EXPERIENCE
 
@@ -88,6 +96,181 @@ PROJECTS
 
 REFERENCES
 Available upon request`;
+}
+
+// Function to generate a richer professional summary
+function generateRicherProfessionalSummary(targetRole: string, requiredSkills: string, problems: string[], requirements: string[]): string {
+  const roleSpecificPhrases = {
+    "manager": [
+      "strategic leadership", "performance optimization", "team development", "operational excellence",
+      "change management", "stakeholder engagement", "P&L responsibility", "cross-functional collaboration"
+    ],
+    "developer": [
+      "full stack development", "agile methodologies", "technical leadership", "systems architecture",
+      "CI/CD implementation", "test-driven development", "code optimization", "microservices design"
+    ],
+    "analyst": [
+      "data-driven insights", "predictive modeling", "business intelligence", "requirements gathering",
+      "market research", "statistical analysis", "performance metrics", "trend forecasting"
+    ],
+    "marketing": [
+      "brand development", "campaign management", "digital marketing strategies", "market penetration",
+      "customer acquisition", "content strategy", "ROI optimization", "audience segmentation"
+    ],
+    "sales": [
+      "revenue generation", "client relationship management", "pipeline development", "negotiation strategies",
+      "market expansion", "solution selling", "territory management", "consultative selling"
+    ],
+    "executive": [
+      "strategic vision", "organizational leadership", "business transformation", "investor relations",
+      "P&L oversight", "M&A integration", "board management", "executive decision-making"
+    ]
+  };
+
+  // Determine role type for specialized phrasing
+  const roleType = Object.keys(roleSpecificPhrases).find(type => 
+    targetRole.toLowerCase().includes(type)
+  ) || "executive";
+
+  // Select relevant phrases for the role
+  const relevantPhrases = roleSpecificPhrases[roleType as keyof typeof roleSpecificPhrases];
+  
+  // Generate a richer professional summary
+  return `PROFESSIONAL SUMMARY
+
+Accomplished and results-driven ${targetRole} with a proven track record of delivering exceptional outcomes in fast-paced environments. Combining deep expertise in ${requiredSkills} with strategic vision and pragmatic execution. Demonstrated capacity to ${problems[0] || "identify and resolve complex operational challenges"} while consistently ${problems[1] || "exceeding organizational objectives"}. 
+
+Recognized for ${relevantPhrases[0]} and ${relevantPhrases[1]}, with particular strength in ${relevantPhrases[2]} that drives measurable business results. Adept at ${requirements[0] || "collaborating with cross-functional teams"} to achieve ${requirements[1] || "organizational objectives"} through methodical planning and decisive action. Combines analytical rigor with creative problem-solving to develop innovative solutions that address core business challenges.
+
+A strategic thinker with exceptional communication skills who builds consensus among diverse stakeholders and translates complex concepts into actionable initiatives. Committed to continuous professional development and staying at the forefront of industry best practices.`;
+}
+
+// Function to generate richer responsibilities
+function generateRicherResponsibilities(targetRole: string, jobDescription: string, problems: string[]): string[] {
+  // Base responsibilities with more detailed descriptions
+  const responsibilities = [
+    `Spearhead strategic initiatives to address ${problems[0] || "key business challenges"}, implementing innovative solutions that resulted in significant operational efficiencies and cost reductions`,
+    `Orchestrate cross-functional collaboration to develop and execute comprehensive strategies addressing ${problems[1] || "critical operational inefficiencies"}, aligning deliverables with organizational objectives`,
+    `Establish and cultivate strategic relationships with key stakeholders to ensure project success, maintaining exceptional communication channels throughout project lifecycles`,
+    `Develop comprehensive analytical frameworks to track project performance, delivering insightful reports that translate complex metrics into actionable intelligence`,
+    `Create and implement mentorship programs that foster a culture of continuous improvement, resulting in enhanced team performance and professional growth`,
+    `Design and implement robust systems and processes that scale with organizational growth while maintaining operational excellence and quality standards`
+  ];
+
+  // Add role-specific detailed responsibilities
+  if (targetRole.toLowerCase().includes("manager") || targetRole.toLowerCase().includes("director")) {
+    responsibilities.push(
+      "Oversee comprehensive budget planning and resource allocation processes, optimizing financial performance while ensuring alignment with strategic objectives",
+      "Implement data-driven performance management systems with cascading KPIs that provide real-time visibility into operational effectiveness",
+      "Lead organizational change management initiatives that successfully navigate complex transitions while maintaining team cohesion and productivity",
+      "Direct talent acquisition and development programs that create high-performing teams capable of delivering exceptional results in demanding environments"
+    );
+  } else if (targetRole.toLowerCase().includes("developer") || targetRole.toLowerCase().includes("engineer")) {
+    responsibilities.push(
+      "Architect scalable, maintainable code infrastructures that accommodate evolving business requirements while adhering to industry best practices and security standards",
+      "Implement sophisticated continuous integration/continuous deployment pipelines that reduce release cycles while enhancing code quality and reliability",
+      "Lead technical code reviews and documentation initiatives that elevate overall system integrity and knowledge sharing across development teams",
+      "Pioneer the adoption of emerging technologies and methodologies that provide competitive advantages through enhanced capabilities and operational efficiencies"
+    );
+  } else if (targetRole.toLowerCase().includes("analyst")) {
+    responsibilities.push(
+      "Synthesize complex datasets to extract actionable insights that directly inform strategic decision-making processes at the executive level",
+      "Develop comprehensive data visualization frameworks that effectively communicate critical metrics to diverse stakeholders with varying technical backgrounds",
+      "Design predictive modeling systems that accurately forecast market trends and business outcomes, enabling proactive strategic positioning",
+      "Implement robust data governance protocols that ensure data integrity while facilitating cross-departmental accessibility and utilization"
+    );
+  } else if (targetRole.toLowerCase().includes("marketing")) {
+    responsibilities.push(
+      "Architect comprehensive omnichannel marketing strategies that significantly increase brand visibility and market penetration across diverse audience segments",
+      "Develop sophisticated content marketing ecosystems that establish thought leadership while driving qualified lead generation through the sales funnel",
+      "Implement advanced marketing analytics frameworks that provide granular ROI measurement across all marketing initiatives and channels",
+      "Orchestrate strategic brand positioning initiatives that successfully differentiate offerings in competitive markets while resonating with target demographics"
+    );
+  } else if (targetRole.toLowerCase().includes("sales")) {
+    responsibilities.push(
+      "Establish and nurture strategic relationships with enterprise clients, resulting in significant account expansion and long-term partnership development",
+      "Implement consultative selling methodologies that identify and address underlying client challenges, positioning solutions as essential strategic investments",
+      "Develop sophisticated pipeline management systems that optimize resource allocation while providing accurate revenue forecasting capabilities",
+      "Design and execute territory expansion strategies that successfully penetrate untapped markets while maximizing existing account potential"
+    );
+  }
+
+  return responsibilities;
+}
+
+// Function to extract previous roles from the original CV
+function extractPreviousRoles(originalContent: string): string | null {
+  // In a real implementation, this would use AI to extract previous roles from the CV
+  // This is a simplified mock implementation that checks for common section headings
+  
+  const experienceSectionHeaders = [
+    "EXPERIENCE", "WORK EXPERIENCE", "EMPLOYMENT HISTORY", "PROFESSIONAL EXPERIENCE",
+    "CAREER HISTORY", "WORK HISTORY", "PREVIOUS ROLES", "EMPLOYMENT"
+  ];
+  
+  // Try to find an experience section in the original content
+  for (const header of experienceSectionHeaders) {
+    const headerIndex = originalContent.indexOf(header);
+    if (headerIndex !== -1) {
+      // Found a section that might contain previous roles
+      // For a real implementation, we would parse this section and structure it
+      // For now, just return a message that we found something
+      return "PREVIOUS ROLES (EXTRACTED FROM ORIGINAL CV)\n\nNote: In a production environment, this section would contain the actual previous roles extracted from your uploaded CV.";
+    }
+  }
+  
+  // If no experience section was found, return null to use the fallback
+  return null;
+}
+
+// Function to generate richer achievements
+function generateRicherAchievements(targetRole: string, jobDescription: string): string[] {
+  // In a real implementation, this would analyze the job description and create relevant achievements
+  // This is an enhanced mock implementation
+  const achievements = [
+    `Orchestrated a comprehensive transformation of ${targetRole.toLowerCase().includes("market") ? "marketing strategies" : targetRole.toLowerCase().includes("develop") ? "development processes" : "operational systems"} that yielded a 30% improvement in overall efficiency and an estimated $1.2M in annual cost savings`,
+    `Conceptualized and implemented an innovative ${targetRole.toLowerCase().includes("sales") ? "sales methodology" : targetRole.toLowerCase().includes("tech") ? "technical architecture" : "strategic framework"} that reduced operational costs by $500K annually while increasing output quality by 25%`,
+    `Directed cross-functional teams of 15+ professionals to deliver mission-critical projects consistently 25% ahead of schedule and 15% under budget across multiple business units`,
+    `Pioneered the development and implementation of ${targetRole.toLowerCase().includes("market") ? "market penetration strategies" : targetRole.toLowerCase().includes("tech") ? "technical solutions" : "business initiatives"} that drove a 40% increase in ${targetRole.toLowerCase().includes("sales") ? "revenue" : "productivity"} within the first fiscal year`,
+    `Established and led a comprehensive mentorship program resulting in a 90% promotion rate within 18 months and a 35% reduction in employee turnover, recognized as a best practice across the organization`,
+    `Secured executive buy-in and successfully implemented organizational change management initiatives that transformed operational practices, resulting in measurable improvements in customer satisfaction (NPS +22 points) and employee engagement metrics`
+  ];
+
+  // Add role-specific achievements
+  if (targetRole.toLowerCase().includes("manager") || targetRole.toLowerCase().includes("director")) {
+    achievements.push(
+      "Restructured departmental operations that optimized resource allocation, resulting in a 28% increase in output capacity with no additional headcount requirements",
+      "Led strategic planning initiatives that identified and successfully capitalized on emerging market opportunities, resulting in $4.2M in new business within 12 months"
+    );
+  } else if (targetRole.toLowerCase().includes("developer") || targetRole.toLowerCase().includes("engineer")) {
+    achievements.push(
+      "Redesigned critical system architecture that reduced server load by 65% while improving application response time by 40%, significantly enhancing user experience metrics",
+      "Implemented automated testing frameworks that decreased QA cycle time by 75% while increasing test coverage from 65% to 92%, dramatically improving code quality and stability"
+    );
+  }
+
+  return achievements;
+}
+
+// Enhanced problem-solving section generator
+function generateProblemSolvingSection(problems: string[], targetRole: string, requirements: string[]): string {
+  // Create a more sophisticated template for the problem-solving approach
+  const approachPoints = problems.map(problem => 
+    `• Addressed "${problem}" through systematic analysis, collaborative solution design, and disciplined implementation, resulting in measurable improvements in affected business areas`
+  ).join('\n');
+
+  return `PROBLEM-SOLVING APPROACH & METHODOLOGY
+
+As a seasoned ${targetRole}, I employ a structured yet flexible methodology to identify, analyze, and resolve complex organizational challenges:
+
+${approachPoints}
+
+KEY PROBLEM-SOLVING PRINCIPLES:
+• Implement data-driven analysis frameworks that combine quantitative metrics with qualitative insights to develop comprehensive problem definitions
+• Foster collaborative solution development through cross-functional stakeholder engagement, ensuring multi-dimensional perspective integration
+• Employ iterative refinement methodologies based on continuous feedback loops and measurable outcome evaluation
+• Develop systematic risk assessment and mitigation strategies that address potential implementation challenges proactively
+• Prioritize scalable, sustainable solutions that address immediate concerns while building capacity for future growth and adaptation`;
 }
 
 // Function to get skills from job description
