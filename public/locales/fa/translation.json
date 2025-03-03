@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[fa] CV Transformer",
-    "description": "[fa] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "رزومه خود را متناسب با نقش هدف تغییر دهید"
   },
   "common": {
-    "submit": "[fa] Submit",
-    "cancel": "[fa] Cancel"
+    "submit": "ارسال",
+    "cancel": "لغو",
+    "logout": "خروج",
+    "login": "ورود",
+    "register": "ثبت نام",
+    "getStarted": "شروع کنید",
+    "dashboard": "داشبورد",
+    "about": "درباره ما",
+    "howItWorks": "نحوه کار",
+    "contact": "تماس",
+    "privacySettings": "تنظیمات حریم خصوصی",
+    "upgradeToProTitle": "ارتقا به نسخه حرفه‌ای",
+    "admin": "مدیر"
   },
   "language": {
-    "selector": "[fa] Language Selector",
-    "detectedPrompt": "[fa] We detected that you might prefer {{language}}.",
-    "switchTo": "[fa] Switch to {{language}}",
-    "stayInEnglish": "[fa] Stay in English"
+    "selector": "انتخاب زبان",
+    "detectedPrompt": "ما تشخیص دادیم که ممکن است شما {{language}} را ترجیح دهید.",
+    "switchTo": "تغییر به {{language}}",
+    "stayInEnglish": "به انگلیسی بمانید"
+  },
+  "proFeatures": {
+    "employerAnalysis": "تحلیل رقابتی کارفرما",
+    "interviewerAnalysis": "تحلیل مصاحبه کننده"
   }
 }

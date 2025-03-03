@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[ru] CV Transformer",
-    "description": "[ru] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "Преобразуйте свое резюме в соответствии с целевой ролью"
   },
   "common": {
-    "submit": "[ru] Submit",
-    "cancel": "[ru] Cancel"
+    "submit": "Отправить",
+    "cancel": "Отмена",
+    "logout": "Выход",
+    "login": "Вход",
+    "register": "Регистрация",
+    "getStarted": "Начать",
+    "dashboard": "Панель управления",
+    "about": "О нас",
+    "howItWorks": "Как это работает",
+    "contact": "Контакты",
+    "privacySettings": "Настройки конфиденциальности",
+    "upgradeToProTitle": "Обновить до Pro",
+    "admin": "Администратор"
   },
   "language": {
-    "selector": "[ru] Language Selector",
-    "detectedPrompt": "[ru] We detected that you might prefer {{language}}.",
-    "switchTo": "[ru] Switch to {{language}}",
-    "stayInEnglish": "[ru] Stay in English"
+    "selector": "Выбор языка",
+    "detectedPrompt": "Мы обнаружили, что вы можете предпочесть {{language}}.",
+    "switchTo": "Переключиться на {{language}}",
+    "stayInEnglish": "Остаться на английском"
+  },
+  "proFeatures": {
+    "employerAnalysis": "Анализ конкурентов-работодателей",
+    "interviewerAnalysis": "Анализ собеседования"
   }
 }

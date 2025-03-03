@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[nl] CV Transformer",
-    "description": "[nl] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "Transformeer je CV om aan te sluiten bij je doelfunctie"
   },
   "common": {
-    "submit": "[nl] Submit",
-    "cancel": "[nl] Cancel"
+    "submit": "Versturen",
+    "cancel": "Annuleren",
+    "logout": "Uitloggen",
+    "login": "Inloggen",
+    "register": "Registreren",
+    "getStarted": "Beginnen",
+    "dashboard": "Dashboard",
+    "about": "Over Ons",
+    "howItWorks": "Hoe Het Werkt",
+    "contact": "Contact",
+    "privacySettings": "Privacy-instellingen",
+    "upgradeToProTitle": "Upgraden naar Pro",
+    "admin": "Beheerder"
   },
   "language": {
-    "selector": "[nl] Language Selector",
-    "detectedPrompt": "[nl] We detected that you might prefer {{language}}.",
-    "switchTo": "[nl] Switch to {{language}}",
-    "stayInEnglish": "[nl] Stay in English"
+    "selector": "Taalkeuze",
+    "detectedPrompt": "We hebben gedetecteerd dat u mogelijk de voorkeur geeft aan {{language}}.",
+    "switchTo": "Overschakelen naar {{language}}",
+    "stayInEnglish": "Blijf bij Engels"
+  },
+  "proFeatures": {
+    "employerAnalysis": "Concurrentieanalyse Werkgever",
+    "interviewerAnalysis": "Interviewer Analyse"
   }
 }

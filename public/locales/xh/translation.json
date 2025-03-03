@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[xh] CV Transformer",
-    "description": "[xh] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "Guqula i-CV yakho ukuze ihambelane neendima oceba kuyo"
   },
   "common": {
-    "submit": "[xh] Submit",
-    "cancel": "[xh] Cancel"
+    "submit": "Thumela",
+    "cancel": "Rhoxisa",
+    "logout": "Phuma",
+    "login": "Ngena",
+    "register": "Bhalisa",
+    "getStarted": "Qalisa",
+    "dashboard": "Ideshibhodi",
+    "about": "Malunga",
+    "howItWorks": "Isebenza Njani",
+    "contact": "Qhagamshelana",
+    "privacySettings": "Iisethingi Zobumfihlo",
+    "upgradeToProTitle": "Yisa Kwi-Pro",
+    "admin": "Umlawuli"
   },
   "language": {
-    "selector": "[xh] Language Selector",
-    "detectedPrompt": "[xh] We detected that you might prefer {{language}}.",
-    "switchTo": "[xh] Switch to {{language}}",
-    "stayInEnglish": "[xh] Stay in English"
+    "selector": "Umkhethi Wolwimi",
+    "detectedPrompt": "Siqaphele ukuba ungathanda {{language}}.",
+    "switchTo": "Tshintshela {{language}}",
+    "stayInEnglish": "Hlala kwiSingesi"
+  },
+  "proFeatures": {
+    "employerAnalysis": "Uhlalutyo Lokukhuphisana Lomqeshi",
+    "interviewerAnalysis": "Uhlalutyo Ludliwano-ndlebe"
   }
 }

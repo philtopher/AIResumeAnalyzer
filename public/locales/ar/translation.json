@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[ar] CV Transformer",
-    "description": "[ar] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "حول سيرتك الذاتية لتناسب الوظيفة المستهدفة"
   },
   "common": {
-    "submit": "[ar] Submit",
-    "cancel": "[ar] Cancel"
+    "submit": "إرسال",
+    "cancel": "إلغاء",
+    "logout": "تسجيل الخروج",
+    "login": "تسجيل الدخول",
+    "register": "تسجيل",
+    "getStarted": "ابدأ الآن",
+    "dashboard": "لوحة التحكم",
+    "about": "من نحن",
+    "howItWorks": "كيف يعمل",
+    "contact": "اتصل بنا",
+    "privacySettings": "إعدادات الخصوصية",
+    "upgradeToProTitle": "الترقية إلى النسخة الاحترافية",
+    "admin": "المسؤول"
   },
   "language": {
-    "selector": "[ar] Language Selector",
-    "detectedPrompt": "[ar] We detected that you might prefer {{language}}.",
-    "switchTo": "[ar] Switch to {{language}}",
-    "stayInEnglish": "[ar] Stay in English"
+    "selector": "اختيار اللغة",
+    "detectedPrompt": "اكتشفنا أنك قد تفضل {{language}}.",
+    "switchTo": "التبديل إلى {{language}}",
+    "stayInEnglish": "البقاء باللغة الإنجليزية"
+  },
+  "proFeatures": {
+    "employerAnalysis": "تحليل تنافسية صاحب العمل",
+    "interviewerAnalysis": "تحليل المقابلة"
   }
 }

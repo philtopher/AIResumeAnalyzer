@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[ig] CV Transformer",
-    "description": "[ig] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "Gbanwee CV gị ka ọ dabara na ọrụ ị na-achọ"
   },
   "common": {
-    "submit": "[ig] Submit",
-    "cancel": "[ig] Cancel"
+    "submit": "Nyefee",
+    "cancel": "Kagbuo",
+    "logout": "Pụọ",
+    "login": "Banye",
+    "register": "Debanye aha",
+    "getStarted": "Bido",
+    "dashboard": "Dashboard",
+    "about": "Maka",
+    "howItWorks": "Otú Ọ Na-arụ Ọrụ",
+    "contact": "Kọntaktị",
+    "privacySettings": "Ntọala nke Nzuzo",
+    "upgradeToProTitle": "Kwalite gaa na Pro",
+    "admin": "Onye Njikwa"
   },
   "language": {
-    "selector": "[ig] Language Selector",
-    "detectedPrompt": "[ig] We detected that you might prefer {{language}}.",
-    "switchTo": "[ig] Switch to {{language}}",
-    "stayInEnglish": "[ig] Stay in English"
+    "selector": "Nhọrọ Asụsụ",
+    "detectedPrompt": "Anyị chọpụtara na ị nwere ike ịhọrọ {{language}}.",
+    "switchTo": "Gbanwee gaa {{language}}",
+    "stayInEnglish": "Nọgide na Bekee"
+  },
+  "proFeatures": {
+    "employerAnalysis": "Nyocha Asọmpi Onye Ọrụ",
+    "interviewerAnalysis": "Nyocha Ajụjụ Ọrụ"
   }
 }

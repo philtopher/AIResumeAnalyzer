@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[fr] CV Transformer",
-    "description": "[fr] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "Transformez votre CV pour correspondre au poste visé"
   },
   "common": {
-    "submit": "[fr] Submit",
-    "cancel": "[fr] Cancel"
+    "submit": "Soumettre",
+    "cancel": "Annuler",
+    "logout": "Déconnexion",
+    "login": "Connexion",
+    "register": "S'inscrire",
+    "getStarted": "Commencer",
+    "dashboard": "Tableau de Bord",
+    "about": "À Propos",
+    "howItWorks": "Comment Ça Marche",
+    "contact": "Contact",
+    "privacySettings": "Paramètres de Confidentialité",
+    "upgradeToProTitle": "Passer à Pro",
+    "admin": "Administrateur"
   },
   "language": {
-    "selector": "[fr] Language Selector",
-    "detectedPrompt": "[fr] We detected that you might prefer {{language}}.",
-    "switchTo": "[fr] Switch to {{language}}",
-    "stayInEnglish": "[fr] Stay in English"
+    "selector": "Sélecteur de Langue",
+    "detectedPrompt": "Nous avons détecté que vous pourriez préférer {{language}}.",
+    "switchTo": "Passer à {{language}}",
+    "stayInEnglish": "Rester en anglais"
+  },
+  "proFeatures": {
+    "employerAnalysis": "Analyse Concurrentielle des Employeurs",
+    "interviewerAnalysis": "Analyse d'Entretien"
   }
 }

@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[he] CV Transformer",
-    "description": "[he] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "שנה את קורות החיים שלך כדי להתאים לתפקיד המטרה שלך"
   },
   "common": {
-    "submit": "[he] Submit",
-    "cancel": "[he] Cancel"
+    "submit": "שלח",
+    "cancel": "ביטול",
+    "logout": "התנתק",
+    "login": "התחבר",
+    "register": "הרשם",
+    "getStarted": "התחל",
+    "dashboard": "לוח בקרה",
+    "about": "אודות",
+    "howItWorks": "איך זה עובד",
+    "contact": "צור קשר",
+    "privacySettings": "הגדרות פרטיות",
+    "upgradeToProTitle": "שדרג ל-Pro",
+    "admin": "מנהל"
   },
   "language": {
-    "selector": "[he] Language Selector",
-    "detectedPrompt": "[he] We detected that you might prefer {{language}}.",
-    "switchTo": "[he] Switch to {{language}}",
-    "stayInEnglish": "[he] Stay in English"
+    "selector": "בחירת שפה",
+    "detectedPrompt": "זיהינו שאתה עשוי להעדיף {{language}}.",
+    "switchTo": "עבור ל-{{language}}",
+    "stayInEnglish": "הישאר באנגלית"
+  },
+  "proFeatures": {
+    "employerAnalysis": "ניתוח תחרותי של המעסיק",
+    "interviewerAnalysis": "ניתוח ראיון עבודה"
   }
 }

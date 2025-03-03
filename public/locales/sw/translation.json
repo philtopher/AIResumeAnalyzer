@@ -1,16 +1,31 @@
 {
   "app": {
-    "title": "[sw] CV Transformer",
-    "description": "[sw] Transform your CV to match your target role"
+    "title": "CV Transformer",
+    "description": "Badilisha CV yako ili ilingane na nafasi unayolenga"
   },
   "common": {
-    "submit": "[sw] Submit",
-    "cancel": "[sw] Cancel"
+    "submit": "Wasilisha",
+    "cancel": "Ghairi",
+    "logout": "Toka",
+    "login": "Ingia",
+    "register": "Jiandikishe",
+    "getStarted": "Anza",
+    "dashboard": "Dashibodi",
+    "about": "Kuhusu",
+    "howItWorks": "Jinsi Inavyofanya Kazi",
+    "contact": "Wasiliana",
+    "privacySettings": "Mipangilio ya Faragha",
+    "upgradeToProTitle": "Boresha hadi Pro",
+    "admin": "Msimamizi"
   },
   "language": {
-    "selector": "[sw] Language Selector",
-    "detectedPrompt": "[sw] We detected that you might prefer {{language}}.",
-    "switchTo": "[sw] Switch to {{language}}",
-    "stayInEnglish": "[sw] Stay in English"
+    "selector": "Kichaguzi cha Lugha",
+    "detectedPrompt": "Tumegundua kuwa unaweza kupendelea {{language}}.",
+    "switchTo": "Badili kwenda {{language}}",
+    "stayInEnglish": "Baki kwa Kiingereza"
+  },
+  "proFeatures": {
+    "employerAnalysis": "Uchambuzi wa Ushindani wa Mwajiri",
+    "interviewerAnalysis": "Uchambuzi wa Mahojiano"
   }
 }

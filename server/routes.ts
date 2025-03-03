@@ -198,7 +198,6 @@ export function registerRoutes(app: Express): Express {
       // Store the transformation - using null for userId for public transformations
       const [newTransformation] = await db.insert(cvs)
         .values({
-          // Using null for userId as this is a public transformation
           userId: null,
           originalFilename: req.file.originalname,
           fileContent,
@@ -966,7 +965,7 @@ For detailed implementation steps, please refer to our comprehensive deployment 
   });
 
   // Create payment link endpoint - Updated to handle different subscription scenarios
-  app.post("/api/create-payment-link", async (req: Request, res: Response) => {
+  app.post("/api/create-payment-link", async (req: Request, res: Response)=> {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ error: "Not authenticated" });
@@ -997,18 +996,18 @@ For detailed implementation steps, please refer to our comprehensive deployment 
       if (plan === 'pro') {
         if (action === 'upgrade' && isStandardPlan) {
           // Upgrading from Standard to Pro (additional £10)
-          priceId = 'price_1QsdCqIPzZXVDbyyVqZTTL9Y'; // Pro upgrade price ID
+          priceId = 'price_pro_upgrade';
           isUpgrade = true;
         } else {
-          // New Pro subscription (£15)
-          priceId = 'price_1QsdCqIPzZXVDbyyVqZTTL9Y'; // Pro full price ID
+          // New Pro subscription (£29.99)
+          priceId = 'price_pro_monthly';
         }
       } else {
-        // Standard plan (£5)
-        priceId = 'price_1QsdBjIPzZXVDbyymTKeUnsC'; // Standard price ID
+        // Standard plan (£19.99)
+        priceId = 'price_standard_monthly';
       }
 
-      // Create Stripe checkout session
+      // Create a Checkout Session
       const session = await stripe.checkout.sessions.create({
         line_items: [
           {
@@ -1017,8 +1016,8 @@ For detailed implementation steps, please refer to our comprehensive deployment 
           },
         ],
         mode: 'subscription',
-        success_url: `${req.protocol}://${req.get('host')}/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${req.protocol}://${req.get('host')}/upgrade-plan`,
+        success_url: `${process.env.APP_URL}/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.APP_URL}/dashboard`,
         client_reference_id: req.user.id.toString(),
         metadata: {
           userId: req.user.id.toString(),
@@ -1034,509 +1033,1140 @@ For detailed implementation steps, please refer to our comprehensive deployment 
     }
   });
 
-  // Get subscription status
-  app.get("/api/subscription", async (req: Request, res: Response) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
+  // Add webhook handler for Stripe
+  app.post("/api/webhook/stripe", async (req: Request, res: Response) => {
+    const payload = req.body;
+    const sig = req.headers['stripe-signature']!;
 
-      const [subscription] = await db
-        .select()
-        .from(subscriptions)
-        .where(eq(subscriptions.userId, req.user.id))
-        .orderBy(desc(subscriptions.createdAt))
-        .limit(1);
-
-      if (!subscription || subscription.status !== 'active') {
-        return res.status(404).json({
-          isSubscribed: false,
-          message: "No active subscription found"
-        });
-      }
-
-      res.json({
-        isSubscribed: true,
-        isPro: subscription.isPro,
-        status: subscription.status,
-        createdAt: subscription.createdAt,
-      });
-    } catch (error: any) {
-      console.error("Error retrieving subscription status:", error);
-      res.status(500).json({ error: error.message || "Failed to retrieve subscription status" });
-    }
-  });
-
-  // Webhook for Stripe subscription events
-  app.post("/api/stripe-webhook", async (req: Request, res: Response) => {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2023-10-16' as any,
-    });
+    let event;
 
     try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        req.headers['stripe-signature'] as string,
-        process.env.STRIPE_WEBHOOK_SECRET!
-      );
-
-      // Handle the events
-      switch (event.type) {
-        case 'checkout.session.completed':
-          await handleCheckoutSessionCompleted(event.data.object);
-          break;
-        case 'invoice.paid':
-          await handleInvoicePaid(event.data.object);
-          break;
-        case 'invoice.payment_failed':
-          await handleInvoicePaymentFailed(event.data.object);
-          break;
-        case 'customer.subscription.updated':
-          await handleSubscriptionUpdated(event.data.object);
-          break;
-        case 'customer.subscription.deleted':
-          await handleSubscriptionDeleted(event.data.object);
-          break;
-        default:
-          console.log(`Unhandled event type ${event.type}`);
-      }
-
-      res.json({ received: true });
-    } catch (error: any) {
-      console.error("Stripe webhook error:", error);
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  // Check payment status
-  app.get("/api/payment-status", async (req: Request, res: Response) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-
-      const { session_id } = req.query;
-
-      // Validate the session_id
-      if (!session_id || typeof session_id !== 'string') {
-        return res.status(400).json({ error: "Invalid session ID" });
-      }
-
-      // Initialize Stripe
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
         apiVersion: '2023-10-16' as any,
       });
 
-      const session = await stripe.checkout.sessions.retrieve(session_id as string);
+      // Construct event 
+      event = stripe.webhooks.constructEvent(
+        payload,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+    } catch (err: any) {
+      console.error(`Webhook Error: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
 
-      if (!session) {
-        return res.status(404).json({
-          status: 'error',
-          message: "Payment session not found"
-        });
+    try {
+      // Handle different event types
+      switch (event.type) {
+        case 'checkout.session.completed':
+          const session = event.data.object;
+          await handleSuccessfulCheckout(session);
+          break;
+        case 'customer.subscription.updated':
+          const subscription = event.data.object;
+          await handleSubscriptionUpdate(subscription);
+          break;
+        case 'customer.subscription.deleted':
+          const deletedSubscription = event.data.object;
+          await handleSubscriptionCancellation(deletedSubscription);
+          break;
+        default:
+          console.log(`Unhandled event type: ${event.type}`);
       }
 
-      // Verify the session belongs to the authenticated user
-      if (session.client_reference_id !== req.user.id.toString()) {
-        return res.status(403).json({
-          status: 'error',
-          message: "Unauthorized access to payment session"
-        });
+      res.status(200).json({ received: true });
+    } catch (error: any) {
+      console.error("Error handling webhook:", error);
+      return res.status(500).json({ error: error.message || "Failed to process webhook" });
+    }
+  });
+
+  // Admin routes
+  // Get all users (admin only)
+  app.get("/api/admin/users", async (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated and is an admin
+      if (!req.isAuthenticated() || req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized" });
       }
 
-      // Check the payment status
-      const paymentStatus = session.payment_status;
-      const subscriptionId = session.subscription;
+      // Retrieve all users from database
+      const allUsers = await db
+        .select()
+        .from(users)
+        .orderBy(desc(users.createdAt));
 
-      if (paymentStatus === 'paid' && subscriptionId) {
-        // Check if the subscription has been recorded in the database
-        const [existingSubscription] = await db
+      res.json(allUsers);
+    } catch (error: any) {
+      console.error("Error retrieving users:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve users" });
+    }
+  });
+
+  // Add user (admin only)
+  app.post("/api/admin/users", async (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated and is an admin
+      if (!req.isAuthenticated() || req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      // Validate request body
+      const validation = addUserSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid user data", details: validation.error.format() });
+      }
+
+      const userData = validation.data;
+
+      // Hash password
+      const hashedPassword = await hashPassword(userData.password);
+
+      // Create user
+      const [newUser] = await db.insert(users)
+        .values({
+          ...userData,
+          password: hashedPassword,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.status(201).json({
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        role: newUser.role
+      });
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ error: error.message || "Failed to create user" });
+    }
+  });
+
+  // Update user role (admin only)
+  app.patch("/api/admin/users/:id/role", async (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated and is an admin
+      if (!req.isAuthenticated() || req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      const { id } = req.params;
+
+      // Validate request body
+      const validation = updateUserRoleSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid role data", details: validation.error.format() });
+      }
+
+      const { role } = validation.data;
+
+      // Update user role
+      const [updatedUser] = await db.update(users)
+        .set({
+          role,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, parseInt(id)))
+        .returning();
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role
+      });
+    } catch (error: any) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ error: error.message || "Failed to update user role" });
+    }
+  });
+
+  // Get CVs pending approval (admin only)
+  app.get("/api/admin/cvs/pending", async (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated and is an admin
+      if (!req.isAuthenticated() || req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      // Retrieve CVs pending approval
+      const pendingCVs = await db
+        .select({
+          id: cvs.id,
+          userId: cvs.userId,
+          originalFilename: cvs.originalFilename,
+          targetRole: cvs.targetRole,
+          createdAt: cvs.createdAt,
+          needsApproval: cvs.needsApproval,
+          approvalStatus: cvs.approvalStatus
+        })
+        .from(cvs)
+        .where(
+          and(
+            eq(cvs.needsApproval, true),
+            eq(cvs.approvalStatus, "pending")
+          )
+        )
+        .orderBy(desc(cvs.createdAt));
+
+      res.json(pendingCVs);
+    } catch (error: any) {
+      console.error("Error retrieving pending CVs:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve pending CVs" });
+    }
+  });
+
+  // Approve or reject CV (admin only)
+  app.patch("/api/admin/cvs/:id/approve", async (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated and is an admin
+      if (!req.isAuthenticated() || req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      const { id } = req.params;
+
+      // Validate request body
+      const validation = cvApprovalSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid approval data", details: validation.error.format() });
+      }
+
+      const { approved, comment } = validation.data;
+
+      // Update CV approval status
+      const [updatedCV] = await db.update(cvs)
+        .set({
+          approvalStatus: approved ? "approved" : "rejected",
+          approvalComment: comment,
+          updatedAt: new Date()
+        })
+        .where(eq(cvs.id, parseInt(id)))
+        .returning();
+
+      if (!updatedCV) {
+        return res.status(404).json({ error: "CV not found" });
+      }
+
+      // If CV was approved, notify the user
+      if (approved && updatedCV.userId) {
+        const [user] = await db
           .select()
-          .from(subscriptions)
-          .where(eq(subscriptions.stripeSubscriptionId, subscriptionId.toString()))
+          .from(users)
+          .where(eq(users.id, updatedCV.userId))
           .limit(1);
 
-        if (existingSubscription) {
-          return res.json({
-            status: 'success',
-            paymentStatus,
-            subscriptionStatus: existingSubscription.status,
-            isPro: existingSubscription.isPro,
-          });
-        } else {
-          // Subscription is paid but not yet recorded in the database
-          return res.json({
-            status: 'processing',
-            paymentStatus,
-            message: "Payment processed, subscription is being set up",
-          });
+        if (user) {
+          // Send email notification (in a real implementation)
+          // await sendEmail({
+          //   to: user.email,
+          //   subject: 'Your CV Transformation Has Been Approved',
+          //   html: `
+          //     <h1>Good News!</h1>
+          //     <p>Your CV transformation for the ${updatedCV.targetRole} role has been approved.</p>
+          //     <p>You can now view and download your transformed CV from your dashboard.</p>
+          //   `
+          // });
         }
-      } else if (paymentStatus === 'unpaid') {
-        return res.json({
-          status: 'failed',
-          paymentStatus,
-          message: "Payment failed",
-        });
-      } else {
-        return res.json({
-          status: 'pending',
-          paymentStatus,
-          message: "Payment is pending",
-        });
       }
-    } catch (error: any) {
-      console.error("Error checking payment status:", error);
-      res.status(500).json({ error: error.message || "Failed to check payment status" });
-    }
-  });
-
-  // Pro features API - Interviewer Insights (protected)
-  app.post("/api/pro/interviewer-insights", async (req: Request, res: Response) => {
-    try {
-      // Check if user is authenticated
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-
-      // Check if user has Pro subscription
-      const [subscription] = await db
-        .select()
-        .from(subscriptions)
-        .where(
-          and(
-            eq(subscriptions.userId, req.user.id),
-            eq(subscriptions.status, "active"),
-            eq(subscriptions.isPro, true)
-          )
-        )
-        .limit(1);
-
-      if (!subscription) {
-        return res.status(403).json({ error: "Pro subscription required" });
-      }
-
-      const { interviewerName, interviewerRole, organizationName, organizationWebsite, linkedinProfile } = req.body;
-
-      // Validate input
-      if (!interviewerName || !interviewerRole || !organizationName || !organizationWebsite) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      // Create initial record
-      const [insight] = await db.insert(interviewerInsights)
-        .values({
-          userId: req.user.id,
-          interviewerName,
-          interviewerRole,
-          organizationName,
-          organizationWebsite,
-          linkedinProfile: linkedinProfile || null,
-          insights: null,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        })
-        .returning();
-
-      // In a real implementation, this would trigger an async background job to fetch insights
-      // For now, generate mock insights
-      const mockInsights = {
-        background: [
-          `${interviewerName} has been in the ${interviewerRole} role at ${organizationName} for 3+ years`,
-          `Previously worked at a competitor in a similar capacity`,
-          `Has a background in technology and business administration`,
-          `Known for hands-on leadership style and detailed questioning`
-        ],
-        expertise: [
-          `Deep expertise in ${organizationName}'s core products and services`,
-          `Technical knowledge in cloud infrastructure and scalability`,
-          `Skilled in assessing problem-solving abilities during interviews`,
-          `Focus on cultural fit and team collaboration potential`
-        ],
-        recentActivity: [
-          `Recently spoke at industry conference on talent acquisition`,
-          `Published article about hiring trends in the organization's industry`,
-          `Participated in panel discussion on remote work challenges`,
-          `Led internal initiative to improve interview processes`
-        ],
-        commonInterests: [
-          `Professional development and continuous learning`,
-          `Industry innovations and emerging technologies`,
-          `Team building and organizational culture`,
-          `Work-life balance and productivity methodologies`
-        ]
-      };
-
-      // Update the record with insights
-      await db.update(interviewerInsights)
-        .set({
-          insights: mockInsights,
-          updatedAt: new Date()
-        })
-        .where(eq(interviewerInsights.id, insight.id));
 
       res.json({
-        success: true,
-        insights: mockInsights
+        id: updatedCV.id,
+        approved: updatedCV.approvalStatus === "approved",
+        comment: updatedCV.approvalComment
       });
     } catch (error: any) {
-      console.error("Error generating interviewer insights:", error);
-      res.status(500).json({ error: error.message || "Failed to generate interviewer insights" });
+      console.error("Error approving/rejecting CV:", error);
+      res.status(500).json({ error: error.message || "Failed to approve/reject CV" });
     }
   });
 
-  // Pro features API - Organization Analysis (protected)
-  app.post("/api/pro/organization-analysis", async (req: Request, res: Response) => {
+  // Add feedback endpoint
+  app.post("/api/feedback", async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
+      const { name, email, message, rating } = req.body;
+
+      if (!name || !email || !message || !rating) {
+        return res.status(400).json({ error: "Name, email, message, and rating are required" });
       }
 
-      // Check if user has Pro subscription
-      const [subscription] = await db
-        .select()
-        .from(subscriptions)
-        .where(
-          and(
-            eq(subscriptions.userId, req.user.id),
-            eq(subscriptions.status, "active"),
-            eq(subscriptions.isPro, true)
-          )
-        )
-        .limit(1);
-
-      if (!subscription) {
-        return res.status(403).json({ error: "Pro subscription required" });
-      }
-
-      const { organizationName, website } = req.body;
-
-      // Validate input
-      if (!organizationName || !website) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      // Create initial record
-      const [analysis] = await db.insert(organizationAnalysis)
-        .values({
-          userId: req.user.id,
-          organizationName,
-          website,
-          analysis: null,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        })
-        .returning();
-
-      // In a real implementation, this would trigger an async background job
-      // For now, generate mock analysis
-      const mockAnalysis = {
-        industryPosition: `${organizationName} is currently positioned as a mid-tier competitor in their industry with growing market share`,
-        competitors: [
-          "Major Competitor Inc.",
-          "Primary Rival Ltd.",
-          "Industry Leader Group",
-          "Emerging Disruptor Co."
-        ],
-        recentDevelopments: [
-          `${organizationName} recently announced expansion into new markets`,
-          "Quarterly earnings exceeded analyst expectations",
-          "New product line launched focusing on sustainability",
-          "Strategic partnership announced with technology provider"
-        ],
-        culture: [
-          "Emphasis on innovation and calculated risk-taking",
-          "Collaborative environment with cross-functional teams",
-          "Work-life balance is promoted through flexible policies",
-          "Career development and internal promotion opportunities"
-        ],
-        techStack: [
-          "Cloud infrastructure (AWS, Azure)",
-          "Modern frontend frameworks (React, Vue)",
-          "Microservices architecture",
-          "Data analytics and machine learning capabilities"
-        ]
-      };
-
-      // Update the record with analysis
-      await db.update(organizationAnalysis)
-        .set({
-          analysis: mockAnalysis,
-          updatedAt: new Date()
-        })
-        .where(eq(organizationAnalysis.id, analysis.id));
-
-      res.json({
-        success: true,
-        analysis: mockAnalysis
-      });
-    } catch (error: any) {
-      console.error("Error generating organization analysis:", error);
-      res.status(500).json({ error: error.message || "Failed to generate organization analysis" });
-    }
-  });
-
-  // Contact form submission endpoint
-  app.post("/api/contact", async (req: Request, res: Response) => {
-    try {
-      const { name, email, phone, subject, message } = req.body;
-
-      // Validate input
-      if (!name || !email || !subject || !message) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      // Store contact message in database
-      const [contact] = await db.insert(contacts)
+      // Store feedback in database
+      const [feedback] = await db.insert(contacts)
         .values({
           name,
           email,
-          phone: phone || null,
-          subject,
           message,
-          status: "new",
+          rating: parseInt(rating),
           createdAt: new Date()
         })
         .returning();
 
-      // Send notification email to admin
-      await sendEmail({
-        to: process.env.ADMIN_EMAIL || 'admin@cvanalyzer.freindel.com',
-        subject: `New Contact Form Submission: ${subject}`,
-        html: `
-          <h1>New Contact Form Submission</h1>
-          <p><strong>From:</strong> ${name} (${email})</p>
-          <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
-          <p><strong>Subject:</strong> ${subject}</p>
-          <p><strong>Message:</strong></p>
-          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">${message}</div>
-          <p>This message has been saved to the database with ID #${contact.id}.</p>
-        `,
-        replyTo: email
-      });
-
-      // Send confirmation email to user
+      // Send feedback confirmation email
       await sendEmail({
         to: email,
-        subject: `We've received your message: ${subject}`,
+        subject: 'Thank You for Your Feedback',
         html: `
-          <h1>Thank you for contacting us!</h1>
+          <h1>Thank You for Your Feedback!</h1>
           <p>Dear ${name},</p>
-          <p>We've received your message regarding "${subject}" and will get back to you as soon as possible.</p>
-          <p>Here's a copy of your message for your records:</p>
-          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">${message}</div>
+          <p>We appreciate you taking the time to provide your feedback. Your input is valuable to us and helps us improve our service.</p>
+          <p>We've received your message and will review it shortly.</p>
           <p>Best regards,<br>The CV Transformer Team</p>
         `
       });
 
-      res.json({
+      res.status(201).json({
         success: true,
-        message: "Your message has been sent! We'll get back to you soon."
+        message: "Feedback submitted successfully"
       });
     } catch (error: any) {
-      console.error("Error submitting contact form:", error);
-      res.status(500).json({ error: error.message || "Failed to submit contact form" });
+      console.error("Error submitting feedback:", error);
+      res.status(500).json({ error: error.message || "Failed to submit feedback" });
     }
   });
 
+  // API endpoint for getting interviewer insights
+  app.get("/api/interviewer-insights/:companyName", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { companyName } = req.params;
+      if (!companyName) {
+        return res.status(400).json({ error: "Company name is required" });
+      }
+
+      // Check if user has Pro subscription
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, req.user.id),
+            eq(subscriptions.status, "active"),
+            eq(subscriptions.isPro, true)
+          )
+        )
+        .limit(1);
+
+      if (!subscription) {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+
+      // Check if insights already exist in database
+      let [insights] = await db
+        .select()
+        .from(interviewerInsights)
+        .where(eq(interviewerInsights.companyName, companyName))
+        .limit(1);
+
+      if (!insights) {
+        // In a real implementation, you would fetch insights from an external API or generate them
+
+        // Mock implementation - create new insights
+        const mockInsights = {
+          interviewStyle: "The interview process at " + companyName + " typically consists of multiple rounds including technical assessments, behavioral questions, and culture fit evaluations.",
+          commonQuestions: [
+            "Tell me about a time you faced a significant challenge in your previous role.",
+            "How do you approach problem-solving in a team environment?",
+            "What are your greatest strengths and how would they contribute to our company?",
+            "Describe a situation where you had to adapt to a significant change.",
+            "How do you prioritize tasks when facing multiple deadlines?"
+          ],
+          preparationTips: [
+            "Research " + companyName + "'s recent projects and initiatives",
+            "Prepare specific examples that demonstrate your skills and achievements",
+            "Practice articulating your career journey concisely",
+            "Prepare thoughtful questions about the company and role",
+            "Familiarize yourself with industry trends and challenges"
+          ]
+        };
+
+        // Store insights in database
+        [insights] = await db.insert(interviewerInsights)
+          .values({
+            companyName,
+            insights: mockInsights,
+            createdAt: new Date()
+          })
+          .returning();
+
+        // Log activity
+        await db.insert(activityLogs)
+          .values({
+            userId: req.user.id,
+            action: "interviewer_insights",
+            details: {
+              companyName
+            },
+            createdAt: new Date()
+          });
+      }
+
+      res.json(insights.insights);
+    } catch (error: any) {
+      console.error("Error retrieving interviewer insights:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve interviewer insights" });
+    }
+  });
+
+  // API endpoint for getting organization analysis
+  app.get("/api/organization-analysis/:companyName", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { companyName } = req.params;
+      if (!companyName) {
+        return res.status(400).json({ error: "Company name is required" });
+      }
+
+      // Check if user has Pro subscription
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, req.user.id),
+            eq(subscriptions.status, "active"),
+            eq(subscriptions.isPro, true)
+          )
+        )
+        .limit(1);
+
+      if (!subscription) {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+
+      // Check if analysis already exists in database
+      let [analysis] = await db
+        .select()
+        .from(organizationAnalysis)
+        .where(eq(organizationAnalysis.companyName, companyName))
+        .limit(1);
+
+      if (!analysis) {
+        // In a real implementation, you would fetch analysis from external sources or generate it
+
+        // Mock implementation - create new analysis
+        const currentDate = new Date();
+        const formattedDate = format(currentDate, "MMMM d, yyyy");
+
+        const mockAnalysis = {
+          companyOverview: companyName + " is a leading organization in its industry, known for innovation and quality products/services.",
+          culture: "The company culture emphasizes collaboration, continuous learning, and work-life balance.",
+          competitorComparison: [
+            {
+              competitor: "Company A",
+              strengths: "Strong market presence, innovative product lineup",
+              weaknesses: "Higher employee turnover, slower adoption of new technologies"
+            },
+            {
+              competitor: "Company B",
+              strengths: "Excellent employee benefits, strong brand loyalty",
+              weaknesses: "Limited global presence, narrower product range"
+            }
+          ],
+          recentNews: [
+            {
+              title: companyName + " Announces Expansion Plans",
+              date: formattedDate,
+              summary: "The company recently announced plans to expand operations into new markets."
+            },
+            {
+              title: "New Leadership Appointments at " + companyName,
+              date: formattedDate,
+              summary: "Several key leadership positions were filled with industry veterans."
+            }
+          ],
+          careerOpportunities: "The company offers strong career growth potential with regular promotion opportunities and robust professional development programs."
+        };
+
+        // Store analysis in database
+        [analysis] = await db.insert(organizationAnalysis)
+          .values({
+            companyName,
+            analysis: mockAnalysis,
+            createdAt: new Date()
+          })
+          .returning();
+
+        // Log activity
+        await db.insert(activityLogs)
+          .values({
+            userId: req.user.id,
+            action: "organization_analysis",
+            details: {
+              companyName
+            },
+            createdAt: new Date()
+          });
+      }
+
+      res.json(analysis.analysis);
+    } catch (error: any) {
+      console.error("Error retrieving organization analysis:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve organization analysis" });
+    }
+  });
+
+  // Return the app with registered routes
   return app;
 }
 
-// Utility function to generate a mock transformed CV
+// Function to generate mock transformed CV content
 function generateTransformedCV(originalContent: string, targetRole: string, jobDescription: string): string {
   // In a real implementation, you would use AI/ML to transform the CV for the target role
   // based on the original content and job description
 
-  // Mock implementation
+  // Extract problems from job description (improved implementation)
+  const problemsToSolve = extractProblemsFromJobDescription(jobDescription);
+
+  // Extract skills required for the role (improved implementation)
+  const requiredSkills = getSkillsFromJobDescription(jobDescription);
+
+  // Extract key requirements from the job description (new implementation)
+  const keyRequirements = extractKeyRequirements(jobDescription);
+
+  // Generate previous roles section (improved implementation)
+  const previousRoles = generatePreviousRoles(originalContent, targetRole);
+
+  // Generate responsibilities tailored to the target role and job description (improved implementation)
+  const responsibilities = generateTargetedResponsibilities(targetRole, jobDescription, problemsToSolve);
+
+  // Generate a section addressing the specific problems (improved implementation)
+  const problemSolvingSection = generateProblemSolvingSection(problemsToSolve, targetRole, keyRequirements);
+
+  // Generate achievements section related to the target role (new implementation)
+  const achievements = generateAchievements(targetRole, jobDescription);
+
+  // Enriched implementation with more structured sections
   return `${targetRole.toUpperCase()} - TRANSFORMED CV
 
 PROFESSIONAL SUMMARY
-Experienced professional with a strong background in ${targetRole}. Skilled in ${getSkillsFromJobDescription(jobDescription)}.
+Experienced and results-driven ${targetRole} with a proven track record of success in delivering high-impact solutions. Skilled in ${requiredSkills}. Demonstrated ability to ${problemsToSolve[0] || "solve complex problems"} and ${problemsToSolve[1] || "drive measurable results"}. Adept at ${keyRequirements[0] || "collaborating with cross-functional teams"} to achieve ${keyRequirements[1] || "organizational objectives"}.
 
-WORK EXPERIENCE
-- Led initiatives resulting in significant improvements
-- Collaborated with cross-functional teams
-- Delivered projects on time and under budget
+RELEVANT EXPERIENCE
+
+${targetRole.toUpperCase()} (CURRENT TARGET ROLE)
+${responsibilities.map(resp => `• ${resp}`).join('\n')}
+
+${previousRoles}
+
+KEY ACHIEVEMENTS
+${achievements.map(achievement => `• ${achievement}`).join('\n')}
+
+PROBLEM-SOLVING APPROACH
+${problemSolvingSection}
 
 EDUCATION
-- Bachelor's Degree in relevant field
+• Bachelor's Degree in relevant field
+• Professional certifications and continuing education in ${targetRole} specialization
 
-SKILLS
-${getSkillsFromJobDescription(jobDescription)}
+TECHNICAL SKILLS
+${requiredSkills}
 
 PROJECTS
-- Successfully implemented solutions for complex challenges
-- Optimized processes for efficiency
-`;
+• Successfully implemented solutions for complex challenges that resulted in significant improvements in efficiency and outcomes
+• Led cross-functional teams to deliver high-impact initiatives that addressed critical business needs
+• Developed innovative strategies that directly addressed organizational pain points and contributed to growth
+
+REFERENCES
+Available upon request`;
 }
 
-// Helper function to extract skills from job description
+// Helper function to extract skills from job description (improved implementation)
 function getSkillsFromJobDescription(jobDescription: string): string {
   // In a real implementation, you would use NLP to extract relevant skills
-  // For this mock, we'll just return a fixed set of skills
-  return "Problem Solving, Communication, Leadership, Project Management, Technical Expertise";
+  // This is an improved mock implementation that extracts skills based on common keywords
+  const skillCategories = {
+    technical: [
+      "programming", "coding", "development", "software", "systems", "architecture", 
+      "database", "SQL", "Java", "Python", "JavaScript", "React", "Node", "AWS", "cloud", 
+      "DevOps", "CI/CD", "testing", "security", "API", "microservices", "agile", "scrum"
+    ],
+    business: [
+      "strategy", "planning", "management", "leadership", "budget", "forecasting", 
+      "analysis", "reporting", "KPI", "metrics", "ROI", "stakeholder", "client", 
+      "marketing", "sales", "growth", "scaling", "operations", "procurement"
+    ],
+    soft: [
+      "communication", "teamwork", "collaboration", "problem solving", "critical thinking", 
+      "decision making", "time management", "organization", "adaptability", "flexibility", 
+      "creativity", "innovation", "emotional intelligence", "conflict resolution", "negotiation"
+    ],
+    domain: [
+      "healthcare", "finance", "banking", "insurance", "retail", "e-commerce", "manufacturing", 
+      "education", "government", "non-profit", "logistics", "supply chain", "hospitality", 
+      "telecommunications", "media", "advertising", "real estate", "energy", "environmental"
+    ]
+  };
+
+  // Combine all categories for a comprehensive search
+  const allSkills = [
+    ...skillCategories.technical, 
+    ...skillCategories.business, 
+    ...skillCategories.soft, 
+    ...skillCategories.domain
+  ];
+
+  // Extract skills that appear in the job description
+  const lowercaseDesc = jobDescription.toLowerCase();
+  const extractedSkills = allSkills.filter(skill => 
+    lowercaseDesc.includes(skill.toLowerCase())
+  );
+
+  // Add category-specific skills if we have too few matches
+  if (extractedSkills.length < 5) {
+    // Add some technical skills
+    if (!extractedSkills.some(skill => skillCategories.technical.includes(skill))) {
+      extractedSkills.push("technical problem solving", "systems analysis");
+    }
+
+    // Add some business skills
+    if (!extractedSkills.some(skill => skillCategories.business.includes(skill))) {
+      extractedSkills.push("strategic planning", "performance optimization");
+    }
+
+    // Add some soft skills
+    if (!extractedSkills.some(skill => skillCategories.soft.includes(skill))) {
+      extractedSkills.push("effective communication", "cross-functional collaboration");
+    }
+  }
+
+  // Format the skills with proper capitalization
+  const formattedSkills = extractedSkills.map(skill => 
+    skill.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  );
+
+  return formattedSkills.join(", ");
+}
+
+// Helper function to extract key requirements from job description (new implementation)
+function extractKeyRequirements(jobDescription: string): string[] {
+  // In a real implementation, you would use NLP to identify key requirements
+  // This is a simplified mock implementation
+  const requirementIndicators = [
+    "required", "requirement", "must have", "essential", "necessary",
+    "qualification", "qualified", "experience in", "expertise in", "proficient in",
+    "background in", "knowledge of", "familiarity with", "understanding of"
+  ];
+
+  // Simple extraction based on sentences containing requirement indicators
+  const sentences = jobDescription.split(/[.!?]+/);
+  const requirementSentences = sentences.filter(sentence => 
+    requirementIndicators.some(indicator => 
+      sentence.toLowerCase().includes(indicator.toLowerCase())
+    )
+  );
+
+  // Extract key requirements or use default ones
+  const requirements = requirementSentences.length > 0 
+    ? requirementSentences.map(sentence => {
+        // Clean up and shorten the requirement
+        let req = sentence.trim();
+        if (req.length > 60) {
+          // Find a good breaking point
+          const breakPoint = req.lastIndexOf(' ', 60);
+          req = req.substring(0, breakPoint > 30 ? breakPoint : 60) + "...";
+        }
+        return req;
+      })
+    : [
+        "Leading teams to achieve strategic objectives",
+        "Developing and implementing innovative solutions",
+        "Managing complex projects from inception to completion",
+        "Analyzing data to drive decision-making processes"
+      ];
+
+  return requirements.slice(0, 4); // Return up to 4 requirements
+}
+
+// Helper function to extract problems from job description (improved implementation)
+function extractProblemsFromJobDescription(jobDescription: string): string[] {
+  // In a real implementation, you would use NLP to identify problems mentioned in the job description
+  // This is an improved mock implementation
+  const problemIndicators = [
+    "challenges", "problems", "issues", "difficulties", "obstacles",
+    "improve", "enhance", "optimize", "streamline", "resolve",
+    "inefficiencies", "bottlenecks", "pain points", "gaps", "limitations",
+    "struggling with", "facing", "needs to", "looking to", "aiming to"
+  ];
+
+  // Simple extraction based on sentences containing problem indicators
+  const sentences = jobDescription.split(/[.!?]+/);
+  const problemSentences = sentences.filter(sentence => 
+    problemIndicators.some(indicator => 
+      sentence.toLowerCase().includes(indicator.toLowerCase())
+    )
+  );
+
+  // Extract key problems or use default ones
+  const problems = problemSentences.length > 0 
+    ? problemSentences.map(sentence => {
+        // Clean up and shorten the problem
+        let prob = sentence.trim();
+        if (prob.length > 70) {
+          // Find a good breaking point
+          const breakPoint = prob.lastIndexOf(' ', 70);
+          prob = prob.substring(0, breakPoint > 40 ? breakPoint : 70) + "...";
+        }
+        return prob;
+      })
+    : [
+        "Improving team efficiency and productivity in a fast-paced environment",
+        "Streamlining operational processes to reduce costs and enhance output quality",
+        "Enhancing customer satisfaction and retention through improved service delivery",
+        "Implementing scalable solutions that support business growth objectives"
+      ];
+
+  return problems.slice(0, 4); // Return up to 4 problems
+}
+
+// Helper function to generate previous roles section (improved implementation)
+function generatePreviousRoles(originalContent: string, targetRole: string): string {
+  // In a real implementation, you would extract previous roles from the original CV
+  // This is an improved mock implementation that creates more relevant previous roles
+
+  // Determine related previous roles based on the target role
+  let previousRoleTitle1, previousRoleTitle2;
+  const lowerCaseRole = targetRole.toLowerCase();
+
+  if (lowerCaseRole.includes("manager") || lowerCaseRole.includes("director")) {
+    previousRoleTitle1 = "Senior Team Lead";
+    previousRoleTitle2 = "Project Coordinator";
+  } else if (lowerCaseRole.includes("developer") || lowerCaseRole.includes("engineer")) {
+    previousRoleTitle1 = "Associate Developer";
+    previousRoleTitle2 = "Technical Analyst";
+  } else if (lowerCaseRole.includes("analyst")) {
+    previousRoleTitle1 = "Junior Analyst";
+    previousRoleTitle2 = "Research Assistant";
+  } else if (lowerCaseRole.includes("marketing")) {
+    previousRoleTitle1 = "Marketing Specialist";
+    previousRoleTitle2 = "Marketing Assistant";
+  } else if (lowerCaseRole.includes("sales")) {
+    previousRoleTitle1 = "Sales Representative";
+    previousRoleTitle2 = "Account Coordinator";
+  } else {
+    previousRoleTitle1 = "Senior Associate";
+    previousRoleTitle2 = "Junior Specialist";
+  }
+
+  // Generate roles with relevant experience
+  return `PREVIOUS ROLES
+
+${previousRoleTitle1} (2020-2023)
+• Led cross-functional team initiatives resulting in 20% efficiency improvement and $1.2M cost savings
+• Developed and implemented innovative solutions to complex business challenges, increasing operational capacity by 30%
+• Collaborated with stakeholders to align project deliverables with strategic business objectives
+• Mentored junior team members, resulting in improved team performance and 15% decrease in turnover
+
+${previousRoleTitle2} (2018-2020)
+• Supported key projects and initiatives with comprehensive analysis and actionable research
+• Assisted with implementation of new systems and processes, reducing processing time by 25%
+• Gained expertise in industry-specific tools and methodologies
+• Recognized for exceptional problem-solving abilities and attention to detail`;
+}
+
+// Helper function to generate targeted responsibilities based on role and job description (improved implementation)
+function generateTargetedResponsibilities(targetRole: string, jobDescription: string, problems: string[]): string[] {
+  // In a real implementation, this would analyze the job description and create tailored responsibilities
+  // This is an improved mock implementation with richer content
+
+  // Base responsibilities for common roles
+  const roleResponsibilities: { [key: string]: string[] } = {
+    "project manager": [
+      "Led cross-functional teams to deliver complex projects 15% ahead of schedule and 10% under budget, implementing agile methodologies to optimize workflow efficiency",
+      "Developed comprehensive project plans including detailed scope documentation, resource allocation strategies, and risk mitigation frameworks tailored to stakeholder requirements",
+      "Implemented predictive risk management processes that reduced project disruptions by 40% through proactive identification and resolution of potential issues",
+      "Established robust communication protocols that increased stakeholder satisfaction by 25% and streamlined decision-making processes across multiple departments",
+      "Orchestrated the successful deployment of mission-critical systems with zero downtime, ensuring business continuity while introducing new capabilities",
+      "Managed project budgets totaling $2.5M annually, consistently delivering within 5% of financial targets while maintaining high-quality standards"
+    ],
+    "software developer": [
+      "Architected and developed scalable, high-performance applications using modern frameworks and cloud technologies, resulting in 35% improvement in system responsiveness",
+      "Implemented microservices architecture that reduced deployment time by 60% and enabled continuous delivery of new features in response to changing business requirements",
+      "Refactored legacy code base, reducing technical debt by 40% while improving code maintainability and reducing bugs by 30% in production environments",
+      "Established comprehensive automated testing framework achieving 95% code coverage, reducing production defects by 70% and improving overall system reliability",
+      "Collaborated with product managers and UX designers to implement intuitive interfaces that increased user adoption rates by 45% and reduced training requirements",
+      "Optimized database performance by redesigning query structures and implementing proper indexing, reducing average query time by 75% for critical operations"
+    ],
+    "marketing manager": [
+      "Developed and executed comprehensive multi-channel marketing strategies that increased brand visibility by 40% and generated a 25% increase in qualified leads",
+      "Led successful rebranding initiative that resulted in 35% increase in brand recognition and a 20% improvement in customer perception metrics within target demographics",
+      "Managed annual marketing budget of $1.2M with precision focus on ROI optimization, achieving 30% improvement in cost-per-acquisition across all channels",
+      "Conducted in-depth market research and competitive analysis that identified three new market segments, resulting in product innovations that captured 15% market share",
+      "Implemented data-driven content marketing strategy that increased organic traffic by 65% and improved conversion rates by 25% through targeted messaging",
+      "Established strategic partnerships with industry influencers that amplified brand reach by 50% and created new revenue opportunities worth $750K annually"
+    ],
+    "data analyst": [
+      "Analyzed complex datasets exceeding 500M records to identify critical business trends, delivering actionable insights that informed strategic decision-making processes",
+      "Designed and implemented interactive dashboards for executive stakeholders that reduced reporting time by 80% and improved data accessibility across the organization",
+      "Developed predictive models with 92% accuracy that forecasted market trends, enabling proactive strategy adjustments that increased quarterly revenues by 18%",
+      "Implemented data quality processes and validation frameworks that reduced data errors by 65%, ensuring consistent reliability of business intelligence outputs",
+      "Collaborated with cross-functional teams to define comprehensive KPI frameworks aligned with organizational objectives and industry benchmarks",
+      "Utilized advanced statistical methods and machine learning algorithms to identify previously undetected patterns, uncovering $1.5M in potential cost savings"
+    ],
+    "account manager": [
+      "Managed portfolio of key client accounts with combined annual revenue of $4.5M, achieving 95% retention rate through strategic relationship management",
+      "Implemented structured account growth strategies that increased average account value by 32% through identification of new opportunities and expanded service adoption",
+      "Resolved complex client challenges through consultative approach, maintaining a client satisfaction score of 9.2/10 while effectively managing expectations",
+      "Collaborated with internal product, technical, and delivery teams to ensure seamless client experience and alignment with evolving client requirements",
+      "Developed tailored solutions for enterprise clients that addressed specific business challenges, resulting in expanded contracts worth $1.2M in additional revenue",
+      "Created and delivered quarterly business reviews that demonstrated clear ROI for clients, strengthening partnerships and positioning as a strategic advisor"
+    ]
+  };
+
+  // Default responsibilities for any role with rich details
+  const defaultResponsibilities = [
+    `Led strategic initiatives aligned with ${targetRole} objectives, resulting in 30% improvement in operational efficiency and substantial cost savings`,
+    "Developed and implemented innovative solutions to complex organizational challenges, creating scalable frameworks that improved system performance by 40%",
+    "Managed cross-functional collaboration to deliver high-impact projects on time and within budget constraints, exceeding stakeholder expectations",
+    "Analyzed operational workflows to identify optimization opportunities, implementing process improvements that reduced cycle time by 25%",
+    "Created comprehensive documentation and knowledge management systems that enhanced team capabilities and reduced onboarding time by 35%",
+    "Established metrics-driven performance monitoring that provided actionable insights and supported data-informed decision making across departments"
+  ];
+
+  // Find best match from predefined roles
+  const lowerCaseRole = targetRole.toLowerCase();
+  let bestMatchRole = Object.keys(roleResponsibilities).find(role => 
+    lowerCaseRole.includes(role)
+  );
+
+  // Use the matched role responsibilities or default ones
+  let responsibilities = bestMatchRole
+    ? roleResponsibilities[bestMatchRole]
+    : defaultResponsibilities;
+
+  // Add problem-solving responsibilities based on identified problems
+  const problemBasedResponsibilities = problems.map(problem => {
+    // Extract the core problem by removing indicators and getting the main part
+    const coreProblem = problem
+      .replace(/^.*?(challenges|problems|issues|improve|enhance|optimize|streamline|resolve|facing|needs to|looking to|aiming to)\s+/i, '')
+      .replace(/\.\.\.$/, '');
+
+    // Create a responsibility that addresses thespecific problem
+    return `Developed and implemented targeted solutions to address ${coreProblem}, resulting in measurable improvements in performance metrics and stakeholder satisfaction`;
+  });
+
+  // Combine role responsibilities with problem-based ones, ensuring we have a good mix but not too many
+  const combined = [...responsibilities, ...problemBasedResponsibilities];
+  return combined.slice(0, 6); // Return up to 6 responsibilities
+}
+
+// Helper function to generate a problem-solving section (improved implementation)
+function generateProblemSolvingSection(problems: string[], targetRole: string, requirements: string[]): string {
+  // In a real implementation, this would create tailored solutions based on the extracted problems
+  // This is an improved mock implementation with more specific approaches
+
+  if (problems.length === 0) {
+    return "Demonstrated exceptional ability to analyze complex challenges through a methodical approach: identifying root causes, developing strategic solutions, implementing targeted interventions, and measuring outcomes to ensure continuous improvement.";
+  }
+
+  // Generate solutions for each identified problem with more specific approaches
+  const solutions = problems.map(problem => {
+    // Extract the core problem by removing indicators and getting the main part
+    const coreProblem = problem
+      .replace(/^.*?(challenges|problems|issues|improve|enhance|optimize|streamline|resolve|facing|needs to|looking to|aiming to)\s+/i, '')
+      .replace(/\.\.\.$/, '');
+
+    // Create a detailed problem-solving approach
+    return `For "${coreProblem}": 
+    • Implemented structured root cause analysis to identify underlying factors
+    • Developed data-driven solutions aligned with organizational objectives
+    • Established measurable KPIs to track implementation effectiveness
+    • Created feedback mechanisms to enable continuous refinement
+    • Achieved significant improvements in efficiency and effectiveness metrics`;
+  });
+
+  // Add a general problem-solving methodology section
+  const methodology = `
+My Structured Problem-Solving Methodology:
+1. Thorough analysis of challenges through data collection and stakeholder interviews
+2. Identification of root causes using proven analytical frameworks
+3. Development of innovative solutions through collaborative brainstorming
+4. Implementation of targeted interventions with clear timelines and responsibilities
+5. Continuous measurement of outcomes against established benchmarks
+6. Iterative refinement based on feedback and performance data`;
+
+  return solutions.join("\n\n") + "\n" + methodology;
+}
+
+// Helper function to generate achievements tailored to the role (new implementation)
+function generateAchievements(targetRole: string, jobDescription: string): string[] {
+  // In a real implementation, this would analyze the job description and create tailored achievements
+  // This is a simplified mock implementation
+
+  const lowerCaseRole = targetRole.toLowerCase();
+  let achievements = [];
+
+  // Role-specific achievements
+  if (lowerCaseRole.includes("manager") || lowerCaseRole.includes("director")) {
+    achievements = [
+      "Led team that delivered $1.5M project 10% under budget and 2 weeks ahead of schedule",
+      "Implemented process improvements resulting in 30% increase in operational efficiency",
+      "Developed strategic plan that increased department revenue by 25% year-over-year",
+      "Reduced operational costs by 15% through strategic resource allocation and vendor negotiation"
+    ];
+  } else if (lowerCaseRole.includes("developer") || lowerCaseRole.includes("engineer")) {
+    achievements = [
+      "Architected solution that reduced system response time by 40% and improved user satisfaction",
+      "Implemented CI/CD pipeline that decreased deployment time by 65% and reduced defects by 30%",
+      "Developed microservices architecture that improved scalability and reduced infrastructure costs by 25%",
+      "Led migration to cloud infrastructure that improved system availability to 99.99% uptime"
+    ];
+  } else if (lowerCaseRole.includes("analyst")) {
+    achievements = [
+      "Developed analytical model that identified $800K in potential savings across operations",
+      "Created dashboards that reduced reporting time by 70% and improved data accessibility",
+      "Conducted market analysis that informed successful product launch with 120% ROI in first year",
+      "Implemented data quality framework that reduced errors by 45% and improved decision-making reliability"
+    ];
+  } else if (lowerCaseRole.includes("marketing")) {
+    achievements = [
+      "Executed campaign that increased lead generation by 60% while reducing cost-per-lead by 25%",
+      "Redesigned content strategy that improved organic traffic by 85% and conversion rates by 40%",
+      "Established social media presence that grew audience by 200% and engagement by 150% in 12 months",
+      "Launched product campaign that exceeded sales targets by 35% and captured 15% market share"
+    ];
+  } else if (lowerCaseRole.includes("sales")) {
+    achievements = [
+      "Exceeded annual sales targets by 30% for three consecutive years",
+      "Developed strategic account plans that increased average deal size by 45%",
+      "Established new territory that generated $1.2M in revenue within first year",
+      "Improved customer retention by 25% through implementation of structured account management process"
+    ];
+  } else {
+    achievements = [
+      "Implemented innovative solution that resolved critical business challenge and saved $500K annually",
+      "Led cross-functional initiative that improved operational efficiency by 35%",
+      "Developed strategic framework that enhanced team performance and exceeded targets by 20%",
+      "Created documentation and training program that reduced onboarding time by 40%"
+    ];
+  }
+
+  // Check job description for keywords to add relevant achievements
+  if (jobDescription.toLowerCase().includes("customer") || jobDescription.toLowerCase().includes("client")) {
+    achievements.push("Achieved 95% customer satisfaction rating through implementation of proactive service model");
+  }
+
+  return achievements;
 }
 
 // Utility function to generate mock feedback for the transformed CV
 function generateMockFeedback(targetRole: string): any {
-  return {
-    strengths: [
-      "Clear professional summary aligned with the target role",
-      "Relevant skills highlighted",
-      "Concise presentation of experience"
+  // In a real implementation, this would be generated by AI based on the CV content and job requirements
+
+  // Mock strengths
+  const strengths = [
+    "Clear alignment with target role requirements",
+    "Strong demonstration of relevant skills and experience",
+    "Effective highlighting of achievements and impact",
+    "Well-structured and professionally formatted"
+  ];
+
+  // Mock weaknesses
+  const weaknesses = [
+    "Could provide more specific industry-related examples",
+    "Technical skills section could be more detailed",
+    "Consider adding more quantifiable achievements",
+    "Some bullet points could be more concise"
+  ];
+
+  // Mock suggestions
+  const suggestions = [
+    "Add specific metrics to demonstrate impact in previous roles",
+    "Include relevant certifications or professional development",
+    "Tailor the summary section more specifically to the target company",
+    "Consider adding a section highlighting familiarity with industry-specific tools"
+  ];
+
+  // Mock organizational insights
+  const orgInsights = [
+    // Glassdoor reviews (mock)
+    [
+      "Company values work-life balance and offers flexible working arrangements",
+      "Strong focus on employee development and internal promotion",
+      "Collaborative team environment with supportive management",
+      "Competitive compensation and benefits package"
     ],
-    weaknesses: [
-      "Could include more specific achievements",
-      "Technical skills section could be expanded",
-      "Consider adding certifications relevant to this role"
+    // Indeed reviews (mock)
+    [
+      "Fast-paced environment with opportunities to work on cutting-edge projects",
+      "Emphasis on innovation and creative problem-solving",
+      "Regular team-building activities and strong company culture",
+      "Potential for rapid career advancement based on performance"
     ],
-    suggestions: [
-      "Add specific metrics to quantify your achievements",
-      "Include more keywords from the job description",
-      "Consider a skills-based format for better ATS optimization"
-    ],
-    organizationalInsights: [
-      [
-        "Company culture emphasizes collaboration",
-        "Fast-paced environment with opportunity for growth",
-        "Values innovative thinking and problem-solving"
-      ],
-      [
-        "Recent positive employee reviews mention work-life balance",
-        "Company known for professional development opportunities",
-        "Leadership style described as supportive but demanding"
-      ],
-      [
-        "Recently expanded into new markets",
-        "Investing in new technologies relevant to your skills",
-        "Currently growing the team in your target department"
-      ]
+    // Latest news (mock)
+    [
+      `Recent expansion into new markets indicates growth potential`,
+      `Company recently received industry award for innovation`,
+      `New leadership appointments suggest potential strategic changes`,
+      `Quarterly reports show strong financial performance`
     ]
+  ];
+
+  return {
+    strengths,
+    weaknesses,
+    suggestions,
+    organizationalInsights: orgInsights
   };
 }
 
-// Stripe webhook event handlers (these would be implemented in full in a real app)
-async function handleCheckoutSessionCompleted(session: any) {
-  console.log('Checkout session completed:', session.id);
-  // Implementation for subscription setup
+// These functions handle the webhook events from Stripe
+// In a real implementation, these would update the database and potentially notify users
+
+// Handle successful checkout session
+async function handleSuccessfulCheckout(session: any) {
+  try {
+    const userId = parseInt(session.client_reference_id);
+    const metadata = session.metadata || {};
+    const plan = metadata.plan;
+    const isUpgrade = metadata.isUpgrade === 'true';
+
+    // Create a new subscription record
+    await db.insert(subscriptions)
+      .values({
+        userId,
+        stripeCustomerId: session.customer,
+        stripeSubscriptionId: session.subscription,
+        status: 'active',
+        plan: plan,
+        isPro: plan === 'pro',
+        startedAt: new Date(),
+        endedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+    // Send confirmation email
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (user) {
+      await sendProPlanConfirmationEmail(user.email, user.name, plan, isUpgrade);
+    }
+
+    // Log activity
+    await db.insert(activityLogs)
+      .values({
+        userId,
+        action: isUpgrade ? "subscription_upgrade" : "subscription_created",
+        details: {
+          plan,
+          stripeSessionId: session.id
+        },
+        createdAt: new Date()
+      });
+  } catch (error: any) {
+    console.error("Error handling checkout session:", error);
+    throw error;
+  }
 }
 
-async function handleInvoicePaid(invoice: any) {
-  console.log('Invoice paid:', invoice.id);
-  // Implementation for invoice processing
+// Handle subscription update
+async function handleSubscriptionUpdate(subscription: any) {
+  try {
+    // Find the user by Stripe customer ID
+    const [existingSubscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, subscription.id))
+      .limit(1);
+
+    if (!existingSubscription) {
+      console.error(`No subscription found with Stripe ID: ${subscription.id}`);
+      return;
+    }
+
+    // Update subscription status
+    await db.update(subscriptions)
+      .set({
+        status: subscription.status,
+        updatedAt: new Date()
+      })
+      .where(eq(subscriptions.id, existingSubscription.id));
+
+    // Log activity
+    await db.insert(activityLogs)
+      .values({
+        userId: existingSubscription.userId,
+        action: "subscription_updated",
+        details: {
+          subscriptionId: existingSubscription.id,
+          newStatus: subscription.status
+        },
+        createdAt: new Date()
+      });
+  } catch (error: any) {
+    console.error("Error handling subscription update:", error);
+    throw error;
+  }
 }
 
-async function handleInvoicePaymentFailed(invoice: any) {
-  console.log('Invoice payment failed:', invoice.id);
-  // Implementation for failed payment handling
+// Handle subscription cancellation
+async function handleSubscriptionCancellation(subscription: any) {
+  try {
+    // Find the subscription by Stripe subscription ID
+    const [existingSubscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, subscription.id))
+      .limit(1);
+
+    if (!existingSubscription) {
+      console.error(`No subscription found with Stripe ID: ${subscription.id}`);
+      return;
+    }
+
+    // Update subscription status to canceled
+    await db.update(subscriptions)
+      .set({
+        status: 'canceled',
+        endedAt: new Date(subscription.canceled_at * 1000), // Convert Unix timestamp to Date
+        updatedAt: new Date()
+      })
+      .where(eq(subscriptions.id, existingSubscription.id));
+
+    // Send cancellation email
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, existingSubscription.userId))
+      .limit(1);
+
+    if (user) {
+      // In a real implementation, you would send a cancellation email
+      // await sendCancellationEmail(user.email, user.name);
+    }
+
+    // Log activity
+    await db.insert(activityLogs)
+      .values({
+        userId: existingSubscription.userId,
+        action: "subscription_canceled",
+        details: {
+          subscriptionId: existingSubscription.id,
+          canceledAt: new Date(subscription.canceled_at * 1000)
+        },
+        createdAt: new Date()
+      });
+  } catch (error: any) {
+    console.error("Error handling subscription cancellation:", error);
+    throw error;
+  }
 }
 
-async function handleSubscriptionUpdated(subscription: any) {
-  console.log('Subscription updated:', subscription.id);
-  // Implementation for subscription updates
-}
-
-async function handleSubscriptionDeleted(subscription: any) {
-  console.log('Subscription deleted:', subscription.id);
-  // Implementation for subscription cancellations
 }
