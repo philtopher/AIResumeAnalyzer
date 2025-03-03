@@ -1,0 +1,47 @@
+{
+  "app": {
+    "title": "CV Transformer",
+    "description": "Transform your CV to match your target role"
+  },
+  "common": {
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "download": "Download",
+    "view": "View",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info",
+    "yes": "Yes",
+    "no": "No",
+    "back": "Back",
+    "next": "Next"
+  },
+  "publicPage": {
+    "uploadCV": "Upload CV (PDF or DOCX)",
+    "clickToUpload": "Click to upload",
+    "privacyNote": "Note: Your CV will be processed in real-time and automatically deleted after transformation. We do not store your CV permanently.",
+    "targetRole": "Target Role",
+    "jobDescription": "Job Description",
+    "transformCV": "Transform CV",
+    "transformedCV": "Transformed CV",
+    "downloadAsWord": "Download as Word",
+    "analysis": "Analysis & Feedback",
+    "strengths": "Strengths",
+    "weaknesses": "Areas for Improvement",
+    "suggestions": "Suggestions",
+    "organizationInsights": "Organization Insights",
+    "glassdoorReviews": "Glassdoor Reviews",
+    "indeedReviews": "Indeed Reviews",
+    "latestNews": "Latest News",
+    "feedbackTitle": "Send Us Your Feedback"
+  },
+  "language": {
+    "selector": "Language Selector",
+    "detectedPrompt": "We detected that you might prefer {{language}}.",
+    "switchTo": "Switch to {{language}}",
+    "stayInEnglish": "Stay in English"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "app": {
+    "title": "[he] CV Transformer",
+    "description": "[he] Transform your CV to match your target role"
+  },
+  "common": {
+    "submit": "[he] Submit",
+    "cancel": "[he] Cancel"
+  },
+  "language": {
+    "selector": "[he] Language Selector",
+    "detectedPrompt": "[he] We detected that you might prefer {{language}}.",
+    "switchTo": "[he] Switch to {{language}}",
+    "stayInEnglish": "[he] Stay in English"
+  }
+}

@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { InsertUser, User } from "@db/schema";
+import type { InsertUser, User as DbUser } from "@db/schema";
+
+// Extended User type that includes subscription property
+export type User = DbUser & {
+  subscription?: {
+    status: "active" | "inactive" | "canceled";
+    endedAt: string | null;
+  } | null;
+};
 
 type RequestResult = {
   ok: true;

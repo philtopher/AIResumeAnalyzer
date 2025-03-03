@@ -15,6 +15,7 @@ import { hashPassword } from "./auth";
 import {randomUUID} from 'crypto';
 import { format } from "date-fns";
 import { Document, Paragraph, TextRun, HeadingLevel, SectionType, Packer } from "docx";
+import { getSuggestedLanguage } from "./languageDetection";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -37,6 +38,17 @@ const upload = multer({
 export function registerRoutes(app: Express): Express {
   // Setup authentication routes
   setupAuth(app);
+
+  // Language suggestion endpoint
+  app.get("/api/language-suggestion", (req: Request, res: Response) => {
+    try {
+      const suggestedLanguage = getSuggestedLanguage(req);
+      res.json({ suggestedLanguage });
+    } catch (error: any) {
+      console.error("Error getting language suggestion:", error);
+      res.status(500).json({ error: error.message || "Failed to get language suggestion" });
+    }
+  });
 
   // Add CV transformation endpoint (authenticated)
   app.post("/api/cv/transform", upload.single('file'), async (req: Request, res: Response) => {
@@ -960,7 +972,7 @@ For detailed implementation steps, please refer to our comprehensive deployment 
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      const { plan, action } = req.body;
+      const { plan, action } =req.body;
 
       // Check current subscription status
       const [currentSubscription] = await db

@@ -1,0 +1,31 @@
+{
+  "app": {
+    "title": "CV Transformer",
+    "description": "Özgeçmişinizi hedef rolünüze uygun şekilde dönüştürün"
+  },
+  "common": {
+    "submit": "Gönder",
+    "cancel": "İptal",
+    "logout": "Çıkış",
+    "login": "Giriş",
+    "register": "Kayıt Ol",
+    "getStarted": "Başla",
+    "dashboard": "Kontrol Paneli",
+    "about": "Hakkında",
+    "howItWorks": "Nasıl Çalışır",
+    "contact": "İletişim",
+    "privacySettings": "Gizlilik Ayarları",
+    "upgradeToProTitle": "Pro'ya Yükselt",
+    "admin": "Yönetici"
+  },
+  "language": {
+    "selector": "Dil Seçici",
+    "detectedPrompt": "{{language}} tercih edebileceğinizi tespit ettik.",
+    "switchTo": "{{language}} diline geç",
+    "stayInEnglish": "İngilizce kalın"
+  },
+  "proFeatures": {
+    "employerAnalysis": "İşveren Rekabet Analizi",
+    "interviewerAnalysis": "Görüşmeci Analizi"
+  }
+}

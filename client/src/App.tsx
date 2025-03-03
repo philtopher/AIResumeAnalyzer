@@ -31,7 +31,8 @@ import MetricsPage from "./pages/MetricsPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import PaymentCompletePage from "./pages/PaymentCompletePage";
 import InterviewerAnalysisPage from "./pages/InterviewerAnalysisPage";
-import { Footer } from "./components/Footer"; // Added import
+import { Footer } from "./components/Footer";
+import LanguageSelector from "./components/LanguageSelector"; // Add language selector import
 
 
 // Add type for user subscription
@@ -127,10 +128,12 @@ function Navigation() {
               <Button>Get Started</Button>
             </Link>
           )}
+          <LanguageSelector /> {/* Added LanguageSelector */}
         </div>
 
         {/* Mobile Navigation */}
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center gap-2">
+          <LanguageSelector /> {/* Added LanguageSelector */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-10 w-10">
