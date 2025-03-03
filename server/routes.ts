@@ -8,13 +8,10 @@ import { eq, desc, and } from "drizzle-orm";
 import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema";
 import multer from "multer";
 import { extname } from "path";
-import mammoth from "mammoth";
-import { PDFDocument } from "pdf-lib";
 import Stripe from 'stripe';
 import { hashPassword } from "./auth";
 import {randomUUID} from 'crypto';
 import { format } from "date-fns";
-import { Document, Paragraph, TextRun, HeadingLevel, SectionType, Packer } from "docx";
 import { getSuggestedLanguage } from "./languageDetection";
 
 // Configure multer for file uploads
@@ -272,14 +269,34 @@ export function registerRoutes(app: Express): Express {
   // Setup authentication routes
   setupAuth(app);
 
-  // Language suggestion endpoint
+  // Language suggestion endpoint with improved error handling
   app.get("/api/language-suggestion", (req: Request, res: Response) => {
     try {
-      const suggestedLanguage = getSuggestedLanguage(req);
-      res.json({ suggestedLanguage });
+      // Add a fallback for language detection to prevent server crashes
+      let suggestedLanguage;
+      try {
+        suggestedLanguage = getSuggestedLanguage(req);
+      } catch (detectionError) {
+        console.error("Language detection failed:", detectionError);
+        // Default to English if detection fails, but log the error
+        suggestedLanguage = "en";
+      }
+
+      // Return the language suggestion with optional warning if defaulted
+      res.json({ 
+        suggestedLanguage,
+        // Include warning if we defaulted to English
+        warning: suggestedLanguage === "en" ? "Language detection failed, defaulting to English" : undefined
+      });
     } catch (error: any) {
-      console.error("Error getting language suggestion:", error);
-      res.status(500).json({ error: error.message || "Failed to get language suggestion" });
+      // Log the error but don't crash the server
+      console.error("Error in language suggestion endpoint:", error);
+      // Return a safe default response
+      res.status(500).json({ 
+        error: "Failed to process language suggestion",
+        suggestedLanguage: "en",
+        warning: "Internal error occurred, defaulting to English"
+      });
     }
   });
 
@@ -311,19 +328,43 @@ export function registerRoutes(app: Express): Express {
       // Extract text from the uploaded file
       let fileContent = "";
 
-      if (req.file.mimetype === 'application/pdf') {
-        // Process PDF file
-        const pdfBytes = req.file.buffer;
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        const pages = pdfDoc.getPages();
+      try {
+        if (req.file.mimetype === 'application/pdf') {
+          console.log("Processing PDF file...");
+          try {
+            // Dynamic import for PDF-lib
+            const { PDFDocument } = await import('pdf-lib');
+            
+            // Process PDF file
+            const pdfBytes = req.file.buffer;
+            const pdfDoc = await PDFDocument.load(pdfBytes);
+            const pages = pdfDoc.getPages();
 
-        // Simple extraction of text from PDF (note: this is basic, a real implementation would use a more robust PDF text extractor)
-        fileContent = `PDF document with ${pages.length} pages`;
-        // In a real implementation, you would extract text from all pages
-      } else {
-        // Process DOCX file
-        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-        fileContent = result.value;
+            // Simple extraction of text from PDF (note: this is basic, a real implementation would use a more robust PDF text extractor)
+            fileContent = `PDF document with ${pages.length} pages`;
+            console.log(`PDF processed: ${pages.length} pages found`);
+          } catch (pdfError) {
+            console.error("Error processing PDF:", pdfError);
+            throw new Error("Failed to process PDF file");
+          }
+        } else {
+          console.log("Processing DOCX file...");
+          try {
+            // Dynamic import for mammoth
+            const mammoth = await import('mammoth');
+            
+            // Process DOCX file
+            const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+            fileContent = result.value;
+            console.log("DOCX processed successfully");
+          } catch (docxError) {
+            console.error("Error processing DOCX:", docxError);
+            throw new Error("Failed to process DOCX file");
+          }
+        }
+      } catch (error) {
+        console.error("File processing error:", error);
+        throw error;
       }
 
       console.log(`Original content length: ${fileContent.length}`);
@@ -404,19 +445,43 @@ export function registerRoutes(app: Express): Express {
       // Extract text from the uploaded file
       let fileContent = "";
 
-      if (req.file.mimetype === 'application/pdf') {
-        // Process PDF file
-        const pdfBytes = req.file.buffer;
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        const pages = pdfDoc.getPages();
+      try {
+        if (req.file.mimetype === 'application/pdf') {
+          console.log("Processing PDF file...");
+          try {
+            // Dynamic import for PDF-lib
+            const { PDFDocument } = await import('pdf-lib');
+            
+            // Process PDF file
+            const pdfBytes = req.file.buffer;
+            const pdfDoc = await PDFDocument.load(pdfBytes);
+            const pages = pdfDoc.getPages();
 
-        // Simple extraction of text from PDF
-        fileContent = `PDF document with ${pages.length} pages`;
-        // In a real implementation, you would extract text from all pages
-      } else {
-        // Process DOCX file
-        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-        fileContent = result.value;
+            // Simple extraction of text from PDF
+            fileContent = `PDF document with ${pages.length} pages`;
+            console.log(`PDF processed: ${pages.length} pages found`);
+          } catch (pdfError) {
+            console.error("Error processing PDF:", pdfError);
+            throw new Error("Failed to process PDF file");
+          }
+        } else {
+          console.log("Processing DOCX file...");
+          try {
+            // Dynamic import for mammoth
+            const mammoth = await import('mammoth');
+            
+            // Process DOCX file
+            const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+            fileContent = result.value;
+            console.log("DOCX processed successfully");
+          } catch (docxError) {
+            console.error("Error processing DOCX:", docxError);
+            throw new Error("Failed to process DOCX file");
+          }
+        }
+      } catch (error) {
+        console.error("File processing error:", error);
+        throw error;
       }
 
       console.log(`Original content length: ${fileContent.length}`);
@@ -546,6 +611,9 @@ export function registerRoutes(app: Express): Express {
         return res.status(404).json({ error: "CV not found" });
       }
 
+      // Dynamically import docx package
+      const { Document, Paragraph, TextRun, Packer } = await import('docx');
+
       // Generate Word document
       const doc = new Document({
         sections: [{
@@ -592,6 +660,9 @@ export function registerRoutes(app: Express): Express {
       if (!cv) {
         return res.status(404).json({ error: "CV not found" });
       }
+      
+      // Dynamically import docx package
+      const { Document, Paragraph, TextRun, Packer } = await import('docx');
 
       // Generate Word document
       const doc = new Document({
@@ -908,6 +979,9 @@ resource "aws_cloudwatch_metric_alarm" "database_cpu" {
 - Consider using AWS Database Migration Service for zero-downtime migration`;
 
       try {
+        // Dynamically import docx package
+        const { Document, Paragraph, TextRun, HeadingLevel, SectionType, Packer } = await import('docx');
+
         // Create a new document with proper formatting
         const doc = new Document({
           sections: [{
@@ -2578,7 +2652,7 @@ async function handleSubscriptionCancellation(subscription: any): Promise<void> 
     await db.update(subscriptions)
       .set({
         status: "canceled",
-        endDate: new Date(subscription.canceled_at * 1000),
+        endedAt: new Date(subscription.canceled_at * 1000),
         updatedAt: new Date()
       })
       .where(eq(subscriptions.id, existingSubscription.id));
@@ -2610,6 +2684,4 @@ async function handleSubscriptionCancellation(subscription: any): Promise<void> 
     console.error("Error handling subscription cancellation:", error);
     throw error;
   }
-}
-
 }
