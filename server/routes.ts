@@ -371,6 +371,32 @@ export function registerRoutes(app: Express): Express {
   app.get("/api/health", (_req, res) => {
     res.status(200).send("OK");
   });
+  
+  // Add a redirect middleware for the root route and any non-API routes
+  // This can be easily removed by deleting or commenting out this middleware block
+  // Check for a control file to enable/disable redirects
+  import * as fs from 'fs';
+  const redirectEnabled = fs.existsSync('./redirect.enabled');
+  
+  if (redirectEnabled) {
+    console.log("Redirect is enabled. All non-API routes will redirect to https://cvtransformers.replit.app");
+    app.use((req, res, next) => {
+      // Skip API routes
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      
+      // Skip static assets
+      if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico)$/)) {
+        return next();
+      }
+      
+      // Redirect to the main application
+      res.redirect(301, 'https://cvtransformers.replit.app');
+    });
+  } else {
+    console.log("Redirect is disabled. Site will function normally without redirects.");
+  }
 
   // CV transformation endpoint (authenticated)
   app.post("/api/cv/transform", upload.single('file'), async (req: Request, res: Response) => {

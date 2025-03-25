@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CV Transformer</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        background-color: #f5f7fa;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        padding: 2rem;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #4f46e5;
+      }
+      .redirect-link {
+        margin-top: 1.5rem;
+      }
+      .redirect-link a {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        background-color: #4f46e5;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+        transition: background-color 0.2s ease;
+      }
+      .redirect-link a:hover {
+        background-color: #4338ca;
+      }
+      .loading {
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
+        border: 3px solid rgba(79, 70, 229, 0.3);
+        border-radius: 50%;
+        border-top-color: #4f46e5;
+        animation: spin 1s ease-in-out infinite;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      #redirect-container {
+        display: none;
+      }
+      #main-container {
+        display: none;
+      }
+    </style>
+    <script>
+      // Only redirect if the control file exists
+      window.onload = function() {
+        fetch('/redirect.enabled')
+          .then(response => {
+            if (response.ok) {
+              // Show redirect UI
+              document.getElementById('redirect-container').style.display = 'block';
+              // Set meta refresh
+              var meta = document.createElement('meta');
+              meta.httpEquiv = 'refresh';
+              meta.content = '0;url=https://cvtransformers.replit.app';
+              document.getElementsByTagName('head')[0].appendChild(meta);
+              // JavaScript redirect as a backup for the meta refresh
+              window.location.href = "https://cvtransformers.replit.app";
+            } else {
+              // Show normal content
+              document.getElementById('main-container').style.display = 'block';
+            }
+          })
+          .catch(() => {
+            // On error, show normal content
+            document.getElementById('main-container').style.display = 'block';
+          });
+      };
+    </script>
+  </head>
+  <body>
+    <!-- Container shown when redirect is enabled -->
+    <div id="redirect-container" class="container">
+      <h1>CV Transformer</h1>
+      <p>Welcome to CV Transformer, the AI-powered resume optimization tool.</p>
+      <p><span class="loading"></span> You are being redirected to our main application...</p>
+      <div class="redirect-link">
+        <a href="https://cvtransformers.replit.app">Click here if you are not redirected automatically</a>
+      </div>
+    </div>
+
+    <!-- Container shown when redirect is disabled -->
+    <div id="main-container" class="container">
+      <h1>CV Transformer</h1>
+      <p>Welcome to CV Transformer, the AI-powered resume optimization tool.</p>
+      <p>Please use the main navigation to explore our features.</p>
+      <div class="redirect-link">
+        <a href="/">Go to Home Page</a>
+      </div>
+    </div>
+  </body>
+</html>

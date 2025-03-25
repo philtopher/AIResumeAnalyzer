@@ -1,0 +1,6 @@
+This file controls whether the redirect to https://cvtransformers.replit.app is enabled.
+
+When this file exists, the redirect will be active.
+To disable the redirect, simply delete this file.
+
+Created: ${new Date().toISOString()}

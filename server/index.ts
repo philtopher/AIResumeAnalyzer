@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { updateAdminPassword } from "./auth";
 import { createServer } from "http";
 import { AddressInfo } from "net";
+import stripeRoutes from "./routes/stripe";
 
 console.log("Starting application initialization...");
 
@@ -52,6 +53,10 @@ async function startServer(initialPort: number) {
     console.log("Registering API routes...");
     // Register API routes before setting up Vite/static files
     registerRoutes(app);
+    
+    // Register Stripe routes
+    console.log("Registering Stripe payment routes...");
+    app.use('/api/stripe', stripeRoutes);
 
     console.log("Setting up Vite or static files...");
     // Set up Vite or serve static files based on environment

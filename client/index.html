@@ -5,9 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>CV Transformer - AI-Powered Resume Optimization</title>
+    <script>
+      // Client-side redirect that checks if redirection is enabled
+      // This script can be completely removed to disable client-side redirection
+      fetch('/redirect.enabled')
+        .then(response => {
+          // If the file exists, redirect
+          if (response.ok) {
+            window.location.href = "https://cvtransformers.replit.app";
+          }
+        })
+        .catch(() => {
+          // If there's an error or the file doesn't exist, don't redirect
+          console.log("Redirect is disabled or redirect.enabled file not found");
+        });
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- This content will show briefly before the app loads or the redirect happens -->
+      <div id="redirect-notice" style="display: none; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; font-family: Arial, sans-serif;">
+        <h1>Redirecting to CV Transformer</h1>
+        <p>Please wait while we redirect you to the main application...</p>
+        <p>If you are not redirected automatically, <a href="https://cvtransformers.replit.app">click here</a>.</p>
+      </div>
+      
+      <script>
+        // Show the redirect notice only if we're being redirected
+        fetch('/redirect.enabled')
+          .then(response => {
+            if (response.ok) {
+              document.getElementById('redirect-notice').style.display = 'flex';
+            }
+          });
+      </script>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

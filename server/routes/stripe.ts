@@ -1,26 +1,38 @@
 import { Router } from 'express';
-import Stripe from 'stripe';
 import { db } from '@db';
 import { subscriptions, users } from '@db/schema';
 import { eq } from 'drizzle-orm';
 import express from 'express';
 import { sendEmail } from '../email';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY must be set');
-}
-
-// Add price ID configuration check
-if (!process.env.STRIPE_BASIC_PRICE_ID || !process.env.STRIPE_PRO_PRICE_ID) {
-  throw new Error('STRIPE_BASIC_PRICE_ID and STRIPE_PRO_PRICE_ID must be set');
-}
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2023-10-16',
-  typescript: true,
-});
-
+// Create a router instance
 const router = Router();
+
+// Check if Stripe configuration is available
+const isStripeConfigured = !!(
+  process.env.STRIPE_SECRET_KEY && 
+  process.env.STRIPE_BASIC_PRICE_ID && 
+  process.env.STRIPE_PRO_PRICE_ID
+);
+
+// Log the Stripe configuration status
+console.log(`Stripe payment integration is ${isStripeConfigured ? 'ENABLED' : 'DISABLED'}`);
+
+// Only initialize Stripe if all required environment variables are set
+let stripe: any = null;
+
+// Use a synchronous initialization for simplicity
+if (isStripeConfigured) {
+  try {
+    const Stripe = require('stripe');
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2023-10-16',
+    });
+    console.log('Stripe client initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Stripe:', error);
+  }
+}
 
 // Explicitly make this route public - no auth check
 router.get('/verify-subscription/:userId', async (req, res) => {
@@ -49,32 +61,39 @@ router.get('/verify-subscription/:userId', async (req, res) => {
 
     console.log('Found subscription:', subscription);
 
-    // If we don't find a subscription in our database, check Stripe directly
-    if (!subscription) {
+    // If we don't find a subscription in our database, check Stripe directly if configured
+    if (!subscription && isStripeConfigured && stripe) {
       console.log('No subscription found in database, checking Stripe...');
-      const stripeSubscriptions = await stripe.subscriptions.list({
-        limit: 1,
-        status: 'active',
-        expand: ['data.customer'],
-      });
-
-      const stripeSubscription = stripeSubscriptions.data.find(sub =>
-        sub.metadata.userId === userId.toString()
-      );
-
-      if (stripeSubscription) {
-        console.log('Found active subscription in Stripe, creating database record');
-        await db.insert(subscriptions).values({
-          userId,
-          stripeCustomerId: stripeSubscription.customer as string,
-          stripeSubscriptionId: stripeSubscription.id,
+      try {
+        const stripeSubscriptions = await stripe.subscriptions.list({
+          limit: 1,
           status: 'active',
-          createdAt: new Date(),
+          expand: ['data.customer'],
         });
-        return res.json({ success: true, isSubscribed: true, error: null });
-      } else {
-        return res.json({ success: true, isSubscribed: false, message: "No active subscription found", error: null });
+
+        const stripeSubscription = stripeSubscriptions.data.find((sub: any) =>
+          sub.metadata?.userId === userId.toString()
+        );
+
+        if (stripeSubscription) {
+          console.log('Found active subscription in Stripe, creating database record');
+          await db.insert(subscriptions).values({
+            userId,
+            stripeCustomerId: stripeSubscription.customer as string,
+            stripeSubscriptionId: stripeSubscription.id,
+            status: 'active',
+            createdAt: new Date(),
+          });
+          return res.json({ success: true, isSubscribed: true, error: null });
+        } else {
+          return res.json({ success: true, isSubscribed: false, message: "No active subscription found", error: null });
+        }
+      } catch (err) {
+        console.error('Error checking Stripe subscription:', err);
+        // Continue with checking local DB subscription
       }
+    } else if (!subscription && !isStripeConfigured) {
+      console.log('Stripe not configured, skipping external subscription check');
     }
 
     const isSubscribed = !!subscription && subscription.status === 'active';
@@ -99,6 +118,15 @@ router.get('/verify-subscription/:userId', async (req, res) => {
 router.post('/create-payment-link', async (req, res) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ error: 'You must be logged in to upgrade' });
+  }
+
+  // Check if Stripe is configured
+  if (!isStripeConfigured || !stripe) {
+    console.error('Create payment link attempt when Stripe is not configured');
+    return res.status(503).json({ 
+      error: 'Payment system is currently unavailable. Please try again later.',
+      details: 'Stripe integration is not configured'
+    });
   }
 
   try {
@@ -136,6 +164,15 @@ router.post('/create-payment-link', async (req, res) => {
 });
 
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  // Check if Stripe is configured
+  if (!isStripeConfigured || !stripe) {
+    console.error('Webhook called when Stripe is not configured');
+    return res.status(503).json({ 
+      error: 'Payment system is currently unavailable',
+      details: 'Stripe integration is not configured'
+    });
+  }
+
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -144,7 +181,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     return res.status(400).send('Missing stripe signature or webhook secret');
   }
 
-  let event: Stripe.Event;
+  let event: any; // Use any type to avoid TS errors
 
   try {
     console.log('Received webhook event');
@@ -157,7 +194,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     console.log('Webhook event type:', event.type);
 
     if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
+      const session = event.data.object; // Use any type to avoid TS errors
       const userId = parseInt(session.metadata?.userId || '0');
 
       console.log('Processing successful checkout for user:', userId);
@@ -244,22 +281,26 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
 
     // Verify user exists and has active subscription
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    const [subscription] = await db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
-      .limit(1);
-
+    
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (!subscription || subscription.status !== 'active') {
-      return res.status(400).json({ error: 'No active subscription found for this user' });
-    }
-
     if (!user.email) {
       return res.status(400).json({ error: 'User has no email address' });
+    }
+
+    // If Stripe is configured, check subscription status
+    if (isStripeConfigured) {
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, userId))
+        .limit(1);
+
+      if (!subscription || subscription.status !== 'active') {
+        return res.status(400).json({ error: 'No active subscription found for this user' });
+      }
     }
 
     // Get the application URL based on environment
