@@ -1,11 +1,12 @@
 import type { Express } from "express";
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { setupAuth } from "./auth";
 import { db } from "@db";
 import { users, cvs, activityLogs } from "@db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import multer from "multer";
-import { extname } from "path";
+import { extname, resolve } from "path";
+import * as fs from 'fs';
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -375,11 +376,12 @@ export function registerRoutes(app: Express): Express {
   // Add a redirect middleware for the root route and any non-API routes
   // This can be easily removed by deleting or commenting out this middleware block
   // Check for a control file to enable/disable redirects
-  import * as fs from 'fs';
   const redirectEnabled = fs.existsSync('./redirect.enabled');
+  // In ES modules, __dirname is not available, so we need to construct the path differently
+  const redirectHtmlPath = resolve('./redirect.html');
   
-  if (redirectEnabled) {
-    console.log("Redirect is enabled. All non-API routes will redirect to https://cvtransformers.replit.app");
+  if (redirectEnabled && fs.existsSync(redirectHtmlPath)) {
+    console.log("Redirect is enabled. All non-API routes will serve the redirect.html file");
     app.use((req, res, next) => {
       // Skip API routes
       if (req.path.startsWith('/api')) {
@@ -391,11 +393,12 @@ export function registerRoutes(app: Express): Express {
         return next();
       }
       
-      // Redirect to the main application
-      res.redirect(301, 'https://cvtransformers.replit.app');
+      // Serve the redirect HTML file instead of performing a direct redirect
+      // This makes it easy to remove the redirect by just deleting the redirect.html file
+      res.sendFile(redirectHtmlPath);
     });
   } else {
-    console.log("Redirect is disabled. Site will function normally without redirects.");
+    console.log("Redirect is disabled or redirect.html file is missing. Site will function normally without redirects.");
   }
 
   // CV transformation endpoint (authenticated)

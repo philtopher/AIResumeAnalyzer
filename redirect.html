@@ -1,155 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CV Transformer</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting to CV Transformers</title>
     <style>
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        text-align: center;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
-        background: linear-gradient(135deg, #f5f7fa 0%, #e4edf9 100%);
-        color: #333;
-        line-height: 1.6;
-      }
-      .container {
-        max-width: 600px;
-        padding: 2.5rem;
-        background-color: white;
-        border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-      }
-      .logo {
-        margin-bottom: 1.5rem;
-        font-size: 2rem;
-        font-weight: bold;
-        color: #4338ca;
-      }
-      h1 {
-        margin-top: 0;
-        color: #4338ca;
-        font-size: 1.75rem;
-      }
-      p {
-        color: #4b5563;
-        margin-bottom: 1.25rem;
-      }
-      .redirect-message {
-        background-color: #f3f4f6;
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 1.5rem 0;
-        font-size: 0.9rem;
-      }
-      .redirect-link {
-        margin-top: 1.5rem;
-      }
-      .redirect-link a {
-        display: inline-block;
-        padding: 0.75rem 1.5rem;
-        background-color: #4338ca;
-        color: white;
-        text-decoration: none;
-        border-radius: 6px;
-        font-weight: 600;
-        transition: all 0.2s ease;
-        box-shadow: 0 4px 6px rgba(67, 56, 202, 0.25);
-      }
-      .redirect-link a:hover {
-        background-color: #3730a3;
-        transform: translateY(-1px);
-        box-shadow: 0 6px 10px rgba(67, 56, 202, 0.3);
-      }
-      .loading {
-        display: inline-block;
-        width: 1.5rem;
-        height: 1.5rem;
-        border: 3px solid rgba(67, 56, 202, 0.3);
-        border-radius: 50%;
-        border-top-color: #4338ca;
-        animation: spin 1s ease-in-out infinite;
-        margin-right: 0.5rem;
-        vertical-align: middle;
-      }
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-      #redirect-container {
-        display: none;
-      }
-      #main-container {
-        display: none;
-      }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            background-color: #f7f9fc;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2563eb;
+            margin-bottom: 20px;
+        }
+        p {
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .progress {
+            width: 100%;
+            height: 10px;
+            background-color: #e5e7eb;
+            border-radius: 5px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #2563eb;
+            width: 0%;
+            animation: progress 2s ease-in-out forwards;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #1d4ed8;
+        }
+        .countdown {
+            font-weight: bold;
+            font-size: 18px;
+            color: #2563eb;
+        }
+        @keyframes progress {
+            from { width: 0; }
+            to { width: 100%; }
+        }
     </style>
-    <script>
-      // This is a standalone redirect page that checks if redirects are enabled
-      window.onload = function() {
-        fetch('/redirect.enabled')
-          .then(response => {
-            if (response.ok) {
-              // Show redirect UI
-              document.getElementById('redirect-container').style.display = 'block';
-              // Set meta refresh
-              var meta = document.createElement('meta');
-              meta.httpEquiv = 'refresh';
-              meta.content = '2;url=https://cvtransformers.replit.app';
-              document.getElementsByTagName('head')[0].appendChild(meta);
-              // JavaScript redirect with a slight delay to show the message
-              setTimeout(function() {
-                window.location.href = "https://cvtransformers.replit.app";
-              }, 2000);
-            } else {
-              // Show normal content
-              document.getElementById('main-container').style.display = 'block';
-            }
-          })
-          .catch(() => {
-            // On error, show normal content
-            document.getElementById('main-container').style.display = 'block';
-          });
-      };
-    </script>
-  </head>
-  <body>
-    <!-- Container shown when redirect is enabled -->
-    <div id="redirect-container" class="container">
-      <div class="logo">CV Transformer</div>
-      <h1>Redirecting to our main application</h1>
-      <p>Welcome to CV Transformer, the AI-powered resume optimization tool that helps you land your dream job.</p>
-      
-      <div class="redirect-message">
-        <span class="loading"></span> You are being redirected to our main application at <strong>cvtransformers.replit.app</strong>
-      </div>
-      
-      <p>Our advanced AI technology will analyze your CV and transform it to perfectly match your target job description, significantly increasing your chances of getting an interview.</p>
-      
-      <div class="redirect-link">
-        <a href="https://cvtransformers.replit.app">Click here if you are not redirected automatically</a>
-      </div>
+</head>
+<body>
+    <div class="container">
+        <h1>Redirecting to CV Transformers</h1>
+        <p>The CV Transformers application has moved to a new location. You will be automatically redirected in <span class="countdown" id="countdown">5</span> seconds.</p>
+        <div class="progress">
+            <div class="progress-bar"></div>
+        </div>
+        <p>If you are not redirected automatically, please click the button below:</p>
+        <a href="https://cvtransformers.replit.app" class="button">Go to CV Transformers</a>
     </div>
 
-    <!-- Container shown when redirect is disabled -->
-    <div id="main-container" class="container">
-      <div class="logo">CV Transformer</div>
-      <h1>Welcome to CV Transformer</h1>
-      <p>The AI-powered resume optimization tool that helps you land your dream job.</p>
-      
-      <p>Our advanced AI technology will analyze your CV and transform it to perfectly match your target job description, significantly increasing your chances of getting an interview.</p>
-      
-      <div class="redirect-link">
-        <a href="/">Go to Home Page</a>
-      </div>
-      
-      <p class="redirect-message" style="margin-top: 2rem; font-size: 0.9rem;">
-        Note: This page is a standalone redirect page. If you're seeing this message, redirects have been disabled by the site administrator.
-      </p>
-    </div>
-  </body>
+    <script>
+        // Countdown timer
+        let seconds = 5;
+        const countdownEl = document.getElementById('countdown');
+        
+        const countdown = setInterval(() => {
+            seconds--;
+            countdownEl.textContent = seconds;
+            
+            if (seconds <= 0) {
+                clearInterval(countdown);
+                window.location.href = 'https://cvtransformers.replit.app';
+            }
+        }, 1000);
+    </script>
+</body>
 </html>

@@ -1,6 +1,9 @@
-This file controls whether the redirect to https://cvtransformers.replit.app is enabled.
+This file enables redirection to https://cvtransformers.replit.app
 
-When this file exists, the redirect will be active.
-To disable the redirect, simply delete this file.
+To disable the redirection:
+1. Delete this file
+2. Restart the application
 
-Created: ${new Date().toISOString()}
+The redirection is controlled by this file's presence. When this file exists,
+the application will serve redirect.html for all non-API requests, which will
+automatically redirect users to cvtransformers.replit.app.
