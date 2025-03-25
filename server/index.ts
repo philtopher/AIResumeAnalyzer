@@ -96,10 +96,12 @@ async function startServer(initialPort: number) {
             const address = server.address() as AddressInfo;
             log(`Server is running on port ${address.port}`);
 
-            // Run updateAdminPassword after server has started
-            updateAdminPassword().catch(error => {
-              console.error("Failed to update admin password:", error);
-            });
+            // Defer updateAdminPassword to run after server has fully started
+            setTimeout(() => {
+              updateAdminPassword().catch(error => {
+                console.error("Failed to update admin password:", error);
+              });
+            }, 2000);
 
             resolve();
           });

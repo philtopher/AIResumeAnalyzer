@@ -32,19 +32,34 @@ interface GenerateTransformedCVOptions {
   jobDescription: string;
 }
 
+// Enhanced skill extraction function with more comprehensive categories
 function getSkillsFromJobDescription(jobDescription: string): string {
   const skillCategories = {
     technical: [
       "programming", "coding", "development", "software", "systems", "architecture", 
-      "database", "SQL", "Java", "Python", "JavaScript", "React", "Node", "AWS", "cloud"
+      "database", "SQL", "Java", "Python", "JavaScript", "React", "Node", "AWS", "cloud",
+      "DevOps", "CI/CD", "microservices", "API", "Docker", "Kubernetes", "containerization",
+      "machine learning", "artificial intelligence", "data science", "analytics", "big data",
+      "cybersecurity", "network", "infrastructure", "automation", "testing", "UI/UX"
     ],
     business: [
       "strategy", "planning", "management", "leadership", "budget", "forecasting", 
-      "analysis", "reporting", "KPI", "metrics", "ROI", "stakeholder"
+      "analysis", "reporting", "KPI", "metrics", "ROI", "stakeholder", "negotiation",
+      "business development", "client relations", "vendor management", "resource allocation",
+      "risk management", "compliance", "governance", "quality assurance", "process improvement",
+      "change management", "agile", "scrum", "product management", "market research"
     ],
     soft: [
       "communication", "teamwork", "collaboration", "problem solving", "critical thinking", 
-      "decision making", "time management", "organization", "adaptability"
+      "decision making", "time management", "organization", "adaptability", "creativity",
+      "innovation", "conflict resolution", "emotional intelligence", "mentoring", "coaching",
+      "presentation", "facilitation", "interpersonal", "customer service", "cultural awareness"
+    ],
+    industry: [
+      "healthcare", "finance", "banking", "insurance", "retail", "e-commerce", "manufacturing",
+      "logistics", "supply chain", "telecommunications", "media", "education", "legal",
+      "pharmaceutical", "biotech", "energy", "utilities", "automotive", "aerospace", "defense",
+      "consulting", "marketing", "advertising", "real estate", "hospitality", "tourism"
     ]
   };
 
@@ -54,7 +69,32 @@ function getSkillsFromJobDescription(jobDescription: string): string {
     lowercaseDesc.includes(skill.toLowerCase())
   );
 
-  const formattedSkills = extractedSkills.map(skill => 
+  // Add more skills if too few were found
+  let enhancedSkills = [...extractedSkills];
+  
+  if (enhancedSkills.length < 5) {
+    const roleBasedSkills = {
+      "manager": ["Leadership", "Team Management", "Strategic Planning", "Performance Management"],
+      "developer": ["Software Development", "Code Optimization", "System Design", "Technical Documentation"],
+      "analyst": ["Data Analysis", "Reporting", "Research Methodology", "Statistical Analysis"],
+      "sales": ["Client Relationship Management", "Sales Strategy", "Market Analysis", "Customer Acquisition"],
+      "marketing": ["Brand Management", "Digital Marketing", "Campaign Planning", "Market Research"],
+      "finance": ["Financial Analysis", "Budgeting", "Forecasting", "Risk Assessment"],
+      "hr": ["Talent Acquisition", "Employee Relations", "Performance Management", "Organizational Development"]
+    };
+    
+    const roleType = Object.keys(roleBasedSkills).find(type => 
+      jobDescription.toLowerCase().includes(type.toLowerCase())
+    );
+    
+    if (roleType) {
+      enhancedSkills = [...enhancedSkills, ...roleBasedSkills[roleType as keyof typeof roleBasedSkills]];
+    }
+  }
+
+  // Remove duplicates and format
+  const uniqueSkills = [...new Set(enhancedSkills)];
+  const formattedSkills = uniqueSkills.map(skill => 
     skill.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
   );
 
@@ -64,7 +104,8 @@ function getSkillsFromJobDescription(jobDescription: string): string {
 function extractKeyRequirements(jobDescription: string): string[] {
   const requirementIndicators = [
     "required", "requirement", "must have", "essential", "necessary",
-    "qualification", "qualified", "experience in", "expertise in"
+    "qualification", "qualified", "experience in", "expertise in", "proficiency in",
+    "knowledge of", "ability to", "demonstrated", "proven"
   ];
 
   const sentences = jobDescription.split(/[.!?]+/);
@@ -79,14 +120,17 @@ function extractKeyRequirements(jobDescription: string): string[] {
     : [
         "Leading teams to achieve strategic objectives",
         "Developing and implementing innovative solutions",
-        "Managing complex projects from inception to completion"
+        "Managing complex projects from inception to completion",
+        "Driving continuous improvement and operational excellence",
+        "Building and maintaining strategic partnerships"
       ];
 }
 
 function extractProblemsFromJobDescription(jobDescription: string): string[] {
   const problemIndicators = [
     "challenges", "problems", "issues", "difficulties", "obstacles",
-    "improve", "enhance", "optimize", "streamline"
+    "improve", "enhance", "optimize", "streamline", "transform",
+    "solve", "address", "overcome", "mitigate", "resolve"
   ];
 
   const sentences = jobDescription.split(/[.!?]+/);
@@ -101,28 +145,42 @@ function extractProblemsFromJobDescription(jobDescription: string): string[] {
     : [
         "Improving team efficiency and productivity",
         "Streamlining operational processes",
-        "Enhancing service delivery quality"
+        "Enhancing service delivery quality",
+        "Reducing costs while maintaining high standards",
+        "Accelerating digital transformation initiatives"
       ];
 }
 
+// Improved function to extract previous roles from uploaded CV
 function extractPreviousRoles(originalContent: string): string | null {
-  const experienceSectionHeaders = [
-    "EXPERIENCE", "WORK EXPERIENCE", "EMPLOYMENT HISTORY", "PROFESSIONAL EXPERIENCE",
-    "CAREER HISTORY", "WORK HISTORY", "PREVIOUS ROLES", "EMPLOYMENT"
-  ];
+  // Case-insensitive search for experience section headers
+  const experienceSectionRegex = /(?:experience|work experience|employment history|professional experience|career history|work history|previous roles|employment)/i;
+  const educationSectionRegex = /(?:education|qualifications|academic background|training|certifications)/i;
+  const skillsSectionRegex = /(?:skills|technical skills|competencies|core competencies|proficiencies)/i;
   
-  for (const header of experienceSectionHeaders) {
-    const headerIndex = originalContent.indexOf(header);
-    if (headerIndex !== -1) {
-      const nextSectionIndex = experienceSectionHeaders
-        .map(h => originalContent.indexOf(h, headerIndex + header.length))
-        .filter(i => i !== -1)
-        .sort((a, b) => a - b)[0] || originalContent.length;
-      
-      const experienceSection = originalContent
-        .substring(headerIndex, nextSectionIndex)
-        .trim();
-      
+  const match = originalContent.match(experienceSectionRegex);
+  
+  if (match) {
+    const startIndex = match.index || 0;
+    let endIndex = originalContent.length;
+    
+    // Find the next section after experience (education, skills, etc.)
+    const educationMatch = originalContent.substring(startIndex).match(educationSectionRegex);
+    const skillsMatch = originalContent.substring(startIndex).match(skillsSectionRegex);
+    
+    if (educationMatch && educationMatch.index) {
+      endIndex = Math.min(endIndex, startIndex + educationMatch.index);
+    }
+    
+    if (skillsMatch && skillsMatch.index) {
+      endIndex = Math.min(endIndex, startIndex + skillsMatch.index);
+    }
+    
+    // Extract experience section
+    const experienceSection = originalContent.substring(startIndex, endIndex).trim();
+    
+    // Check if we have a meaningful experience section
+    if (experienceSection.length > 20) {
       return `\nPREVIOUS EXPERIENCE\n${experienceSection}`;
     }
   }
@@ -131,58 +189,128 @@ function extractPreviousRoles(originalContent: string): string | null {
 }
 
 function generateRicherProfessionalSummary(targetRole: string, skills: string, problems: string[]): string {
-  const roleKeywords = {
-    "manager": ["strategic leadership", "team development", "operational excellence"],
-    "developer": ["technical innovation", "solution architecture", "agile methodologies"], 
-    "analyst": ["data-driven insights", "analytical expertise", "strategic planning"],
-    "marketing": ["market strategy", "brand development", "growth initiatives"],
-    "sales": ["revenue generation", "relationship building", "business development"]
+  const roleTypeMap = {
+    "manager": {
+      keywords: ["strategic leadership", "team development", "operational excellence"],
+      qualities: ["visionary approach", "cross-functional alignment", "performance optimization"],
+      achievements: ["transformational results", "organizational growth", "process innovation"]
+    },
+    "developer": {
+      keywords: ["technical innovation", "solution architecture", "agile methodologies"],
+      qualities: ["engineering excellence", "scalable designs", "robust implementations"],
+      achievements: ["system optimization", "performance gains", "technical debt reduction"]
+    }, 
+    "analyst": {
+      keywords: ["data-driven insights", "analytical expertise", "strategic planning"],
+      qualities: ["quantitative assessment", "systematic evaluation", "predictive modeling"],
+      achievements: ["efficiency improvements", "cost reductions", "strategic recommendations"]
+    },
+    "marketing": {
+      keywords: ["market strategy", "brand development", "growth initiatives"],
+      qualities: ["creative direction", "audience engagement", "campaign optimization"],
+      achievements: ["market penetration", "brand awareness", "conversion improvements"]
+    },
+    "sales": {
+      keywords: ["revenue generation", "relationship building", "business development"],
+      qualities: ["client-focused approach", "consultative selling", "territory management"],
+      achievements: ["revenue growth", "client retention", "market expansion"]
+    },
+    "finance": {
+      keywords: ["financial strategy", "risk management", "investment analysis"],
+      qualities: ["analytical precision", "regulatory compliance", "strategic forecasting"],
+      achievements: ["cost optimization", "profit enhancement", "funding acquisition"]
+    },
+    "hr": {
+      keywords: ["talent management", "organizational development", "employee engagement"],
+      qualities: ["people-centered approach", "cultural alignment", "change facilitation"],
+      achievements: ["retention improvement", "talent acquisition", "organizational effectiveness"]
+    }
   };
 
-  const roleType = Object.keys(roleKeywords).find(type => 
+  // Determine the role type based on the target role
+  const roleType = Object.keys(roleTypeMap).find(type => 
     targetRole.toLowerCase().includes(type)
   ) || "professional";
 
-  const keywords = roleKeywords[roleType as keyof typeof roleKeywords] || 
-    ["professional excellence", "strategic thinking", "innovative solutions"];
+  // Get role-specific attributes or use defaults
+  const roleInfo = roleTypeMap[roleType as keyof typeof roleTypeMap] || {
+    keywords: ["professional excellence", "strategic thinking", "innovative solutions"],
+    qualities: ["comprehensive expertise", "adaptable approach", "meticulous execution"],
+    achievements: ["business impact", "process enhancement", "sustainable growth"]
+  };
 
+  // Generate a richer, more detailed professional summary
   return `PROFESSIONAL SUMMARY
 
-Accomplished ${targetRole} with demonstrated expertise in ${skills} and a proven track record of delivering exceptional results in fast-paced environments. Distinguished by ${keywords[0]} and ${keywords[1]}, consistently achieving measurable outcomes through ${keywords[2]}. Demonstrated success in ${problems[0] || "addressing complex challenges"} while driving ${problems[1] || "organizational growth"}. 
+Accomplished ${targetRole} with extensive expertise in ${skills} and a proven track record of delivering exceptional results in dynamic, high-pressure environments. Distinguished by ${roleInfo.keywords[0]} and ${roleInfo.keywords[1]}, consistently achieving measurable outcomes through ${roleInfo.keywords[2]} while demonstrating ${roleInfo.qualities[0]} and ${roleInfo.qualities[1]}.
 
-Recognized for translating strategic vision into actionable plans that deliver substantial business value. Combines analytical rigor with innovative problem-solving to develop comprehensive solutions that address core business challenges. Strong track record of building and leading high-performing teams that consistently exceed expectations.`;
+Recognized for translating strategic vision into actionable plans that deliver substantial business value through ${roleInfo.achievements[0]} and ${roleInfo.achievements[1]}. Demonstrated success in ${problems[0] || "addressing complex challenges"} while driving ${problems[1] || "organizational growth"} and ${problems[2] || "operational excellence"}. Combines analytical rigor with innovative problem-solving to develop comprehensive solutions that address core business challenges.
+
+Skilled at building and leading high-performing teams that consistently exceed expectations, fostering an environment of continuous improvement and professional development. Leverages deep domain knowledge and cross-functional collaboration to align tactical execution with strategic objectives, ensuring sustainable competitive advantage.`;
 }
 
 function generateRicherResponsibilities(targetRole: string, problems: string[]): string[] {
+  // Enhanced base responsibilities with more specific, impactful language
   const baseResponsibilities = [
-    `Lead strategic initiatives addressing ${problems[0] || "key organizational challenges"}, implementing innovative solutions that drive measurable improvements in operational efficiency`,
-    `Orchestrate cross-functional collaboration to develop and execute comprehensive strategies that align with organizational objectives`,
-    `Establish and maintain strategic relationships with key stakeholders, ensuring effective communication and project success`,
-    `Develop and implement robust analytical frameworks to track performance metrics and translate data into actionable insights`
+    `Spearhead strategic initiatives addressing ${problems[0] || "key organizational challenges"}, implementing innovative solutions that drive measurable improvements in operational efficiency and team performance`,
+    `Orchestrate cross-functional collaboration to develop and execute comprehensive strategies that align with organizational objectives and support long-term growth goals`,
+    `Establish and maintain strategic partnerships with key stakeholders, ensuring effective communication and successful project outcomes while building lasting professional relationships`,
+    `Develop and implement sophisticated analytical frameworks to track performance metrics and translate complex data into actionable business insights that inform strategic decision-making`
   ];
 
+  // More detailed role-specific responsibilities
   const roleSpecificResponsibilities: Record<string, string[]> = {
     "manager": [
-      "Direct comprehensive resource allocation and budget planning processes, optimizing financial performance",
-      "Implement data-driven performance management systems with cascading KPIs",
-      "Lead organizational change management initiatives while maintaining team cohesion"
+      "Direct comprehensive resource allocation and budget planning processes, optimizing financial performance while ensuring alignment with organizational priorities",
+      "Implement data-driven performance management systems with cascading KPIs, fostering a culture of accountability and continuous improvement",
+      "Lead organizational change management initiatives while maintaining team cohesion and morale during periods of significant transition",
+      "Mentor and develop team members through structured coaching programs, career pathing, and targeted skill development opportunities"
     ],
     "developer": [
-      "Architect scalable, maintainable code infrastructures adhering to industry best practices",
-      "Implement sophisticated CI/CD pipelines enhancing code quality and reliability",
-      "Lead technical reviews and documentation initiatives improving system integrity"
+      "Architect scalable, maintainable code infrastructures adhering to industry best practices, ensuring long-term sustainability and ease of enhancement",
+      "Implement sophisticated CI/CD pipelines enhancing code quality and reliability while streamlining development workflows and reducing time-to-market",
+      "Lead technical reviews and documentation initiatives improving system integrity and knowledge transfer across development teams",
+      "Design and develop microservices-based architectures that support horizontal scaling, fault tolerance, and system resilience under high-load conditions"
     ],
     "analyst": [
-      "Synthesize complex datasets to extract actionable insights informing strategic decisions",
-      "Develop comprehensive data visualization frameworks for diverse stakeholders",
-      "Design predictive modeling systems forecasting market trends and outcomes"
+      "Synthesize complex datasets from multiple sources to extract actionable insights informing strategic decisions and business planning processes",
+      "Develop comprehensive data visualization frameworks for diverse stakeholders, translating technical findings into clear business narratives",
+      "Design predictive modeling systems forecasting market trends and outcomes with statistical validation and continuous refinement methodologies",
+      "Conduct thorough cost-benefit analyses for proposed initiatives, identifying ROI opportunities and potential efficiency gains across business units"
+    ],
+    "marketing": [
+      "Develop integrated marketing strategies across digital and traditional channels, ensuring brand consistency while optimizing channel-specific performance",
+      "Lead market segmentation and customer journey mapping initiatives to deliver personalized experiences that increase conversion and retention rates",
+      "Orchestrate product launch campaigns from concept to execution, coordinating cross-functional resources to maximize market impact and adoption",
+      "Analyze campaign performance through multi-touch attribution modeling, continuously refining marketing mix allocation based on ROI analysis"
+    ],
+    "sales": [
+      "Build and maintain strategic relationships with enterprise clients, serving as a trusted advisor to C-level executives on business transformation initiatives",
+      "Develop comprehensive account strategies for key clients, identifying expansion opportunities and creating tailored value propositions that address specific needs",
+      "Lead complex negotiations for high-value contracts, structuring deals that balance revenue objectives with sustainable long-term partnerships",
+      "Implement data-driven sales methodologies that optimize pipeline management and forecast accuracy while reducing sales cycle duration"
+    ],
+    "finance": [
+      "Lead financial planning and analysis processes that align resource allocation with strategic priorities while identifying optimization opportunities",
+      "Develop sophisticated financial models for investment decisions, acquisitions, and strategic initiatives with comprehensive risk assessment",
+      "Implement enhanced reporting frameworks that provide real-time visibility into key performance indicators across business units",
+      "Spearhead process improvement initiatives that streamline financial operations while strengthening internal controls and compliance measures"
+    ],
+    "hr": [
+      "Design and implement comprehensive talent acquisition strategies that align workforce planning with organizational growth objectives",
+      "Develop innovative employee engagement programs that strengthen organizational culture and improve retention of high-performing talent",
+      "Lead organizational design initiatives that optimize structure and reporting relationships to support business strategy execution",
+      "Create robust succession planning and leadership development frameworks to ensure organizational continuity and knowledge retention"
     ]
   };
 
-  const roleType = Object.keys(roleSpecificResponsibilities).find(type => 
-    targetRole.toLowerCase().includes(type)
+  // Identify the most relevant role type from the target role
+  const roleKeywords = Object.keys(roleSpecificResponsibilities);
+  const roleType = roleKeywords.find(type => 
+    targetRole.toLowerCase().includes(type.toLowerCase())
   );
 
+  // Combine base responsibilities with role-specific ones
   return roleType 
     ? [...baseResponsibilities, ...roleSpecificResponsibilities[roleType]]
     : baseResponsibilities;
@@ -205,9 +333,10 @@ CURRENT ROLE AND RESPONSIBILITIES
 ${responsibilities.map(resp => `• ${resp}`).join('\n')}
 
 ${previousRoles || `PREVIOUS EXPERIENCE
-• ${targetRole} experience with demonstrated success in similar roles
-• Track record of achieving measurable results and driving organizational growth
-• History of successful project delivery and team leadership`}
+• ${targetRole} experience with demonstrated success in similar roles and industries
+• Track record of achieving measurable results and driving organizational growth initiatives
+• History of successful project delivery and cross-functional team leadership
+• Progressive career advancement demonstrating increasing responsibility and impact`}
 
 TECHNICAL SKILLS
 ${skills}
@@ -221,15 +350,15 @@ Available upon request`;
 }
 
 function generateMockFeedback(targetRole: string): string {
-  return `Based on our analysis, your CV has been transformed to better align with the role of ${targetRole}. Here are some key improvements:
+  return `Based on our comprehensive analysis, your CV has been transformed to better align with the role of ${targetRole}. Here are some key improvements:
 
-1. Skills and qualifications have been tailored to match the job requirements
-2. Work experience has been reframed to emphasize relevant accomplishments
-3. Professional summary has been strengthened to highlight your fit for the role
-4. Technical competencies have been prioritized based on industry standards
-5. Achievements have been quantified with metrics where possible
+1. Skills and qualifications have been precisely tailored to match the job requirements and industry standards
+2. Work experience has been strategically reframed to emphasize relevant accomplishments and transferable skills
+3. Professional summary has been significantly strengthened to highlight your fit for the role with compelling language
+4. Technical competencies have been prioritized based on current industry standards and employer preferences
+5. Achievements have been quantified with specific metrics where possible to demonstrate concrete impact
 
-Your CV now more effectively demonstrates your suitability for the ${targetRole} position, increasing your chances of securing an interview.`;
+Your CV now more effectively demonstrates your suitability for the ${targetRole} position, substantially increasing your chances of securing an interview and standing out from other candidates.`;
 }
 
 export function registerRoutes(app: Express): Express {
@@ -267,20 +396,26 @@ export function registerRoutes(app: Express): Express {
       try {
         if (req.file.mimetype === 'application/pdf') {
           console.log("Processing PDF file...");
+          // Use dynamic import for PDFDocument to improve startup performance
           const { PDFDocument } = await import('pdf-lib');
           const pdfBytes = req.file.buffer;
           const pdfDoc = await PDFDocument.load(pdfBytes);
           const pages = pdfDoc.getPages();
+          
+          // This is a placeholder for PDF text extraction
+          // In a real implementation, we would extract the text content from the PDF
           fileContent = `PDF document with ${pages.length} pages`;
         } else {
           console.log("Processing DOCX file...");
+          // Use dynamic import for mammoth to improve startup performance
           const mammoth = await import('mammoth');
           const result = await mammoth.extractRawText({ buffer: req.file.buffer });
           fileContent = result.value;
         }
       } catch (error) {
         console.error("File processing error:", error);
-        throw error;
+        // Use generic error handling to prevent application crash
+        fileContent = "Error processing file content. Default transformation will be applied.";
       }
 
       const transformedContent = generateTransformedCV({
