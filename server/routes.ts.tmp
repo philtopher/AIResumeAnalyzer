@@ -243,7 +243,7 @@ export function registerRoutes(app: Express): Express {
     res.status(200).send("OK");
   });
 
-  // CV transformation endpoint (authenticated)
+  // CV transformation endpoint (authenticated) 
   app.post("/api/cv/transform", upload.single('file'), async (req: Request, res: Response) => {
     try {
       console.log("CV transformation request received (authenticated)");
@@ -291,34 +291,31 @@ export function registerRoutes(app: Express): Express {
 
       const feedback = generateMockFeedback(targetRole);
 
-      const [newTransformation] = await db.insert(cvs)
-        .values({
-          userId: req.user.id,
-          originalFilename: req.file.originalname,
-          fileContent,
-          transformedContent,
-          targetRole,
-          jobDescription,
-          feedback,
-          score: 75,
-          isFullyRegenerated: false,
-          needsApproval: false,
-          approvalStatus: "pending",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        })
-        .returning();
+      const [newTransformation] = await db.insert(cvs).values({
+        userId: req.user.id,
+        originalFilename: req.file.originalname,
+        fileContent,
+        transformedContent,
+        targetRole,
+        jobDescription,
+        feedback,
+        score: 75,
+        isFullyRegenerated: false,
+        needsApproval: false,
+        approvalStatus: "pending",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }).returning();
 
-      await db.insert(activityLogs)
-        .values({
-          userId: req.user.id,
-          action: "cv_transform",
-          details: {
-            cvId: newTransformation.id,
-            targetRole
-          },
-          createdAt: new Date()
-        });
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "cv_transform",
+        details: {
+          cvId: newTransformation.id,
+          targetRole
+        },
+        createdAt: new Date()
+      });
 
       res.status(201).json({
         id: newTransformation.id,

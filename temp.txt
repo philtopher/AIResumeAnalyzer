@@ -1,0 +1,3 @@
+function getSkillsFromJobDescription() {
+  grep -n "function getSkillsFromJobDescription" server/routes.ts
+}

@@ -2,32 +2,10 @@ import type { Express } from "express";
 import { Request, Response } from "express";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { sendEmail } from "./email";
-import { users, cvs, activityLogs, subscriptions, contacts } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
-import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema";
+import { users, cvs, activityLogs } from "@db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import multer from "multer";
 import { extname } from "path";
-import mammoth from "mammoth";
-import { PDFDocument } from "pdf-lib";
-import Stripe from 'stripe';
-import { hashPassword } from "./auth";
-import {randomUUID} from 'crypto';
-import { format } from "date-fns";
-import stripeRouter from './routes/stripe';
-
-// Add proper Stripe initialization with error handling
-const stripe = (() => {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) {
-    console.error('Stripe secret key is missing');
-    return null;
-  }
-  return new Stripe(key, {
-    apiVersion: '2023-10-16',
-    typescript: true,
-  });
-})();
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -47,103 +25,367 @@ const upload = multer({
   },
 });
 
+// CV transformation helper functions
+interface GenerateTransformedCVOptions {
+  originalContent: string;
+  targetRole: string;
+  jobDescription: string;
+}
+
+function getSkillsFromJobDescription(jobDescription: string): string {
+  const skillCategories = {
+    technical: [
+      "programming", "coding", "development", "software", "systems", "architecture", 
+      "database", "SQL", "Java", "Python", "JavaScript", "React", "Node", "AWS", "cloud"
+    ],
+    business: [
+      "strategy", "planning", "management", "leadership", "budget", "forecasting", 
+      "analysis", "reporting", "KPI", "metrics", "ROI", "stakeholder"
+    ],
+    soft: [
+      "communication", "teamwork", "collaboration", "problem solving", "critical thinking", 
+      "decision making", "time management", "organization", "adaptability"
+    ]
+  };
+
+  const allSkills = Object.values(skillCategories).flat();
+  const lowercaseDesc = jobDescription.toLowerCase();
+  const extractedSkills = allSkills.filter(skill => 
+    lowercaseDesc.includes(skill.toLowerCase())
+  );
+
+  const formattedSkills = extractedSkills.map(skill => 
+    skill.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  );
+
+  return formattedSkills.join(", ");
+}
+
+function extractKeyRequirements(jobDescription: string): string[] {
+  const requirementIndicators = [
+    "required", "requirement", "must have", "essential", "necessary",
+    "qualification", "qualified", "experience in", "expertise in"
+  ];
+
+  const sentences = jobDescription.split(/[.!?]+/);
+  const requirementSentences = sentences.filter(sentence => 
+    requirementIndicators.some(indicator => 
+      sentence.toLowerCase().includes(indicator.toLowerCase())
+    )
+  );
+
+  return requirementSentences.length > 0 
+    ? requirementSentences.map(sentence => sentence.trim())
+    : [
+        "Leading teams to achieve strategic objectives",
+        "Developing and implementing innovative solutions",
+        "Managing complex projects from inception to completion"
+      ];
+}
+
+function extractProblemsFromJobDescription(jobDescription: string): string[] {
+  const problemIndicators = [
+    "challenges", "problems", "issues", "difficulties", "obstacles",
+    "improve", "enhance", "optimize", "streamline"
+  ];
+
+  const sentences = jobDescription.split(/[.!?]+/);
+  const problemSentences = sentences.filter(sentence => 
+    problemIndicators.some(indicator => 
+      sentence.toLowerCase().includes(indicator.toLowerCase())
+    )
+  );
+
+  return problemSentences.length > 0 
+    ? problemSentences.map(sentence => sentence.trim())
+    : [
+        "Improving team efficiency and productivity",
+        "Streamlining operational processes",
+        "Enhancing service delivery quality"
+      ];
+}
+
+function extractPreviousRoles(originalContent: string): string | null {
+  const experienceSectionHeaders = [
+    "EXPERIENCE", "WORK EXPERIENCE", "EMPLOYMENT HISTORY", "PROFESSIONAL EXPERIENCE",
+    "CAREER HISTORY", "WORK HISTORY", "PREVIOUS ROLES", "EMPLOYMENT"
+  ];
+  
+  for (const header of experienceSectionHeaders) {
+    const headerIndex = originalContent.indexOf(header);
+    if (headerIndex !== -1) {
+      const nextSectionIndex = experienceSectionHeaders
+        .map(h => originalContent.indexOf(h, headerIndex + header.length))
+        .filter(i => i !== -1)
+        .sort((a, b) => a - b)[0] || originalContent.length;
+      
+      const experienceSection = originalContent
+        .substring(headerIndex, nextSectionIndex)
+        .trim();
+      
+      return `\nPREVIOUS EXPERIENCE\n${experienceSection}`;
+    }
+  }
+  
+  return null;
+}
+
+function generateRicherProfessionalSummary(targetRole: string, skills: string, problems: string[]): string {
+  const roleKeywords = {
+    "manager": ["strategic leadership", "team development", "operational excellence"],
+    "developer": ["technical innovation", "solution architecture", "agile methodologies"], 
+    "analyst": ["data-driven insights", "analytical expertise", "strategic planning"],
+    "marketing": ["market strategy", "brand development", "growth initiatives"],
+    "sales": ["revenue generation", "relationship building", "business development"]
+  };
+
+  const roleType = Object.keys(roleKeywords).find(type => 
+    targetRole.toLowerCase().includes(type)
+  ) || "professional";
+
+  const keywords = roleKeywords[roleType as keyof typeof roleKeywords] || 
+    ["professional excellence", "strategic thinking", "innovative solutions"];
+
+  return `PROFESSIONAL SUMMARY
+
+Accomplished ${targetRole} with demonstrated expertise in ${skills} and a proven track record of delivering exceptional results in fast-paced environments. Distinguished by ${keywords[0]} and ${keywords[1]}, consistently achieving measurable outcomes through ${keywords[2]}. Demonstrated success in ${problems[0] || "addressing complex challenges"} while driving ${problems[1] || "organizational growth"}. 
+
+Recognized for translating strategic vision into actionable plans that deliver substantial business value. Combines analytical rigor with innovative problem-solving to develop comprehensive solutions that address core business challenges. Strong track record of building and leading high-performing teams that consistently exceed expectations.`;
+}
+
+function generateRicherResponsibilities(targetRole: string, problems: string[]): string[] {
+  const baseResponsibilities = [
+    `Lead strategic initiatives addressing ${problems[0] || "key organizational challenges"}, implementing innovative solutions that drive measurable improvements in operational efficiency`,
+    `Orchestrate cross-functional collaboration to develop and execute comprehensive strategies that align with organizational objectives`,
+    `Establish and maintain strategic relationships with key stakeholders, ensuring effective communication and project success`,
+    `Develop and implement robust analytical frameworks to track performance metrics and translate data into actionable insights`
+  ];
+
+  const roleSpecificResponsibilities: Record<string, string[]> = {
+    "manager": [
+      "Direct comprehensive resource allocation and budget planning processes, optimizing financial performance",
+      "Implement data-driven performance management systems with cascading KPIs",
+      "Lead organizational change management initiatives while maintaining team cohesion"
+    ],
+    "developer": [
+      "Architect scalable, maintainable code infrastructures adhering to industry best practices",
+      "Implement sophisticated CI/CD pipelines enhancing code quality and reliability",
+      "Lead technical reviews and documentation initiatives improving system integrity"
+    ],
+    "analyst": [
+      "Synthesize complex datasets to extract actionable insights informing strategic decisions",
+      "Develop comprehensive data visualization frameworks for diverse stakeholders",
+      "Design predictive modeling systems forecasting market trends and outcomes"
+    ]
+  };
+
+  const roleType = Object.keys(roleSpecificResponsibilities).find(type => 
+    targetRole.toLowerCase().includes(type)
+  );
+
+  return roleType 
+    ? [...baseResponsibilities, ...roleSpecificResponsibilities[roleType]]
+    : baseResponsibilities;
+}
+
+function generateTransformedCV({ originalContent, targetRole, jobDescription }: GenerateTransformedCVOptions): string {
+  const problems = extractProblemsFromJobDescription(jobDescription);
+  const requirements = extractKeyRequirements(jobDescription);
+  const skills = getSkillsFromJobDescription(jobDescription);
+  
+  const professionalSummary = generateRicherProfessionalSummary(targetRole, skills, problems);
+  const responsibilities = generateRicherResponsibilities(targetRole, problems);
+  const previousRoles = extractPreviousRoles(originalContent);
+
+  return `${targetRole.toUpperCase()} - TRANSFORMED CV
+
+${professionalSummary}
+
+CURRENT ROLE AND RESPONSIBILITIES
+${responsibilities.map(resp => `• ${resp}`).join('\n')}
+
+${previousRoles || `PREVIOUS EXPERIENCE
+• ${targetRole} experience with demonstrated success in similar roles
+• Track record of achieving measurable results and driving organizational growth
+• History of successful project delivery and team leadership`}
+
+TECHNICAL SKILLS
+${skills}
+
+EDUCATION
+Bachelor's Degree in relevant field
+Professional certifications and continued education in ${targetRole} specialization
+
+REFERENCES
+Available upon request`;
+}
+
+function generateMockFeedback(targetRole: string): string {
+  return `Based on our analysis, your CV has been transformed to better align with the role of ${targetRole}. Here are some key improvements:
+
+1. Skills and qualifications have been tailored to match the job requirements
+2. Work experience has been reframed to emphasize relevant accomplishments
+3. Professional summary has been strengthened to highlight your fit for the role
+4. Technical competencies have been prioritized based on industry standards
+5. Achievements have been quantified with metrics where possible
+
+Your CV now more effectively demonstrates your suitability for the ${targetRole} position, increasing your chances of securing an interview.`;
+}
+
 export function registerRoutes(app: Express): Express {
+  console.log("Starting route registration...");
+  
   // Setup authentication routes
   setupAuth(app);
 
-  // Add deployment guide email endpoint
-  app.post("/api/send-deployment-guide", async (req: Request, res: Response) => {
+  // Add health check endpoint
+  app.get("/api/health", (_req, res) => {
+    res.status(200).send("OK");
+  });
+
+  // CV transformation endpoint (authenticated)
+  app.post("/api/cv/transform", upload.single('file'), async (req: Request, res: Response) => {
     try {
-      const deploymentGuide = `# CV Transformer AWS Deployment Guide
+      console.log("CV transformation request received (authenticated)");
 
-## Prerequisites
-- AWS Account with appropriate permissions
-- Terraform installed (v1.0.0 or later)
-- Git installed
-- GitHub account
-
-## Environment Variables
-Configure your environment variables in a .env file:
-
-\`\`\`bash
-export DATABASE_URL=""
-export STRIPE_SECRET_KEY=""
-export SENDGRID_API_KEY=""
-\`\`\`
-
-## Project Structure
-\`\`\`
-terraform/
-├── modules/
-│   ├── vpc/
-│   │   ├── main.tf         # VPC configuration
-│   │   ├── variables.tf    # Input variables
-│   │   └── outputs.tf      # Output values
-│   ├── ec2/
-│   │   ├── main.tf         # EC2 instance configuration
-│   │   ├── variables.tf    # Input variables
-│   │   └── outputs.tf      # Output values
-│   ├── rds/
-│   │   ├── main.tf         # RDS instance configuration
-│   │   ├── variables.tf    # Input variables
-│   │   └── outputs.tf      # Output values
-│   └── security/
-│       ├── main.tf         # Security groups and IAM roles
-│       ├── variables.tf    # Input variables
-│       └── outputs.tf      # Output values
-├── environments/
-│   ├── prod/
-│   │   ├── main.tf         # Production environment configuration
-│   │   ├── variables.tf    # Environment-specific variables
-│   │   └── terraform.tfvars # Production values
-│   └── staging/
-│       ├── main.tf         # Staging environment configuration
-│       ├── variables.tf    # Environment-specific variables
-│       └── terraform.tfvars # Staging values
-├── main.tf                 # Root module configuration
-├── variables.tf            # Root input variables
-├── outputs.tf             # Root output values
-└── versions.tf            # Required provider versions
-\`\`\`
-
-## Deployment Steps
-
-1. Clone the repository and initialize Terraform
-2. Configure AWS credentials and environment variables
-3. Create and apply Terraform configuration
-4. Set up monitoring and security measures
-5. Deploy the application
-
-For detailed implementation steps, please refer to our comprehensive deployment documentation.`;
-
-      const emailSent = await sendEmail({
-        to: 'tufort-teams@yahoo.com',
-        from: 'noreply@cvanalyzer.freindel.com',
-        replyTo: 'support@cvanalyzer.freindel.com',
-        subject: 'CV Transformer - AWS Deployment Guide',
-        html: `
-          <h1>CV Transformer AWS Deployment Guide</h1>
-          <p>Please find below the detailed deployment guide for setting up CV Transformer on AWS using Terraform.</p>
-          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-family: monospace;">
-            ${deploymentGuide}
-          </div>
-          <p>If you have any questions or need assistance, please reply to this email.</p>
-          <p>Best regards,<br>The CV Transformer Team</p>
-        `
-      });
-
-      if (emailSent) {
-        res.json({ success: true, message: "Deployment guide sent successfully" });
-      } else {
-        throw new Error("Failed to send deployment guide");
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
       }
-    } catch (error: any) {
-      console.error("Error sending deployment guide:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Failed to send deployment guide",
-        error: error.message 
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { targetRole, jobDescription } = req.body;
+
+      if (!targetRole || !jobDescription) {
+        return res.status(400).json({ error: "Target role and job description are required" });
+      }
+
+      let fileContent = "";
+
+      try {
+        if (req.file.mimetype === 'application/pdf') {
+          console.log("Processing PDF file...");
+          const { PDFDocument } = await import('pdf-lib');
+          const pdfBytes = req.file.buffer;
+          const pdfDoc = await PDFDocument.load(pdfBytes);
+          const pages = pdfDoc.getPages();
+          fileContent = `PDF document with ${pages.length} pages`;
+        } else {
+          console.log("Processing DOCX file...");
+          const mammoth = await import('mammoth');
+          const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+          fileContent = result.value;
+        }
+      } catch (error) {
+        console.error("File processing error:", error);
+        throw error;
+      }
+
+      const transformedContent = generateTransformedCV({
+        originalContent: fileContent,
+        targetRole,
+        jobDescription
       });
+
+      const feedback = generateMockFeedback(targetRole);
+
+      const [newTransformation] = await db.insert(cvs)
+        .values({
+          originalFilename: req.file.originalname,
+          fileContent,
+          transformedContent,
+          targetRole,
+          jobDescription,
+          feedback,
+          score: 75,
+          isFullyRegenerated: false,
+          needsApproval: false,
+          approvalStatus: "pending",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      await db.insert(activityLogs)
+        .values({
+          userId: req.user.id,
+          action: "cv_transform",
+          details: {
+            cvId: newTransformation.id,
+            targetRole
+          },
+          createdAt: new Date()
+        });
+
+      res.status(201).json({
+        id: newTransformation.id,
+        targetRole: newTransformation.targetRole,
+        feedback: newTransformation.feedback,
+        approvalStatus: newTransformation.approvalStatus
+      });
+    } catch (error: any) {
+      console.error("CV transformation error:", error);
+      res.status(500).json({ error: error.message || "Failed to transform CV" });
+    }
+  });
+
+  // Get CV content (authenticated)
+  app.get("/api/cv/:id/content", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { id } = req.params;
+
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(
+          and(
+            eq(cvs.id, parseInt(id)),
+            eq(cvs.userId, req.user.id)
+          )
+        )
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).json({ error: "CV not found" });
+      }
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.send(cv.transformedContent);
+    } catch (error: any) {
+      console.error("Error retrieving CV content:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve CV content" });
+    }
+  });
+
+  // Get CV history (authenticated)
+  app.get("/api/cv/history", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const userCVs = await db
+        .select()
+        .from(cvs)
+        .where(eq(cvs.userId, req.user.id))
+        .orderBy(desc(cvs.createdAt));
+
+      res.json(userCVs.map(cv => ({
+        id: cv.id,
+        originalFilename: cv.originalFilename,
+        targetRole: cv.targetRole,
+        createdAt: cv.createdAt,
+        approvalStatus: cv.approvalStatus
+      })));
+    } catch (error: any) {
+      console.error("Error retrieving CV history:", error);
+      res.status(500).json({ error: error.message || "Failed to retrieve CV history" });
     }
   });
 

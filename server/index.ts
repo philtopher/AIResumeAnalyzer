@@ -5,6 +5,8 @@ import { updateAdminPassword } from "./auth";
 import { createServer } from "http";
 import { AddressInfo } from "net";
 
+console.log("Starting application initialization...");
+
 const app = express();
 
 // Add logging middleware
@@ -31,6 +33,8 @@ app.use((req, res, next) => {
   }
 });
 
+console.log("Middleware setup completed");
+
 app.use(express.urlencoded({ extended: false }));
 
 // Add health check endpoint with specific path
@@ -41,12 +45,8 @@ app.get("/api/health", (_req, res) => {
 async function startServer(initialPort: number) {
   try {
     console.log("Starting server initialization...");
-    // Temporarily comment out the potentially slow admin update
-    // We'll defer this until after the server has started
-    // await updateAdminPassword();
 
     console.log("Creating HTTP server...");
-    // Create HTTP server first
     const server = createServer(app);
 
     console.log("Registering API routes...");
@@ -56,7 +56,7 @@ async function startServer(initialPort: number) {
     console.log("Setting up Vite or static files...");
     // Set up Vite or serve static files based on environment
     if (app.get("env") === "development") {
-      await setupVite(app, server); // Fixed: Now passing both app and server
+      await setupVite(app, server);
     } else {
       serveStatic(app);
     }
@@ -97,7 +97,6 @@ async function startServer(initialPort: number) {
             log(`Server is running on port ${address.port}`);
 
             // Run updateAdminPassword after server has started
-            // This way, the slower operation won't block server startup
             updateAdminPassword().catch(error => {
               console.error("Failed to update admin password:", error);
             });
@@ -122,4 +121,5 @@ async function startServer(initialPort: number) {
 }
 
 // Start the server
+console.log("Initializing server startup...");
 startServer(5000);
