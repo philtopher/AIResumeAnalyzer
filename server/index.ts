@@ -5,6 +5,8 @@ import { updateAdminPassword } from "./auth";
 import { createServer } from "http";
 import { AddressInfo } from "net";
 import stripeRoutes from "./routes/stripe";
+import * as fs from 'fs';
+import { resolve } from 'path';
 
 console.log("Starting application initialization...");
 
@@ -64,6 +66,35 @@ async function startServer(initialPort: number) {
       await setupVite(app, server);
     } else {
       serveStatic(app);
+    }
+    
+    // Add a redirect middleware for the root route and any non-API routes
+    // This must be added AFTER Vite middleware to work correctly
+    const redirectEnabled = fs.existsSync('./redirect.enabled');
+    const redirectHtmlPath = resolve('./redirect.html');
+    const redirectHtmlExists = fs.existsSync(redirectHtmlPath);
+    
+    // Log the startup state for monitoring purposes
+    console.log(`Redirect configuration: enabled=${redirectEnabled}, htmlExists=${redirectHtmlExists}`);
+    
+    if (redirectEnabled && redirectHtmlExists) {
+      console.log("Redirect is enabled. All non-API routes will serve the redirect.html file");
+      app.use((req, res, next) => {
+        // Skip API routes
+        if (req.path.startsWith('/api')) {
+          return next();
+        }
+        
+        // Skip static assets
+        if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico)$/)) {
+          return next();
+        }
+        
+        // Serve the redirect HTML file instead of performing a direct redirect
+        res.sendFile(redirectHtmlPath);
+      });
+    } else {
+      console.log("Redirect is disabled or redirect.html file is missing. Site will function normally without redirects.");
     }
 
     // Handle 404 routes - must come after all other routes

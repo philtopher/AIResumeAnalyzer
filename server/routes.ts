@@ -367,17 +367,6 @@ export function registerRoutes(app: Express): Express {
   
   // Setup authentication routes
   setupAuth(app);
-
-  // Add a redirect middleware for the root route and any non-API routes
-  // This can be easily removed by deleting or commenting out this middleware block
-  // Check for a control file to enable/disable redirects
-  const redirectEnabled = fs.existsSync('./redirect.enabled');
-  // In ES modules, __dirname is not available, so we need to construct the path differently
-  const redirectHtmlPath = resolve('./redirect.html');
-  const redirectHtmlExists = fs.existsSync(redirectHtmlPath);
-  
-  // Log the startup state for monitoring purposes
-  console.log(`Redirect configuration: enabled=${redirectEnabled}, htmlExists=${redirectHtmlExists}`);
   
   // Add health check endpoint
   app.get("/api/health", (_req, res) => {
@@ -395,34 +384,9 @@ export function registerRoutes(app: Express): Express {
         rss: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
         heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`,
         heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`
-      },
-      redirect: {
-        enabled: redirectEnabled,
-        htmlExists: redirectHtmlExists
       }
     });
   });
-  
-  if (redirectEnabled && redirectHtmlExists) {
-    console.log("Redirect is enabled. All non-API routes will serve the redirect.html file");
-    app.use((req, res, next) => {
-      // Skip API routes
-      if (req.path.startsWith('/api')) {
-        return next();
-      }
-      
-      // Skip static assets
-      if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico)$/)) {
-        return next();
-      }
-      
-      // Serve the redirect HTML file instead of performing a direct redirect
-      // This makes it easy to remove the redirect by just deleting the redirect.html file
-      res.sendFile(redirectHtmlPath);
-    });
-  } else {
-    console.log("Redirect is disabled or redirect.html file is missing. Site will function normally without redirects.");
-  }
 
   // CV transformation endpoint (authenticated)
   app.post("/api/cv/transform", upload.single('file'), async (req: Request, res: Response) => {
