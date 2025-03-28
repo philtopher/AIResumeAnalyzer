@@ -368,19 +368,42 @@ export function registerRoutes(app: Express): Express {
   // Setup authentication routes
   setupAuth(app);
 
-  // Add health check endpoint
-  app.get("/api/health", (_req, res) => {
-    res.status(200).send("OK");
-  });
-  
   // Add a redirect middleware for the root route and any non-API routes
   // This can be easily removed by deleting or commenting out this middleware block
   // Check for a control file to enable/disable redirects
   const redirectEnabled = fs.existsSync('./redirect.enabled');
   // In ES modules, __dirname is not available, so we need to construct the path differently
   const redirectHtmlPath = resolve('./redirect.html');
+  const redirectHtmlExists = fs.existsSync(redirectHtmlPath);
   
-  if (redirectEnabled && fs.existsSync(redirectHtmlPath)) {
+  // Log the startup state for monitoring purposes
+  console.log(`Redirect configuration: enabled=${redirectEnabled}, htmlExists=${redirectHtmlExists}`);
+  
+  // Add health check endpoint
+  app.get("/api/health", (_req, res) => {
+    // Enhanced health check with memory usage and uptime information
+    const uptimeHours = process.uptime() / 3600;
+    const memoryUsage = process.memoryUsage();
+    
+    res.status(200).json({
+      status: "OK",
+      uptime: {
+        seconds: Math.floor(process.uptime()),
+        formatted: `${Math.floor(uptimeHours)}h ${Math.floor((uptimeHours % 1) * 60)}m`
+      },
+      memory: {
+        rss: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
+        heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`,
+        heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`
+      },
+      redirect: {
+        enabled: redirectEnabled,
+        htmlExists: redirectHtmlExists
+      }
+    });
+  });
+  
+  if (redirectEnabled && redirectHtmlExists) {
     console.log("Redirect is enabled. All non-API routes will serve the redirect.html file");
     app.use((req, res, next) => {
       // Skip API routes

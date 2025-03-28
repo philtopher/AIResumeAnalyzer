@@ -127,6 +127,36 @@ async function startServer(initialPort: number) {
   }
 }
 
+// Add process handlers to diagnose unexpected shutdowns
+process.on('uncaughtException', (error) => {
+  console.error('UNCAUGHT EXCEPTION! 💥 Shutting down...', error);
+  console.error('Error name:', error.name);
+  console.error('Error message:', error.message);
+  console.error('Error stack:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error('UNHANDLED REJECTION! 💥 Shutting down...', error);
+  if (error instanceof Error) {
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+  }
+  process.exit(1);
+});
+
+// Capture intentional shutdowns
+process.on('SIGTERM', () => {
+  console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('👋 SIGINT RECEIVED. Shutting down gracefully');
+  process.exit(0);
+});
+
 // Start the server
 console.log("Initializing server startup...");
 startServer(5000);
