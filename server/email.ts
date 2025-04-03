@@ -7,7 +7,7 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const FROM_EMAIL = 'info@cvtrasnformers.com';
+const FROM_EMAIL = 'info@cvtransformers.com';
 const SUPPORT_EMAIL = 'support@cvtransformers.com';
 const MAX_RETRY_ATTEMPTS = 3;
 
@@ -168,7 +168,7 @@ export async function sendContactFormNotification(contactData: {
       </div>
     `;
 
-    // Send notification to admin
+    // Send notification to admin with fixed email
     const adminNotification = await sendEmail({
       to: FROM_EMAIL,
       subject: `New Contact Form Message from ${contactData.name}`,
@@ -208,6 +208,7 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
   return sendEmail({
     to: email,
     subject: "Reset Your CV Transformer Password",
+    replyTo: SUPPORT_EMAIL,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h1 style="color: #2563eb; margin-bottom: 20px;">Password Reset Request</h1>

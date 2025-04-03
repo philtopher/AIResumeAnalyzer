@@ -77,9 +77,15 @@ export default function DashboardPage() {
         formRef.current.reset();
       }
     } catch (error: any) {
+      // Sanitize error message to avoid displaying curly braces
+      let errorMessage = error.message || "An unknown error occurred";
+      
+      // Remove curly braces from the error message
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
       toast({
         title: "Error",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -108,9 +114,15 @@ export default function DashboardPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error: any) {
+      // Sanitize error message to avoid displaying curly braces
+      let errorMessage = error.message || "An unknown error occurred";
+      
+      // Remove curly braces from the error message
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
       toast({
         title: "Error",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -129,10 +141,24 @@ export default function DashboardPage() {
 
       const content = await response.text();
       setTransformedContent(content);
+      
+      // Set the transformedCV to the currently viewed CV
+      setTransformedCV({ id: cvId });
+      
+      toast({
+        title: "CV Loaded",
+        description: "Your transformed CV content has been loaded.",
+      });
     } catch (error: any) {
+      // Sanitize error message to avoid displaying curly braces
+      let errorMessage = error.message || "An unknown error occurred";
+      
+      // Remove curly braces from the error message
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
       toast({
         title: "Error",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     }

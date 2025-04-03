@@ -598,6 +598,34 @@ export function registerRoutes(app: Express): Express {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
+      
+      // Check if user is free user and needs to wait 24 hours
+      const isAdmin = req.user.role === "super_admin" || req.user.role === "sub_admin";
+      const hasPro = isAdmin || (req.user.subscription && req.user.subscription.status === "active");
+      
+      // Only apply restriction to free users
+      if (!hasPro) {
+        // Check last transformation time
+        const oneDayAgo = new Date();
+        oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+        
+        const recentTransformations = await db
+          .select()
+          .from(cvs)
+          .where(
+            and(
+              eq(cvs.userId, req.user.id),
+              gte(cvs.createdAt, oneDayAgo)
+            )
+          );
+        
+        if (recentTransformations.length > 0) {
+          // User has converted CV in the last 24 hours
+          return res.status(403).json({ 
+            error: "Free users can only convert CVs once every 24 hours. Please subscribe to our premium plan for unlimited conversions." 
+          });
+        }
+      }
 
       const { targetRole, jobDescription } = req.body;
 
@@ -679,7 +707,12 @@ export function registerRoutes(app: Express): Express {
       });
     } catch (error: any) {
       console.error("CV transformation error:", error);
-      res.status(500).json({ error: error.message || "Failed to transform CV" });
+      
+      // Sanitize error message to remove curly braces for security
+      let errorMessage = error.message || "Failed to transform CV";
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
+      res.status(500).json({ error: errorMessage });
     }
   });
 
@@ -711,7 +744,12 @@ export function registerRoutes(app: Express): Express {
       res.send(cv.transformedContent);
     } catch (error: any) {
       console.error("Error retrieving CV content:", error);
-      res.status(500).json({ error: error.message || "Failed to retrieve CV content" });
+      
+      // Sanitize error message to remove curly braces for security
+      let errorMessage = error.message || "Failed to retrieve CV content";
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
+      res.status(500).json({ error: errorMessage });
     }
   });
 
@@ -737,7 +775,12 @@ export function registerRoutes(app: Express): Express {
       })));
     } catch (error: any) {
       console.error("Error retrieving CV history:", error);
-      res.status(500).json({ error: error.message || "Failed to retrieve CV history" });
+      
+      // Sanitize error message to remove curly braces for security
+      let errorMessage = error.message || "Failed to retrieve CV history";
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
+      res.status(500).json({ error: errorMessage });
     }
   });
   
@@ -874,7 +917,12 @@ export function registerRoutes(app: Express): Express {
       res.send(buffer);
     } catch (error: any) {
       console.error("Error generating Word document:", error);
-      res.status(500).json({ error: error.message || "Failed to generate Word document" });
+      
+      // Sanitize error message to remove curly braces for security
+      let errorMessage = error.message || "Failed to generate Word document";
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
+      res.status(500).json({ error: errorMessage });
     }
   });
 

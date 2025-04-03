@@ -84,9 +84,12 @@ function Navigation() {
     authenticatedItems.push({ label: "Upgrade to Pro", path: "/upgrade" });
   }
 
-  // Add admin link if user is admin/super admin
+  // Add admin links if user is admin/super admin
   if (isAdmin) {
-    authenticatedItems.push({ label: "Admin", path: "/admin" });
+    authenticatedItems.push(
+      { label: "Admin Dashboard", path: "/admin" },
+      { label: "User Management", path: "/admin/users" }
+    );
   }
 
   return (
@@ -236,6 +239,7 @@ function App() {
           {isAdmin && (
             <>
               <Route path="/admin" component={AdminDashboardPage} />
+              <Route path="/admin/users" component={AdminPage} />
               <Route path="/metrics" component={MetricsPage} />
             </>
           )}
