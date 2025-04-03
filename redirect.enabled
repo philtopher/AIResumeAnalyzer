@@ -1,9 +1,0 @@
-This file enables redirection to https://cvtransformers.replit.app
-
-To disable the redirection:
-1. Delete this file
-2. Restart the application
-
-The redirection is controlled by this file's presence. When this file exists,
-the application will serve redirect.html for all non-API requests, which will
-automatically redirect users to cvtransformers.replit.app.
