@@ -4,6 +4,7 @@ import { subscriptions, users } from '@db/schema';
 import { eq } from 'drizzle-orm';
 import express from 'express';
 import { sendEmail } from '../email';
+import Stripe from 'stripe';
 
 // Create a router instance
 const router = Router();
@@ -19,15 +20,13 @@ const isStripeConfigured = !!(
 console.log(`Stripe payment integration is ${isStripeConfigured ? 'ENABLED' : 'DISABLED'}`);
 
 // Only initialize Stripe if all required environment variables are set
-let stripe: any = null;
+let stripe: Stripe | null = null;
 
 // Use a synchronous initialization for simplicity
 if (isStripeConfigured) {
   try {
-    const Stripe = require('stripe');
-    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2023-10-16',
-    });
+    // Initialize Stripe without specifying apiVersion to use the latest version
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
     console.log('Stripe client initialized successfully');
   } catch (error) {
     console.error('Failed to initialize Stripe:', error);

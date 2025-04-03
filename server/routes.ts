@@ -7,6 +7,8 @@ import { eq, desc, and } from "drizzle-orm";
 import multer from "multer";
 import { extname, resolve } from "path";
 import * as fs from 'fs';
+import { transformCVWithAI, generateCVFeedbackWithAI } from "./openai";
+import stripeRoutes from "./routes/stripe";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -365,6 +367,10 @@ Your CV now more effectively demonstrates your suitability for the ${targetRole}
 export function registerRoutes(app: Express): Express {
   console.log("Starting route registration...");
   
+  // Register Stripe payment routes
+  console.log("Registering Stripe payment routes...");
+  app.use('/api', stripeRoutes);
+  
   // Setup authentication routes
   setupAuth(app);
   
@@ -434,13 +440,15 @@ export function registerRoutes(app: Express): Express {
         fileContent = "Error processing file content. Default transformation will be applied.";
       }
 
-      const transformedContent = generateTransformedCV({
+      // Use OpenAI to transform the CV
+      const transformedContent = await transformCVWithAI({
         originalContent: fileContent,
         targetRole,
         jobDescription
       });
 
-      const feedback = generateMockFeedback(targetRole);
+      // Generate AI-powered feedback on the transformation
+      const feedback = await generateCVFeedbackWithAI(fileContent, transformedContent, targetRole);
 
       const [newTransformation] = await db.insert(cvs)
         .values({
