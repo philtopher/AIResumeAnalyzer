@@ -9,6 +9,7 @@ import { extname, resolve } from "path";
 import * as fs from 'fs';
 import { transformCVWithAI, generateCVFeedbackWithAI } from "./openai";
 import stripeRoutes from "./routes/stripe";
+import { sendContactFormNotification } from "./email";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -923,6 +924,48 @@ export function registerRoutes(app: Express): Express {
       errorMessage = errorMessage.replace(/[{}]/g, "");
       
       res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Handle contact form submissions
+  app.post("/api/contact", async (req: Request, res: Response) => {
+    try {
+      const { name, email, phone, subject, message } = req.body;
+      
+      // Validate required fields
+      if (!name || !email || !message) {
+        return res.status(400).json({ 
+          error: "Missing required fields" 
+        });
+      }
+
+      // Process the contact form submission
+      const result = await sendContactFormNotification({
+        name,
+        email,
+        phone,
+        subject,
+        message
+      });
+
+      if (result) {
+        return res.status(200).json({ 
+          success: true, 
+          message: "Contact form submitted successfully" 
+        });
+      } else {
+        throw new Error("Failed to send contact form notification");
+      }
+    } catch (error: any) {
+      console.error("Contact form error:", error);
+      // Sanitize error message to remove curly braces for security
+      let errorMessage = error.message || "Failed to process contact form";
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
+      return res.status(500).json({ 
+        error: "Failed to process contact form", 
+        message: errorMessage 
+      });
     }
   });
 
