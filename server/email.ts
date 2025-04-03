@@ -7,7 +7,7 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const FROM_EMAIL = 'info@cvtransformers.com';
+const FROM_EMAIL = 'info@cvtransfromers.com';
 const SUPPORT_EMAIL = 'support@cvtransformers.com';
 const MAX_RETRY_ATTEMPTS = 3;
 
@@ -22,6 +22,7 @@ export async function sendEmail(options: {
   to: string;
   subject: string;
   html: string;
+  from?: string;
   replyTo?: string;
   retryCount?: number;
   attachments?: Attachment[];
@@ -31,7 +32,7 @@ export async function sendEmail(options: {
   try {
     console.log(`[SendGrid] Attempting to send email (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS + 1})`, {
       to: options.to,
-      from: FROM_EMAIL,
+      from: options.from || FROM_EMAIL,
       subject: options.subject,
       replyTo: options.replyTo,
       hasAttachments: (options.attachments && options.attachments.length > 0) || false
@@ -40,7 +41,7 @@ export async function sendEmail(options: {
     const msg = {
       to: options.to,
       from: {
-        email: FROM_EMAIL,
+        email: options.from || FROM_EMAIL,
         name: "CV Transformer"
       },
       replyTo: options.replyTo || SUPPORT_EMAIL,
@@ -107,6 +108,7 @@ export async function sendProPlanConfirmationEmail(email: string, username: stri
 
   return sendEmail({
     to: email,
+    from: FROM_EMAIL,
     subject: "Welcome to CV Transformer Pro!",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -171,6 +173,7 @@ export async function sendContactFormNotification(contactData: {
     // Send notification to admin with fixed email
     const adminNotification = await sendEmail({
       to: FROM_EMAIL,
+      from: FROM_EMAIL,
       subject: `New Contact Form Message from ${contactData.name}`,
       html: emailContent,
       replyTo: contactData.email // Added replyTo for contact form
@@ -179,6 +182,7 @@ export async function sendContactFormNotification(contactData: {
     // Send confirmation to user
     const userConfirmation = await sendEmail({
       to: contactData.email,
+      from: FROM_EMAIL,
       subject: "Thank you for contacting CV Transformer",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -207,6 +211,7 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
 
   return sendEmail({
     to: email,
+    from: SUPPORT_EMAIL,
     subject: "Reset Your CV Transformer Password",
     replyTo: SUPPORT_EMAIL,
     html: `
@@ -243,6 +248,7 @@ export async function sendVerificationEmail(email: string, verificationToken: st
 
   return sendEmail({
     to: email,
+    from: FROM_EMAIL,
     subject: "Verify Your CV Transformer Account",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">

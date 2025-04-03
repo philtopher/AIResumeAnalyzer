@@ -238,8 +238,9 @@ function App() {
           )}
           {isAdmin && (
             <>
-              <Route path="/admin" component={AdminDashboardPage} />
-              <Route path="/admin/users" component={AdminPage} />
+              <Route path="/admin" component={AdminPage} />
+              <Route path="/admin/metrics" component={AdminDashboardPage} />
+              <Route path="/admin/users" component={AdminDashboardPage} />
               <Route path="/metrics" component={MetricsPage} />
             </>
           )}
