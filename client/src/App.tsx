@@ -24,6 +24,7 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
+import AdminPage from "./pages/AdminPage";
 import PrivacyDashboardPage from "./pages/PrivacyDashboardPage";
 import SuperAdminDashboardPage from "./pages/SuperAdminDashboardPage";
 import UpgradePlanPage from "./pages/UpgradePlanPage";
