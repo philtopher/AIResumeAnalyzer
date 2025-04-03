@@ -7,8 +7,8 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const FROM_EMAIL = 'noreply@cvanalyzer.freindel.com';
-const SUPPORT_EMAIL = 'support@cvanalyzer.freindel.com';
+const FROM_EMAIL = 'info@cvtrasnformers.com';
+const SUPPORT_EMAIL = 'support@cvtransformers.com';
 const MAX_RETRY_ATTEMPTS = 3;
 
 interface Attachment {
@@ -34,7 +34,7 @@ export async function sendEmail(options: {
       from: FROM_EMAIL,
       subject: options.subject,
       replyTo: options.replyTo,
-      hasAttachments: options.attachments?.length > 0
+      hasAttachments: (options.attachments && options.attachments.length > 0) || false
     });
 
     const msg = {
@@ -75,7 +75,7 @@ export async function sendEmail(options: {
       console.log('[SendGrid] Email sent successfully', {
         statusCode: response.statusCode,
         messageId: response.headers['x-message-id'],
-        attachmentsCount: options.attachments?.length
+        attachmentsCount: options.attachments ? options.attachments.length : 0
       });
       return true;
     }
@@ -87,7 +87,7 @@ export async function sendEmail(options: {
       code: error.code,
       response: error.response?.body,
       attempt: retryCount + 1,
-      hasAttachments: options.attachments?.length > 0
+      hasAttachments: (options.attachments && options.attachments.length > 0) || false
     });
 
     if (retryCount < MAX_RETRY_ATTEMPTS) {
@@ -198,7 +198,7 @@ export async function sendContactFormNotification(contactData: {
 }
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
-  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvtransformers.replit.app';
   const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
   const currentTime = new Date().toLocaleString();
 
@@ -233,7 +233,7 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
 }
 
 export async function sendVerificationEmail(email: string, verificationToken: string) {
-  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://airesumeanalyzer.repl.co';
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvtransformers.replit.app';
   const verificationUrl = `${baseUrl}/verify-email/${verificationToken}`;
 
   console.log('Sending verification email with URL:', verificationUrl);
