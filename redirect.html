@@ -83,6 +83,7 @@
         <a href="https://cvtransformers.replit.app" class="button">Go to CV Transformers</a>
     </div>
 
+    <!-- Redirection countdown script disabled
     <script>
         // Countdown timer
         let seconds = 5;
@@ -97,6 +98,15 @@
                 window.location.href = 'https://cvtransformers.replit.app';
             }
         }, 1000);
+    </script>
+    -->
+    <script>
+        // Script to inform user that redirect is disabled
+        const countdownEl = document.getElementById('countdown');
+        if (countdownEl) {
+            countdownEl.textContent = "N/A";
+        }
+        document.querySelector('.progress-bar').style.width = '0%';
     </script>
 </body>
 </html>

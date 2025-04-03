@@ -198,7 +198,8 @@ export async function sendContactFormNotification(contactData: {
 }
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
-  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvtransformers.replit.app';
+  // Use the request URL from the current domain rather than redirecting to cvtransformers.replit.app
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || '';
   const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
   const currentTime = new Date().toLocaleString();
 
@@ -233,7 +234,8 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
 }
 
 export async function sendVerificationEmail(email: string, verificationToken: string) {
-  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://cvtransformers.replit.app';
+  // Use the request URL from the current domain rather than redirecting to cvtransformers.replit.app
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || '';
   const verificationUrl = `${baseUrl}/verify-email/${verificationToken}`;
 
   console.log('Sending verification email with URL:', verificationUrl);

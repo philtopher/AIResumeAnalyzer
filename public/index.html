@@ -65,6 +65,7 @@
         display: none;
       }
     </style>
+    <!-- Redirect script disabled
     <script>
       // Only redirect if the control file exists
       window.onload = function() {
@@ -89,6 +90,14 @@
             // On error, show normal content
             document.getElementById('main-container').style.display = 'block';
           });
+      };
+    </script>
+    -->
+    
+    <script>
+      // Always show main content, no redirects
+      window.onload = function() {
+        document.getElementById('main-container').style.display = 'block';
       };
     </script>
   </head>
