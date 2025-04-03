@@ -6,6 +6,7 @@ export type User = DbUser & {
   subscription?: {
     status: "active" | "inactive" | "canceled";
     endedAt: string | null;
+    isPro?: boolean;
   } | null;
 };
 
@@ -63,7 +64,7 @@ async function fetchUser(): Promise<User | null> {
 export function useUser() {
   const queryClient = useQueryClient();
 
-  const { data: user, error, isLoading } = useQuery<User | null, Error>({
+  const { data: user, error, isLoading, refetch } = useQuery<User | null, Error>({
     queryKey: ["user"],
     queryFn: fetchUser,
     staleTime: Infinity,
@@ -95,6 +96,7 @@ export function useUser() {
     user,
     isLoading,
     error,
+    refetch,
     login: loginMutation.mutateAsync,
     logout: logoutMutation.mutateAsync,
     register: registerMutation.mutateAsync,

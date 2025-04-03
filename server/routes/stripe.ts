@@ -139,18 +139,39 @@ router.post('/create-payment-link', async (req, res) => {
       throw new Error(`${req.body.plan === 'pro' ? 'STRIPE_PRO_PRICE_ID' : 'STRIPE_BASIC_PRICE_ID'} is not configured`);
     }
 
-    const paymentLink = await stripe.paymentLinks.create({
+    // Create a checkout session instead of a payment link to support Apple Pay/Google Pay
+    const successUrl = `${process.env.NODE_ENV === 'production'
+      ? process.env.APP_URL
+      : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/payment-success`;
+      
+    const cancelUrl = `${process.env.NODE_ENV === 'production'
+      ? process.env.APP_URL
+      : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/upgrade-plan`;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
+      mode: 'subscription',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         userId: req.user.id.toString(),
         plan: req.body.plan,
       },
+      billing_address_collection: 'auto',
+      payment_method_options: {
+        card: {
+          setup_future_usage: 'off_session',
+        },
+      },
     });
+    
+    const paymentLink = { url: session.url };
 
     console.log('Payment link created:', paymentLink.url);
     res.json({ url: paymentLink.url });

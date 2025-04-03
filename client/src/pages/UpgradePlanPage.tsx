@@ -3,9 +3,10 @@ import { useUser } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Redirect, useLocation, useSearch } from "wouter";
-import { Loader2, Check, AlertTriangle, ArrowDown } from "lucide-react";
+import { Loader2, Check, AlertTriangle, ArrowDown, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SiApple, SiGooglepay } from "react-icons/si";
 
 export default function UpgradePlanPage() {
   const { user, isLoading: userLoading, refetch } = useUser();
@@ -23,8 +24,8 @@ export default function UpgradePlanPage() {
   const paymentUserId = params.get('userId');
 
   // Determine if user has an active subscription and what kind
-  const hasStandardPlan = !userLoading && user?.subscription?.status === "active" && !user.subscription.isPro;
-  const hasProPlan = !userLoading && user?.subscription?.status === "active" && user.subscription.isPro;
+  const hasStandardPlan = !userLoading && user?.subscription?.status === "active" && !user.subscription?.isPro;
+  const hasProPlan = !userLoading && user?.subscription?.status === "active" && user.subscription?.isPro;
 
   useEffect(() => {
     setVerificationError(null);
@@ -156,6 +157,15 @@ export default function UpgradePlanPage() {
           </AlertDescription>
         </Alert>
       )}
+
+      <div className="flex justify-center mb-8">
+        <div className="bg-muted p-4 rounded-lg inline-flex items-center gap-3">
+          <span className="text-sm font-medium">Payment Methods:</span>
+          <CreditCard className="h-5 w-5" />
+          <SiApple className="h-5 w-5" />
+          <SiGooglepay className="h-6 w-6" />
+        </div>
+      </div>
 
       <div className="grid md:grid-cols-3 gap-8">
         {/* Free Plan Card */}
