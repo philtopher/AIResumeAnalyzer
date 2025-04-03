@@ -305,7 +305,10 @@ export function setupAuth(app: Express) {
           username: user.username,
           password: user.password,
           email: user.email,
-          role: hasActiveSubscription ? 'pro_user' : user.role,
+          // Only update to pro_user if user is not an admin or super_admin
+          role: (hasActiveSubscription && !user.role.includes('admin') && user.role !== 'super_admin') 
+            ? 'pro_user' 
+            : user.role,
           emailVerified: user.emailVerified ?? false,
           subscriptions: user.subscription ? { status: user.subscription.status } : null,
           createdAt: user.createdAt,
@@ -339,8 +342,9 @@ export function setupAuth(app: Express) {
       const hasActiveSubscription = await checkSubscriptionStatus(user.id);
 
       // If subscription expired, ensure user has basic access
-      if (!hasActiveSubscription) {
-        // Update role to 'user' if they don't have an active subscription
+      // But don't downgrade admin accounts
+      if (!hasActiveSubscription && !user.role.includes('admin') && user.role !== 'super_admin') {
+        // Update role to 'user' if they don't have an active subscription and aren't an admin
         await db
           .update(users)
           .set({ role: 'user' })
@@ -771,6 +775,11 @@ export function setupAuth(app: Express) {
   const checkTrialExpiration = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
+    }
+
+    // Skip trial checks for admin roles
+    if (req.user.role && (req.user.role.includes('admin') || req.user.role === 'super_admin')) {
+      return next();
     }
 
     const hasValidTrial = await checkTrialStatus(req.user);
