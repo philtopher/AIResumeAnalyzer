@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { setupAuth } from "./auth";
 import { db } from "@db";
 import { users, cvs, activityLogs } from "@db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, gte } from "drizzle-orm";
 import multer from "multer";
 import { extname, resolve } from "path";
 import * as fs from 'fs';

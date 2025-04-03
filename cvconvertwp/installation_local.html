@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVTransform - Local Installation Guide</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 30px;
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        pre, code {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .note {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .step {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px dashed #ddd;
+        }
+        .step h3 {
+            color: #3498db;
+            margin-top: 0;
+        }
+        img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>CVTransform Local Installation Guide</h1>
+    <p>This comprehensive guide walks you through the process of setting up CVTransform for local development on your machine. This is ideal for developers, contributors, or anyone who wants to run CVTransform on their own computer for testing or development purposes.</p>
+
+    <div class="section">
+        <h2>System Requirements</h2>
+        <p>Before beginning the installation, ensure your system meets the following requirements:</p>
+        <ul>
+            <li><strong>Node.js:</strong> v18.0.0 or higher</li>
+            <li><strong>npm:</strong> v8.0.0 or higher</li>
+            <li><strong>PostgreSQL:</strong> v14.0 or higher</li>
+            <li><strong>Git:</strong> For cloning the repository</li>
+            <li><strong>External API accounts:</strong> OpenAI, SendGrid, and Stripe (for full functionality)</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Installation Steps</h2>
+        
+        <div class="step">
+            <h3>Step 1: Clone the Repository</h3>
+            <p>First, clone the CVTransform repository to your local machine:</p>
+            <pre><code>git clone https://github.com/cvtransformers/cvtransform.git
+cd cvtransform</code></pre>
+        </div>
+        
+        <div class="step">
+            <h3>Step 2: Install Dependencies</h3>
+            <p>Install all required packages using npm:</p>
+            <pre><code>npm install</code></pre>
+            <p>This will install all the dependencies listed in the package.json file, including:</p>
+            <ul>
+                <li>React and React DOM for the frontend</li>
+                <li>Express.js for the server</li>
+                <li>Drizzle ORM for database operations</li>
+                <li>TailwindCSS and ShadCN UI for styling</li>
+                <li>Development tools and TypeScript</li>
+            </ul>
+        </div>
+        
+        <div class="step">
+            <h3>Step 3: Set Up PostgreSQL Database</h3>
+            <p>CVTransform requires a PostgreSQL database for storing user data, CVs, and application state.</p>
+            
+            <h4>Install PostgreSQL (if not already installed)</h4>
+            <ul>
+                <li><strong>Windows:</strong> Download and install from <a href="https://www.postgresql.org/download/windows/">postgresql.org</a></li>
+                <li><strong>macOS:</strong> Use Homebrew: <code>brew install postgresql</code></li>
+                <li><strong>Linux:</strong> Use your distribution's package manager, e.g., <code>sudo apt install postgresql</code></li>
+            </ul>
+            
+            <h4>Create Database and User</h4>
+            <p>Open the PostgreSQL command line interface:</p>
+            <pre><code>psql -U postgres</code></pre>
+            
+            <p>Then create a database and user for CVTransform:</p>
+            <pre><code>CREATE DATABASE cvtransform;
+CREATE USER cvtransform_user WITH ENCRYPTED PASSWORD 'your_password_here';
+GRANT ALL PRIVILEGES ON DATABASE cvtransform TO cvtransform_user;
+\c cvtransform
+GRANT ALL ON SCHEMA public TO cvtransform_user;
+\q</code></pre>
+            
+            <div class="note">
+                <p><strong>Note:</strong> Replace 'your_password_here' with a secure password. Remember to use this same password in your environment variables.</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 4: Configure Environment Variables</h3>
+            <p>Create a .env file in the root directory with the following variables:</p>
+            <pre><code># Database
+DATABASE_URL=postgres://cvtransform_user:your_password_here@localhost:5432/cvtransform
+
+# Auth
+SESSION_SECRET=your_session_secret_here
+
+# External APIs
+OPENAI_API_KEY=your_openai_api_key
+SENDGRID_API_KEY=your_sendgrid_api_key
+
+# Stripe (for payment processing)
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+STRIPE_BASIC_PRICE_ID=your_stripe_basic_price_id
+STRIPE_PRO_PRICE_ID=your_stripe_pro_price_id
+
+# Application settings
+PORT=5000
+NODE_ENV=development</code></pre>
+            
+            <div class="warning">
+                <p><strong>Important:</strong> Never commit your .env file to version control. The repository should already have .env in the .gitignore file.</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 5: Set Up Database Schema</h3>
+            <p>CVTransform uses Drizzle ORM for database migrations. Run the following command to create the database schema:</p>
+            <pre><code>npm run db:push</code></pre>
+            <p>This command will create all necessary tables based on the schema defined in the <code>db/schema.ts</code> file.</p>
+        </div>
+        
+        <div class="step">
+            <h3>Step 6: Start the Development Server</h3>
+            <p>Now you can start the development server:</p>
+            <pre><code>npm run dev</code></pre>
+            <p>This will start both the frontend and backend servers. The application will be available at <a href="http://localhost:5000">http://localhost:5000</a>.</p>
+        </div>
+        
+        <div class="step">
+            <h3>Step 7: Create Admin User</h3>
+            <p>For administrative access, you'll need to create an admin user. You can run:</p>
+            <pre><code>npm run create-admin</code></pre>
+            <p>This will create a super_admin user with the following credentials:</p>
+            <ul>
+                <li><strong>Username:</strong> admin</li>
+                <li><strong>Email:</strong> admin@cvtransformers.com</li>
+                <li><strong>Password:</strong> The password will be displayed in the console</li>
+            </ul>
+            <p>You should change this password after your first login.</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Testing the Installation</h2>
+        <p>After completing the installation, you should verify that everything is working correctly:</p>
+        
+        <ol>
+            <li><strong>Access the application</strong> at <a href="http://localhost:5000">http://localhost:5000</a></li>
+            <li><strong>Register a new user account</strong> or log in with the admin account</li>
+            <li><strong>Test CV transformation</strong> by uploading a sample CV and job description</li>
+            <li><strong>Verify database connectivity</strong> by checking that user data is saved</li>
+            <li><strong>Test email functionality</strong> if you've set up SendGrid</li>
+            <li><strong>Test payment processing</strong> if you've set up Stripe</li>
+        </ol>
+        
+        <div class="note">
+            <p><strong>Note:</strong> For testing Stripe payments, you can use <a href="https://stripe.com/docs/testing">Stripe's test cards</a>.</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Troubleshooting Common Issues</h2>
+        
+        <h3>Database Connection Errors</h3>
+        <ul>
+            <li><strong>Issue:</strong> "Error: connect ECONNREFUSED"</li>
+            <li><strong>Solution:</strong> Ensure PostgreSQL is running and the DATABASE_URL is correct</li>
+        </ul>
+        
+        <h3>Node.js Version Issues</h3>
+        <ul>
+            <li><strong>Issue:</strong> "SyntaxError: Unexpected token ..."</li>
+            <li><strong>Solution:</strong> Ensure you're using Node.js v18+ (run <code>node -v</code> to check)</li>
+        </ul>
+        
+        <h3>Port Already in Use</h3>
+        <ul>
+            <li><strong>Issue:</strong> "Error: listen EADDRINUSE: address already in use ::5000"</li>
+            <li><strong>Solution:</strong> Change the PORT in your .env file or stop the process using port 5000</li>
+        </ul>
+        
+        <h3>API Key Issues</h3>
+        <ul>
+            <li><strong>Issue:</strong> "Authentication failed" or similar messages when using external APIs</li>
+            <li><strong>Solution:</strong> Double-check your API keys in the .env file</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Development Workflow</h2>
+        <p>Now that you have CVTransform installed locally, here are some tips for development:</p>
+        
+        <h3>Project Structure</h3>
+        <p>Understanding the project structure will help you navigate the codebase:</p>
+        <ul>
+            <li><strong>/client</strong> - React frontend application</li>
+            <li><strong>/server</strong> - Express backend server</li>
+            <li><strong>/db</strong> - Database schema and configuration</li>
+            <li><strong>/public</strong> - Static assets</li>
+        </ul>
+        
+        <h3>Common Development Tasks</h3>
+        <table>
+            <tr>
+                <th>Task</th>
+                <th>Command</th>
+            </tr>
+            <tr>
+                <td>Start development server</td>
+                <td><code>npm run dev</code></td>
+            </tr>
+            <tr>
+                <td>Build for production</td>
+                <td><code>npm run build</code></td>
+            </tr>
+            <tr>
+                <td>Run production server</td>
+                <td><code>npm start</code></td>
+            </tr>
+            <tr>
+                <td>Update database schema</td>
+                <td><code>npm run db:push</code></td>
+            </tr>
+            <tr>
+                <td>Generate Drizzle migration</td>
+                <td><code>npm run db:generate</code></td>
+            </tr>
+            <tr>
+                <td>Run linter</td>
+                <td><code>npm run lint</code></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Next Steps</h2>
+        <p>After installing CVTransform locally, you might want to:</p>
+        <ul>
+            <li><strong>Explore the codebase</strong> to understand how it works</li>
+            <li><strong>Customize the application</strong> for your specific needs</li>
+            <li><strong>Contribute to the project</strong> by fixing bugs or adding features</li>
+            <li><strong>Set up a production deployment</strong> using our AWS or cPanel installation guides</li>
+        </ul>
+    </div>
+
+    <div class="note">
+        <h3>Need Help?</h3>
+        <p>If you encounter any issues during the installation process, please contact our support team at <a href="mailto:support@cvtransformers.com">support@cvtransformers.com</a>.</p>
+    </div>
+</body>
+</html>

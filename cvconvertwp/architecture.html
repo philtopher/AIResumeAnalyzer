@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVTransform - System Architecture</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 30px;
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        pre, code {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .architecture-diagram {
+            width: 100%;
+            max-width: 900px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            padding: 15px;
+            background: white;
+        }
+        .component {
+            display: inline-block;
+            border: 2px solid #3498db;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            background: #e3f2fd;
+            text-align: center;
+            min-width: 150px;
+        }
+        .arrow {
+            display: inline-block;
+            font-size: 24px;
+            color: #7f8c8d;
+            padding: 0 10px;
+        }
+        .layer {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            background: #f5f5f5;
+        }
+        .layer-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #3498db;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>CVTransform System Architecture</h1>
+    <p>This document outlines the architectural design of the CVTransform application, detailing the components, data flow, and integration points that make up our AI-powered CV transformation platform.</p>
+
+    <div class="section">
+        <h2>System Overview</h2>
+        <p>CVTransform is a full-stack TypeScript application built on modern web technologies. It employs a client-server architecture with a React frontend, Express backend, and PostgreSQL database, enhanced with AI capabilities through the OpenAI API.</p>
+        
+        <div class="architecture-diagram">
+            <div class="layer">
+                <div class="layer-title">Client Layer</div>
+                <div class="component">React Frontend</div>
+                <div class="component">ShadCN UI Components</div>
+                <div class="component">Tailwind CSS</div>
+            </div>
+            <div class="arrow">↕️</div>
+            <div class="layer">
+                <div class="layer-title">Server Layer</div>
+                <div class="component">Express.js Server</div>
+                <div class="component">Authentication</div>
+                <div class="component">Stripe Integration</div>
+                <div class="component">SendGrid Email</div>
+            </div>
+            <div class="arrow">↕️</div>
+            <div class="layer">
+                <div class="layer-title">Data Layer</div>
+                <div class="component">PostgreSQL</div>
+                <div class="component">Drizzle ORM</div>
+            </div>
+            <div class="arrow">↕️</div>
+            <div class="layer">
+                <div class="layer-title">AI Layer</div>
+                <div class="component">OpenAI GPT-4o</div>
+                <div class="component">CV Transformation Logic</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Component Details</h2>
+        
+        <h3>Frontend Components</h3>
+        <ul>
+            <li><strong>React Application</strong>: Built using TypeScript and Vite for fast development and optimized production builds</li>
+            <li><strong>State Management</strong>: React Query for server state and React hooks for local state</li>
+            <li><strong>UI Framework</strong>: ShadCN UI components for consistent design language</li>
+            <li><strong>Styling</strong>: Tailwind CSS for utility-first styling approach</li>
+            <li><strong>Routing</strong>: Wouter for lightweight client-side routing</li>
+            <li><strong>Forms</strong>: React Hook Form for form validation and handling</li>
+        </ul>
+        
+        <h3>Backend Components</h3>
+        <ul>
+            <li><strong>Express Server</strong>: Node.js/Express application handling API requests</li>
+            <li><strong>Authentication</strong>: Passport.js with local strategy and session management</li>
+            <li><strong>File Processing</strong>: Multer for handling file uploads, with PDF and DOCX processing</li>
+            <li><strong>Email Service</strong>: SendGrid integration for transactional emails</li>
+            <li><strong>Payment Processing</strong>: Stripe integration for subscription management</li>
+        </ul>
+        
+        <h3>Data Layer</h3>
+        <ul>
+            <li><strong>Database</strong>: PostgreSQL for reliable, scalable data storage</li>
+            <li><strong>ORM</strong>: Drizzle ORM for type-safe database operations</li>
+            <li><strong>Schema</strong>: Comprehensive schema covering users, CVs, subscriptions, and analytics</li>
+            <li><strong>Migrations</strong>: Database schema migrations managed through Drizzle Kit</li>
+        </ul>
+        
+        <h3>AI Components</h3>
+        <ul>
+            <li><strong>Language Model</strong>: OpenAI GPT-4o for natural language processing</li>
+            <li><strong>CV Transformation</strong>: Proprietary prompting system for optimal CV enhancement</li>
+            <li><strong>Feedback Generation</strong>: AI-powered analysis comparing original and transformed CVs</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Data Flow</h2>
+        <p>The application follows a standard client-server data flow with enhanced security and optimized performance:</p>
+        
+        <ol>
+            <li><strong>User Authentication</strong>: Users authenticate via email/password with session persistence</li>
+            <li><strong>CV Upload</strong>: Authenticated users upload CV files (PDF/DOCX) along with job description</li>
+            <li><strong>File Processing</strong>: Server extracts text content from uploaded files</li>
+            <li><strong>AI Transformation</strong>: Extracted content is sent to OpenAI GPT-4o with specialized prompts</li>
+            <li><strong>Result Storage</strong>: Transformed CV content is stored in the database along with metadata</li>
+            <li><strong>Content Delivery</strong>: Users can view, download, and manage their transformed CVs</li>
+        </ol>
+        
+        <h3>Authentication Flow</h3>
+        <pre><code>Client → Login Request → Server Authentication → Session Creation → Protected Routes Access</code></pre>
+        
+        <h3>CV Transformation Flow</h3>
+        <pre><code>Upload → Text Extraction → OpenAI Processing → Storage → Presentation → Download</code></pre>
+        
+        <h3>Subscription Flow</h3>
+        <pre><code>Upgrade Request → Stripe Checkout → Payment Processing → Subscription Activation → Feature Unlocking</code></pre>
+    </div>
+
+    <div class="section">
+        <h2>Integration Points</h2>
+        <p>The system integrates with several external services to provide a complete solution:</p>
+        
+        <table>
+            <tr>
+                <th>Service</th>
+                <th>Purpose</th>
+                <th>Integration Method</th>
+            </tr>
+            <tr>
+                <td>OpenAI</td>
+                <td>AI-powered CV transformation and feedback</td>
+                <td>REST API with API key authentication</td>
+            </tr>
+            <tr>
+                <td>SendGrid</td>
+                <td>Transactional email delivery</td>
+                <td>SMTP/API integration</td>
+            </tr>
+            <tr>
+                <td>Stripe</td>
+                <td>Payment processing and subscription management</td>
+                <td>Stripe.js frontend + Node.js backend API</td>
+            </tr>
+            <tr>
+                <td>Document Processing</td>
+                <td>PDF and DOCX parsing/generation</td>
+                <td>pdf-lib and mammoth.js libraries</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Security Architecture</h2>
+        <p>Security is a core consideration in the CVTransform architecture:</p>
+        
+        <ul>
+            <li><strong>Authentication</strong>: Secure password hashing with bcrypt and CSRF protection</li>
+            <li><strong>Authorization</strong>: Role-based access control (user, sub_admin, super_admin)</li>
+            <li><strong>Data Protection</strong>: PostgreSQL with encrypted connections</li>
+            <li><strong>API Security</strong>: Authentication middleware and rate limiting</li>
+            <li><strong>Frontend Security</strong>: Content Security Policy and XSS prevention</li>
+            <li><strong>Sensitive Data</strong>: Environment variables for secrets and API keys</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Scalability Considerations</h2>
+        <p>The architecture supports horizontal and vertical scaling through:</p>
+        
+        <ul>
+            <li><strong>Stateless Backend</strong>: Enables multiple server instances behind a load balancer</li>
+            <li><strong>Connection Pooling</strong>: Efficient database connection management</li>
+            <li><strong>Caching Layer</strong>: Implemented for frequently accessed resources</li>
+            <li><strong>Asynchronous Processing</strong>: Long-running tasks handled non-blocking</li>
+            <li><strong>Modular Design</strong>: Components can be scaled independently based on load</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Development and Deployment</h2>
+        <p>The application follows a modern development and deployment workflow:</p>
+        
+        <ul>
+            <li><strong>Source Control</strong>: Git-based version control</li>
+            <li><strong>Environment Management</strong>: Development, staging, and production environments</li>
+            <li><strong>Deployment Options</strong>: Support for various hosting platforms (AWS, cPanel, local)</li>
+            <li><strong>Continuous Integration</strong>: Automated testing and build pipeline</li>
+            <li><strong>Monitoring</strong>: Performance and error tracking</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Future Architecture Enhancements</h2>
+        <p>Planned architectural improvements include:</p>
+        
+        <ul>
+            <li><strong>Microservices Migration</strong>: Breaking down monolithic application into domain-specific services</li>
+            <li><strong>Container Orchestration</strong>: Kubernetes deployment for improved scaling and management</li>
+            <li><strong>Real-time Features</strong>: WebSocket integration for collaborative editing</li>
+            <li><strong>Enhanced Analytics</strong>: Big data pipeline for user behavior and transformation analytics</li>
+            <li><strong>Multi-region Deployment</strong>: Geographic distribution for reduced latency and improved availability</li>
+        </ul>
+    </div>
+</body>
+</html>

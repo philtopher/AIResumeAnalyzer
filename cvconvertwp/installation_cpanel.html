@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVTransform - cPanel Installation Guide</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 30px;
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        pre, code {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .note {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .step {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px dashed #ddd;
+        }
+        .step h3 {
+            color: #3498db;
+            margin-top: 0;
+        }
+        img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .screenshot {
+            text-align: center;
+            margin: 20px 0;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .screenshot img {
+            max-width: 90%;
+        }
+        .screenshot p {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>CVTransform cPanel Installation Guide</h1>
+    <p>This comprehensive guide walks you through installing the CVTransform application on a cPanel hosting environment. This setup is ideal for users who prefer managed hosting solutions and have existing cPanel-based hosting accounts.</p>
+
+    <div class="section">
+        <h2>Prerequisites</h2>
+        <p>Before beginning the installation, ensure your cPanel hosting meets the following requirements:</p>
+        <ul>
+            <li><strong>Node.js Support:</strong> Node.js version 18 or higher must be available (check with your host if not listed in cPanel)</li>
+            <li><strong>PostgreSQL Database:</strong> Access to create and manage PostgreSQL databases</li>
+            <li><strong>SSH Access:</strong> Terminal access to the hosting account</li>
+            <li><strong>Memory:</strong> At least 1GB RAM available for the application</li>
+            <li><strong>Storage:</strong> Minimum 2GB free disk space</li>
+            <li><strong>Domain or Subdomain:</strong> Configured and pointing to your hosting account</li>
+            <li><strong>SSL Certificate:</strong> Recommended for secure connections</li>
+        </ul>
+        
+        <div class="note">
+            <p><strong>Note:</strong> Not all cPanel hosts support Node.js applications natively. If your host doesn't support Node.js, you might need to contact their support to enable this feature or consider switching to a Node.js-friendly hosting provider.</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Installation Steps</h2>
+        
+        <div class="step">
+            <h3>Step 1: Access cPanel and Set Up Domain</h3>
+            <ol>
+                <li>Log in to your cPanel account</li>
+                <li>If you haven't already, set up a domain or subdomain for CVTransform
+                    <ul>
+                        <li>Navigate to "Domains" > "Subdomains" to create a subdomain</li>
+                        <li>Enter your desired subdomain name (e.g., "cvtransform")</li>
+                        <li>Select your root domain from the dropdown</li>
+                        <li>Choose a document root directory (e.g., "public_html/cvtransform")</li>
+                        <li>Click "Create"</li>
+                    </ul>
+                </li>
+                <li>Set up an SSL certificate for your domain/subdomain
+                    <ul>
+                        <li>Go to "Security" > "SSL/TLS"</li>
+                        <li>Use "Let's Encrypt SSL" or install your own SSL certificate</li>
+                        <li>Follow the prompts to complete the SSL installation</li>
+                    </ul>
+                </li>
+            </ol>
+            
+            <div class="note">
+                <p><strong>Note:</strong> Having an SSL certificate is essential for secure operations, especially when processing user data and handling payments.</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 2: Create PostgreSQL Database</h3>
+            <ol>
+                <li>Navigate to "Databases" > "PostgreSQL Databases" in cPanel</li>
+                <li>Create a new database:
+                    <ul>
+                        <li>Enter a name for your database (e.g., "cvtransform")</li>
+                        <li>Click "Create Database"</li>
+                    </ul>
+                </li>
+                <li>Create a database user:
+                    <ul>
+                        <li>Enter a username (e.g., "cvtransform_user")</li>
+                        <li>Enter a strong password or use the password generator</li>
+                        <li>Click "Create User"</li>
+                    </ul>
+                </li>
+                <li>Add the user to the database:
+                    <ul>
+                        <li>Select the user and database you just created</li>
+                        <li>Grant "ALL PRIVILEGES" to the user</li>
+                        <li>Click "Add"</li>
+                    </ul>
+                </li>
+                <li>Note down the database name, username, password, and host information (typically "localhost" or a specific hostname provided by your hosting company)</li>
+            </ol>
+        </div>
+        
+        <div class="step">
+            <h3>Step 3: Upload Application Files</h3>
+            <p>There are two methods to upload the CVTransform application files:</p>
+            
+            <h4>Method 1: Using File Manager</h4>
+            <ol>
+                <li>Download the CVTransform application package from the official website or GitHub repository</li>
+                <li>Extract the files on your local computer</li>
+                <li>Navigate to "Files" > "File Manager" in cPanel</li>
+                <li>Navigate to your document root directory (e.g., "public_html/cvtransform")</li>
+                <li>Click "Upload" and upload all extracted files</li>
+            </ol>
+            
+            <h4>Method 2: Using SSH and Git (Recommended)</h4>
+            <ol>
+                <li>Access your server via SSH:
+                    <ul>
+                        <li>Go to "Advanced" > "Terminal" in cPanel, or</li>
+                        <li>Use an SSH client like PuTTY or Terminal with your hosting credentials</li>
+                    </ul>
+                </li>
+                <li>Navigate to your document root directory:
+                    <pre><code>cd ~/public_html/cvtransform</code></pre>
+                </li>
+                <li>Clone the CVTransform repository:
+                    <pre><code>git clone https://github.com/cvtransformers/cvtransform.git .</code></pre>
+                </li>
+            </ol>
+        </div>
+        
+        <div class="step">
+            <h3>Step 4: Configure Environment Variables</h3>
+            <p>Create a .env file in the application root directory with the following variables:</p>
+            <pre><code># Database connection
+DATABASE_URL=postgres://cvtransform_user:your_password_here@localhost:5432/cvtransform
+
+# Application settings
+PORT=8080
+NODE_ENV=production
+SESSION_SECRET=your_session_secret_here
+
+# External API keys
+OPENAI_API_KEY=your_openai_api_key
+SENDGRID_API_KEY=your_sendgrid_api_key
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+STRIPE_BASIC_PRICE_ID=your_stripe_basic_price_id
+STRIPE_PRO_PRICE_ID=your_stripe_pro_price_id</code></pre>
+            
+            <p>You can create this file using either:</p>
+            <ul>
+                <li>cPanel File Manager: Create a new file named ".env" and paste the contents</li>
+                <li>SSH: Use a text editor like nano or vim to create the file</li>
+            </ul>
+            
+            <div class="warning">
+                <p><strong>Important:</strong> The .env file contains sensitive information. Make sure it's not accessible from the web:</p>
+                <pre><code># Add to .htaccess file in your application root
+&lt;Files .env&gt;
+    Order allow,deny
+    Deny from all
+&lt;/Files&gt;</code></pre>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 5: Install Dependencies and Build the Application</h3>
+            <p>Using SSH, install the required dependencies and build the application:</p>
+            <pre><code>cd ~/public_html/cvtransform
+npm install
+npm run build</code></pre>
+            
+            <div class="note">
+                <p><strong>Note:</strong> If your hosting provider has Node.js version or memory limitations, you might need to build the application locally and upload the built files. In that case, run <code>npm run build</code> on your local machine and upload the resulting <code>dist</code> or <code>build</code> directory.</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 6: Set Up the Database Schema</h3>
+            <p>Initialize the database schema:</p>
+            <pre><code>npm run db:push</code></pre>
+            <p>This command will create all the necessary tables in your PostgreSQL database based on the schema defined in the application.</p>
+        </div>
+        
+        <div class="step">
+            <h3>Step 7: Set Up Application as a Persistent Service</h3>
+            <p>To keep your Node.js application running continuously, you'll need to set it up as a persistent service. Most cPanel hosting providers offer Node.js application management through the cPanel interface.</p>
+            
+            <h4>Method 1: Using cPanel Node.js Selector (if available)</h4>
+            <ol>
+                <li>Navigate to "Software" > "Node.js Selector" or similar in your cPanel</li>
+                <li>Click "Create Application"</li>
+                <li>Configure the application:
+                    <ul>
+                        <li>Mode: Production</li>
+                        <li>Node.js version: Select version 18 or higher</li>
+                        <li>Application root: Your application directory (e.g., /home/username/public_html/cvtransform)</li>
+                        <li>Application URL: Your domain or subdomain</li>
+                        <li>Application startup file: server/index.js</li>
+                        <li>Environment variables: Add all variables from your .env file</li>
+                    </ul>
+                </li>
+                <li>Click "Create" or "Save"</li>
+            </ol>
+            
+            <h4>Method 2: Using PM2 Process Manager (if Node.js Selector is not available)</h4>
+            <ol>
+                <li>Install PM2 globally:
+                    <pre><code>npm install -g pm2</code></pre>
+                </li>
+                <li>Create a PM2 ecosystem.config.js file:
+                    <pre><code>// ecosystem.config.js
+module.exports = {
+  apps: [{
+    name: "cvtransform",
+    script: "server/index.js",
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: "500M",
+    env: {
+      NODE_ENV: "production",
+      PORT: 8080
+    }
+  }]
+}</code></pre>
+                </li>
+                <li>Start the application with PM2:
+                    <pre><code>pm2 start ecosystem.config.js</code></pre>
+                </li>
+                <li>Save the PM2 process list to auto-restart on server reboot:
+                    <pre><code>pm2 save</code></pre>
+                </li>
+                <li>Set up PM2 to start on system boot:
+                    <pre><code>pm2 startup</code></pre>
+                </li>
+                <li>Follow the command that PM2 outputs, which will vary based on your system</li>
+            </ol>
+        </div>
+        
+        <div class="step">
+            <h3>Step 8: Set Up an .htaccess File for Proxying</h3>
+            <p>Create or edit an .htaccess file in your document root to proxy requests to your Node.js application:</p>
+            <pre><code># .htaccess file
+RewriteEngine On
+RewriteRule ^$ http://localhost:8080/ [P,L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ http://localhost:8080/$1 [P,L]</code></pre>
+            
+            <div class="note">
+                <p><strong>Note:</strong> This assumes your Node.js application is running on port 8080. Adjust the port if you're using a different one. Some hosting providers might require a different proxy configuration - check with your host's documentation or support if needed.</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 9: Create Admin User</h3>
+            <p>Create an admin user for the application:</p>
+            <pre><code>cd ~/public_html/cvtransform
+node server/scripts/createAdmin.js</code></pre>
+            <p>This will create a super_admin user with the following credentials:</p>
+            <ul>
+                <li><strong>Username:</strong> admin</li>
+                <li><strong>Email:</strong> admin@cvtransformers.com</li>
+                <li><strong>Password:</strong> The password will be displayed in the console</li>
+            </ul>
+            <p>Make note of the password, as you'll need it to log in to the admin dashboard.</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Testing the Installation</h2>
+        <p>To ensure your installation is working correctly:</p>
+        <ol>
+            <li>Visit your domain or subdomain in a web browser</li>
+            <li>The CVTransform application should load</li>
+            <li>Test user registration and login functionality</li>
+            <li>Log in with the admin credentials created in Step 9</li>
+            <li>Verify that you can access the admin dashboard</li>
+            <li>Test the CV transformation functionality with a sample CV</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>cPanel-Specific Troubleshooting</h2>
+        
+        <h3>Node.js Application Not Starting</h3>
+        <ul>
+            <li><strong>Issue:</strong> Node.js application fails to start</li>
+            <li><strong>Solutions:</strong>
+                <ul>
+                    <li>Check the error logs in cPanel (Logs > Error Log)</li>
+                    <li>Verify that Node.js is properly installed and supported by your hosting provider</li>
+                    <li>Ensure the startup file path is correct</li>
+                    <li>Check if there are memory limitations set by your hosting provider</li>
+                </ul>
+            </li>
+        </ul>
+        
+        <h3>Database Connection Issues</h3>
+        <ul>
+            <li><strong>Issue:</strong> Application cannot connect to the database</li>
+            <li><strong>Solutions:</strong>
+                <ul>
+                    <li>Verify database credentials in your .env file</li>
+                    <li>Check if the database server is running</li>
+                    <li>Confirm that the database user has sufficient permissions</li>
+                    <li>Check if your hosting has restrictions on database connections</li>
+                </ul>
+            </li>
+        </ul>
+        
+        <h3>Proxy Configuration Issues</h3>
+        <ul>
+            <li><strong>Issue:</strong> Browser shows 500 Internal Server Error or 404 Not Found</li>
+            <li><strong>Solutions:</strong>
+                <ul>
+                    <li>Ensure mod_proxy is enabled on your server (check with hosting support)</li>
+                    <li>Verify .htaccess file is correctly configured</li>
+                    <li>Check if your hosting provider has specific requirements for proxying</li>
+                </ul>
+            </li>
+        </ul>
+        
+        <h3>Permission Issues</h3>
+        <ul>
+            <li><strong>Issue:</strong> File permission errors</li>
+            <li><strong>Solutions:</strong>
+                <ul>
+                    <li>Set appropriate permissions for files and directories:
+                        <pre><code>chmod -R 755 ~/public_html/cvtransform
+chmod -R 644 ~/public_html/cvtransform/.env</code></pre>
+                    </li>
+                    <li>Create temp and uploads directories with write permissions:
+                        <pre><code>mkdir -p ~/public_html/cvtransform/uploads
+chmod -R 777 ~/public_html/cvtransform/uploads</code></pre>
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Maintenance and Updates</h2>
+        
+        <h3>Updating the Application</h3>
+        <p>To update the CVTransform application to a newer version:</p>
+        <pre><code>cd ~/public_html/cvtransform
+git pull origin main
+npm install
+npm run build
+npm run db:push
+pm2 restart cvtransform # if using PM2</code></pre>
+        
+        <h3>Database Backups</h3>
+        <p>Regularly back up your PostgreSQL database:</p>
+        <ol>
+            <li>Navigate to "Databases" > "PostgreSQL Databases" in cPanel</li>
+            <li>Click "phpPgAdmin" to access the database management interface</li>
+            <li>Select your database and click "Export"</li>
+            <li>Choose your preferred format (SQL is recommended)</li>
+            <li>Click "Go" to download the backup file</li>
+        </ol>
+        <p>You can also set up automated backups using cPanel's backup tools or create a cron job for regular database dumps.</p>
+        
+        <h3>Monitoring Application Logs</h3>
+        <p>If using PM2, you can view logs with:</p>
+        <pre><code>pm2 logs cvtransform</code></pre>
+        <p>Otherwise, check the error logs in cPanel under "Logs".</p>
+    </div>
+
+    <div class="note">
+        <h3>Need Assistance?</h3>
+        <p>If you encounter any issues during installation or need further guidance, please contact our support team at <a href="mailto:support@cvtransformers.com">support@cvtransformers.com</a>.</p>
+    </div>
+</body>
+</html>

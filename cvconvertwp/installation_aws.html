@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVTransform - AWS Deployment Guide</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 30px;
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        pre, code {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .note {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .step {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px dashed #ddd;
+        }
+        .step h3 {
+            color: #3498db;
+            margin-top: 0;
+        }
+        img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .architecture {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+        .architecture-component {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px;
+            text-align: center;
+            min-width: 150px;
+        }
+        .arrow {
+            display: flex;
+            align-items: center;
+            margin: 0 10px;
+            color: #7f8c8d;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>CVTransform AWS Deployment Guide</h1>
+    <p>This comprehensive guide walks you through deploying the CVTransform application on Amazon Web Services (AWS). This setup provides a scalable, cloud-based infrastructure suitable for production environments.</p>
+
+    <div class="section">
+        <h2>Architecture Overview</h2>
+        <p>The recommended AWS architecture for CVTransform consists of the following components:</p>
+        
+        <div class="architecture">
+            <div class="architecture-component">Route 53<br>(DNS)</div>
+            <div class="arrow">→</div>
+            <div class="architecture-component">CloudFront<br>(CDN)</div>
+            <div class="arrow">→</div>
+            <div class="architecture-component">Application Load Balancer</div>
+            <div class="arrow">→</div>
+            <div class="architecture-component">Elastic Beanstalk<br>(Node.js App)</div>
+            <div class="arrow">→</div>
+            <div class="architecture-component">RDS<br>(PostgreSQL)</div>
+        </div>
+        
+        <p>Additional security and monitoring components:</p>
+        <ul>
+            <li><strong>AWS WAF</strong> for web application firewall protection</li>
+            <li><strong>Amazon CloudWatch</strong> for monitoring and logging</li>
+            <li><strong>AWS Secrets Manager</strong> for managing API keys and credentials</li>
+            <li><strong>S3 Bucket</strong> for static asset storage and backups</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Prerequisites</h2>
+        <p>Before beginning the deployment, ensure you have:</p>
+        <ul>
+            <li><strong>AWS Account:</strong> With administrative access</li>
+            <li><strong>AWS CLI:</strong> Installed and configured on your local machine</li>
+            <li><strong>EB CLI:</strong> Elastic Beanstalk Command Line Interface installed</li>
+            <li><strong>Git:</strong> For cloning the repository</li>
+            <li><strong>Node.js and npm:</strong> For building the application</li>
+            <li><strong>Domain name:</strong> (Optional) For setting up custom domain with Route 53</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Deployment Steps</h2>
+        
+        <div class="step">
+            <h3>Step 1: Set Up PostgreSQL Database on RDS</h3>
+            <p>First, create a PostgreSQL database instance on Amazon RDS:</p>
+            <ol>
+                <li>Log in to the AWS Management Console and navigate to RDS</li>
+                <li>Click "Create database"</li>
+                <li>Select "Standard create" and choose "PostgreSQL"</li>
+                <li>Choose PostgreSQL 14 or higher</li>
+                <li>Under "Templates", select "Production" for high availability</li>
+                <li>Configure instance specifications:
+                    <ul>
+                        <li>DB instance identifier: <code>cvtransform-db</code></li>
+                        <li>Master username: <code>cvtransform_admin</code></li>
+                        <li>Master password: [Create a secure password]</li>
+                    </ul>
+                </li>
+                <li>For instance size, start with <code>db.t3.small</code> (can be scaled later)</li>
+                <li>Under storage, enable storage autoscaling with a maximum of 100GB</li>
+                <li>For connectivity, create a new VPC or use an existing one</li>
+                <li>Create a new security group or use an existing one</li>
+                <li>Under "Additional configuration":
+                    <ul>
+                        <li>Initial database name: <code>cvtransform</code></li>
+                        <li>Enable automated backups</li>
+                        <li>Set backup retention period to 7 days</li>
+                    </ul>
+                </li>
+                <li>Click "Create database"</li>
+            </ol>
+            
+            <div class="note">
+                <p><strong>Note:</strong> The database creation process may take 10-15 minutes. Once complete, note the database endpoint, port, username, and password for later use.</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 2: Create S3 Bucket for Static Assets</h3>
+            <p>Set up an S3 bucket to store static assets:</p>
+            <ol>
+                <li>Navigate to S3 in the AWS Management Console</li>
+                <li>Click "Create bucket"</li>
+                <li>Name the bucket (e.g., <code>cvtransform-assets</code>)</li>
+                <li>Choose the same region as your RDS instance</li>
+                <li>Leave default settings, but for "Block Public Access settings", uncheck "Block all public access"</li>
+                <li>Enable versioning for recovery capabilities</li>
+                <li>Click "Create bucket"</li>
+            </ol>
+            
+            <p>Set up bucket policy for public read access (if needed for public assets):</p>
+            <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::cvtransform-assets/*"
+      ]
+    }
+  ]
+}</code></pre>
+        </div>
+        
+        <div class="step">
+            <h3>Step 3: Prepare the Application for Deployment</h3>
+            <ol>
+                <li>Clone the repository:
+                    <pre><code>git clone https://github.com/cvtransformers/cvtransform.git
+cd cvtransform</code></pre>
+                </li>
+                <li>Create a <code>.ebextensions</code> directory in the project root:
+                    <pre><code>mkdir .ebextensions</code></pre>
+                </li>
+                <li>Create a Node.js configuration file:
+                    <pre><code># .ebextensions/nodecommand.config
+option_settings:
+  aws:elasticbeanstalk:container:nodejs:
+    NodeCommand: "npm start"
+    NodeVersion: 18.0.0
+  aws:elasticbeanstalk:application:environment:
+    NODE_ENV: production</code></pre>
+                </li>
+                <li>Create an NGINX configuration file:
+                    <pre><code># .ebextensions/nginx.config
+files:
+  "/etc/nginx/conf.d/proxy.conf":
+    mode: "000644"
+    owner: root
+    group: root
+    content: |
+      upstream nodejs {
+        server 127.0.0.1:8081;
+        keepalive 256;
+      }
+
+      server {
+        listen 8080;
+
+        location / {
+          proxy_pass http://nodejs;
+          proxy_set_header Connection "";
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_buffer_size 128k;
+          proxy_buffers 4 256k;
+          proxy_busy_buffers_size 256k;
+        }
+      }</code></pre>
+                </li>
+                <li>Create a file to store environment variables:
+                    <pre><code># .ebextensions/env-vars.config
+option_settings:
+  aws:elasticbeanstalk:application:environment:
+    PORT: 8081
+    DATABASE_URL: postgres://cvtransform_admin:your_password_here@your-db-endpoint:5432/cvtransform
+    NODE_ENV: production
+    SESSION_SECRET: your_session_secret_here
+    OPENAI_API_KEY: your_openai_api_key_here
+    SENDGRID_API_KEY: your_sendgrid_api_key_here
+    STRIPE_SECRET_KEY: your_stripe_secret_key_here
+    STRIPE_PUBLISHABLE_KEY: your_stripe_publishable_key_here
+    STRIPE_BASIC_PRICE_ID: your_stripe_basic_price_id_here
+    STRIPE_PRO_PRICE_ID: your_stripe_pro_price_id_here</code></pre>
+                </li>
+                <li>Replace placeholder values with your actual credentials</li>
+                <li>Build the application:
+                    <pre><code>npm run build</code></pre>
+                </li>
+                <li>Create a <code>.ebignore</code> file to exclude unnecessary files:
+                    <pre><code>.git
+node_modules
+npm-debug.log
+.env
+*.md
+.gitignore</code></pre>
+                </li>
+            </ol>
+            <div class="warning">
+                <p><strong>Important:</strong> For production, it's recommended to use AWS Secrets Manager instead of environment variables in the config files. Update your application code to fetch secrets from AWS Secrets Manager.</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 4: Initialize and Deploy to Elastic Beanstalk</h3>
+            <ol>
+                <li>Initialize Elastic Beanstalk in your project directory:
+                    <pre><code>eb init</code></pre>
+                    <ul>
+                        <li>Select your region</li>
+                        <li>Create a new application (e.g., "cvtransform")</li>
+                        <li>Select Node.js platform</li>
+                        <li>Choose the latest platform version</li>
+                        <li>Set up SSH for instance access (recommended)</li>
+                    </ul>
+                </li>
+                <li>Create an Elastic Beanstalk environment:
+                    <pre><code>eb create cvtransform-production --instance_type t3.small --elb-type application --database.engine postgres --database.username cvtransform_admin --database.password your_db_password</code></pre>
+                </li>
+                <li>Wait for the environment creation to complete (15-20 minutes)</li>
+                <li>Once created, deploy your application:
+                    <pre><code>eb deploy</code></pre>
+                </li>
+            </ol>
+            <div class="note">
+                <p><strong>Note:</strong> If you already created an RDS instance in Step 1, you can skip the database creation in the <code>eb create</code> command and update the environment variables to point to your existing database.</p>
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 5: Set Up CloudFront Distribution (Optional)</h3>
+            <p>For improved performance and caching:</p>
+            <ol>
+                <li>Navigate to CloudFront in the AWS Management Console</li>
+                <li>Click "Create distribution"</li>
+                <li>For "Origin Domain", enter your Elastic Beanstalk environment URL</li>
+                <li>For "Origin Protocol Policy", select "Match Viewer"</li>
+                <li>Under "Cache key and origin requests", choose "Cache policy and origin request policy"</li>
+                <li>For cache policy, select "Managed-CachingOptimized"</li>
+                <li>For origin request policy, select "Managed-AllViewer"</li>
+                <li>Enable compression</li>
+                <li>Under "Web Application Firewall (WAF)", enable "Enable security protections"</li>
+                <li>Click "Create distribution"</li>
+            </ol>
+        </div>
+        
+        <div class="step">
+            <h3>Step 6: Set Up Custom Domain with Route 53 (Optional)</h3>
+            <p>If you want to use a custom domain:</p>
+            <ol>
+                <li>Navigate to Route 53 in the AWS Management Console</li>
+                <li>Create or select a hosted zone for your domain</li>
+                <li>Create an A record:
+                    <ul>
+                        <li>Name: your domain or subdomain (e.g., <code>cvtransform.yourdomain.com</code>)</li>
+                        <li>Type: A - IPv4 address</li>
+                        <li>Alias: Yes</li>
+                        <li>Alias target: Your CloudFront distribution or Elastic Beanstalk environment</li>
+                    </ul>
+                </li>
+                <li>If using CloudFront with a custom domain, update your distribution to use a custom SSL certificate from AWS Certificate Manager</li>
+            </ol>
+        </div>
+        
+        <div class="step">
+            <h3>Step 7: Set Up Initial Admin User</h3>
+            <p>After deployment, you need to create an admin user:</p>
+            <ol>
+                <li>SSH into your Elastic Beanstalk instance:
+                    <pre><code>eb ssh</code></pre>
+                </li>
+                <li>Navigate to the application directory:
+                    <pre><code>cd /var/app/current</code></pre>
+                </li>
+                <li>Run the admin creation script:
+                    <pre><code>node server/scripts/createAdmin.js</code></pre>
+                </li>
+                <li>Note the generated admin credentials</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>AWS Configuration Best Practices</h2>
+        
+        <h3>Security Recommendations</h3>
+        <ul>
+            <li><strong>IAM Roles:</strong> Use least-privilege IAM roles for the Elastic Beanstalk environment</li>
+            <li><strong>Security Groups:</strong> Restrict RDS access to only the Elastic Beanstalk security group</li>
+            <li><strong>Secrets Management:</strong> Use AWS Secrets Manager for sensitive credentials</li>
+            <li><strong>WAF Rules:</strong> Configure AWS WAF rules to protect against common web vulnerabilities</li>
+            <li><strong>SSL/TLS:</strong> Enforce HTTPS-only access using AWS Certificate Manager</li>
+        </ul>
+        
+        <h3>Performance Optimization</h3>
+        <ul>
+            <li><strong>Auto Scaling:</strong> Configure auto-scaling based on CPU usage or network traffic</li>
+            <li><strong>CloudFront Cache:</strong> Optimize cache settings for static assets</li>
+            <li><strong>RDS Optimization:</strong> Consider using RDS read replicas for high-traffic scenarios</li>
+            <li><strong>ElastiCache:</strong> Add Redis for session storage and caching</li>
+        </ul>
+        
+        <h3>Monitoring and Maintenance</h3>
+        <ul>
+            <li><strong>CloudWatch:</strong> Set up CloudWatch alarms for critical metrics</li>
+            <li><strong>Logs:</strong> Configure log streaming to CloudWatch Logs</li>
+            <li><strong>Backups:</strong> Ensure RDS automated backups are properly configured</li>
+            <li><strong>Updates:</strong> Regularly update the platform version and dependencies</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Common Issues and Troubleshooting</h2>
+        
+        <h3>Deployment Failures</h3>
+        <ul>
+            <li><strong>Issue:</strong> Environment creation fails</li>
+            <li><strong>Solution:</strong> Check the CloudFormation events in the Elastic Beanstalk console for specific errors</li>
+        </ul>
+        
+        <h3>Database Connection Issues</h3>
+        <ul>
+            <li><strong>Issue:</strong> Application cannot connect to the database</li>
+            <li><strong>Solution:</strong> Verify the security group rules, database credentials, and connection string format</li>
+        </ul>
+        
+        <h3>Performance Problems</h3>
+        <ul>
+            <li><strong>Issue:</strong> Slow response times</li>
+            <li><strong>Solution:</strong> Check CloudWatch metrics, increase instance size, optimize database queries, or add caching</li>
+        </ul>
+        
+        <h3>Log Access</h3>
+        <p>View application logs with:</p>
+        <pre><code>eb logs</code></pre>
+        <p>Or access logs in the CloudWatch console.</p>
+    </div>
+
+    <div class="section">
+        <h2>Scaling Your Deployment</h2>
+        
+        <h3>Horizontal Scaling</h3>
+        <p>To handle increased traffic:</p>
+        <ol>
+            <li>Navigate to your environment in the Elastic Beanstalk console</li>
+            <li>Go to "Configuration" > "Capacity"</li>
+            <li>Modify "Auto Scaling Group":</li>
+            <ul>
+                <li>Increase the "Maximum instances" value</li>
+                <li>Configure scaling triggers based on CPU utilization or network traffic</li>
+            </ul>
+        </ol>
+        
+        <h3>Vertical Scaling</h3>
+        <p>For more powerful instances:</p>
+        <ol>
+            <li>Go to "Configuration" > "Capacity"</li>
+            <li>Under "Instance types", select a larger instance type</li>
+            <li>Apply the changes (this will cause some downtime)</li>
+        </ol>
+        
+        <h3>Database Scaling</h3>
+        <p>To scale your RDS instance:</p>
+        <ol>
+            <li>Navigate to RDS in the AWS Management Console</li>
+            <li>Select your database instance</li>
+            <li>Choose "Modify"</li>
+            <li>Increase instance class or storage as needed</li>
+            <li>Apply the changes immediately or during the maintenance window</li>
+        </ol>
+    </div>
+
+    <div class="note">
+        <h3>Need Assistance?</h3>
+        <p>If you encounter any issues during deployment or need further guidance, please contact our support team at <a href="mailto:support@cvtransformers.com">support@cvtransformers.com</a>.</p>
+    </div>
+</body>
+</html>

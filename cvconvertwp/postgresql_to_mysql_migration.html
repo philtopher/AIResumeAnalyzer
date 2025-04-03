@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostgreSQL to MySQL Migration Guide</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        pre, code {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .warning {
+            background-color: #ffeaa7;
+            border-left: 4px solid #fdcb6e;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .step {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #eee;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #3498db;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>PostgreSQL to MySQL Migration Guide for CVTransform</h1>
+    <p>This comprehensive guide details the process of migrating the CVTransform application's database from PostgreSQL to MySQL. Follow these steps to ensure a smooth transition between these database management systems.</p>
+
+    <div class="info">
+        <strong>Note:</strong> This migration should be performed during scheduled maintenance with proper backups to minimize disruption to service.
+    </div>
+
+    <h2>Prerequisites</h2>
+    <ul>
+        <li>PostgreSQL source database (current installation)</li>
+        <li>MySQL target database (new installation)</li>
+        <li>PostgreSQL client tools (pg_dump)</li>
+        <li>MySQL client tools</li>
+        <li>Root/admin access to both database systems</li>
+        <li>Sufficient disk space for the database dump</li>
+    </ul>
+
+    <h2>Migration Process Overview</h2>
+    <ol>
+        <li>Backup the current PostgreSQL database</li>
+        <li>Create the target MySQL database structure</li>
+        <li>Convert data types and syntax differences</li>
+        <li>Import the converted data into MySQL</li>
+        <li>Validate the migration</li>
+        <li>Update application configuration</li>
+        <li>Test and deploy</li>
+    </ol>
+
+    <div class="step">
+        <h3>Step 1: Backup PostgreSQL Database</h3>
+        <p>First, create a complete backup of your PostgreSQL database:</p>
+        <pre><code>pg_dump -h localhost -U postgres -d cvtransform -F c -f cvtransform_backup.dump</code></pre>
+        <p>Verify the backup was created successfully:</p>
+        <pre><code>ls -lh cvtransform_backup.dump</code></pre>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Schema Conversion</h3>
+        <p>Create an intermediate SQL file with PostgreSQL schema that we can modify:</p>
+        <pre><code>pg_dump -h localhost -U postgres -d cvtransform --schema-only > schema_pg.sql</code></pre>
+        
+        <p>Now you'll need to convert the PostgreSQL schema to MySQL compatible syntax. The main differences include:</p>
+        
+        <table>
+            <tr>
+                <th>PostgreSQL</th>
+                <th>MySQL</th>
+            </tr>
+            <tr>
+                <td>SERIAL</td>
+                <td>INT AUTO_INCREMENT</td>
+            </tr>
+            <tr>
+                <td>text</td>
+                <td>LONGTEXT</td>
+            </tr>
+            <tr>
+                <td>timestamp</td>
+                <td>DATETIME</td>
+            </tr>
+            <tr>
+                <td>jsonb</td>
+                <td>JSON</td>
+            </tr>
+            <tr>
+                <td>UUID</td>
+                <td>CHAR(36)</td>
+            </tr>
+        </table>
+        
+        <p>You can use a text editor or sed to make these replacements:</p>
+        <pre><code>cat schema_pg.sql | \
+  sed 's/SERIAL/INT AUTO_INCREMENT/g' | \
+  sed 's/text NOT NULL/LONGTEXT NOT NULL/g' | \
+  sed 's/timestamp /DATETIME /g' | \
+  sed 's/jsonb/JSON/g' | \
+  sed 's/UUID/CHAR(36)/g' > schema_mysql.sql</code></pre>
+
+        <p>You'll also need to manually modify the schema file to:</p>
+        <ul>
+            <li>Remove PostgreSQL-specific syntax (like "WITH" clauses)</li>
+            <li>Replace sequence definitions with AUTO_INCREMENT</li>
+            <li>Adjust default value syntax</li>
+            <li>Modify any custom types</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Create MySQL Database</h3>
+        <p>Create a new MySQL database for CVTransform:</p>
+        <pre><code>mysql -u root -p
+CREATE DATABASE cvtransform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'cvtransform_user'@'localhost' IDENTIFIED BY 'your_strong_password';
+GRANT ALL PRIVILEGES ON cvtransform.* TO 'cvtransform_user'@'localhost';
+FLUSH PRIVILEGES;
+exit;</code></pre>
+    </div>
+
+    <div class="step">
+        <h3>Step 4: Import Schema to MySQL</h3>
+        <p>Import the converted schema to MySQL:</p>
+        <pre><code>mysql -u root -p cvtransform < schema_mysql.sql</code></pre>
+    </div>
+
+    <div class="step">
+        <h3>Step 5: Data Export from PostgreSQL</h3>
+        <p>Export data from PostgreSQL tables (repeat for each table):</p>
+        <pre><code>psql -h localhost -U postgres -d cvtransform -c "COPY users TO STDOUT WITH CSV HEADER" > users.csv
+psql -h localhost -U postgres -d cvtransform -c "COPY cvs TO STDOUT WITH CSV HEADER" > cvs.csv
+psql -h localhost -U postgres -d cvtransform -c "COPY subscriptions TO STDOUT WITH CSV HEADER" > subscriptions.csv
+# Repeat for all tables</code></pre>
+    </div>
+
+    <div class="step">
+        <h3>Step 6: Data Import to MySQL</h3>
+        <p>Prepare MySQL for data import:</p>
+        <pre><code>mysql -u root -p
+use cvtransform;
+SET FOREIGN_KEY_CHECKS=0;
+exit;</code></pre>
+
+        <p>Import the CSV data (adjust field names as needed):</p>
+        <pre><code>mysqlimport --ignore-lines=1 \
+  --fields-terminated-by=',' \
+  --fields-enclosed-by='"' \
+  --lines-terminated-by='\n' \
+  --local -u root -p cvtransform users.csv
+
+# Repeat for all tables</code></pre>
+
+        <p>Alternatively, you can use LOAD DATA INFILE for more control:</p>
+        <pre><code>mysql -u root -p cvtransform
+LOAD DATA LOCAL INFILE 'users.csv' 
+INTO TABLE users 
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"' 
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS;
+exit;</code></pre>
+        
+        <p>After imports are complete, re-enable foreign key checks:</p>
+        <pre><code>mysql -u root -p cvtransform
+SET FOREIGN_KEY_CHECKS=1;
+exit;</code></pre>
+    </div>
+
+    <div class="step">
+        <h3>Step 7: Validate the Migration</h3>
+        <p>Verify that all data has been correctly migrated:</p>
+        <pre><code>mysql -u root -p cvtransform -e "SELECT COUNT(*) FROM users;"
+mysql -u root -p cvtransform -e "SELECT COUNT(*) FROM cvs;"</code></pre>
+
+        <p>Compare these counts with the PostgreSQL database:</p>
+        <pre><code>psql -h localhost -U postgres -d cvtransform -c "SELECT COUNT(*) FROM users;"
+psql -h localhost -U postgres -d cvtransform -c "SELECT COUNT(*) FROM cvs;"</code></pre>
+    </div>
+
+    <div class="step">
+        <h3>Step 8: Update Application Configuration</h3>
+        <p>Update your application's database connection settings to point to the MySQL database. For CVTransform, you'll need to update:</p>
+        <pre><code># For NodeJS applications with Drizzle ORM
+import { drizzle } from 'drizzle-orm/mysql2';
+import mysql from 'mysql2/promise';
+
+// Create the connection pool
+const poolConnection = mysql.createPool({
+  host: 'localhost',
+  user: 'cvtransform_user',
+  password: 'your_strong_password',
+  database: 'cvtransform',
+  // Additional MySQL specific options
+  ssl: {
+    rejectUnauthorized: true
+  }
+});
+
+export const db = drizzle(poolConnection);</code></pre>
+    </div>
+
+    <div class="warning">
+        <h3>Common Migration Issues</h3>
+        <ul>
+            <li><strong>Data Type Mismatches:</strong> Pay special attention to timestamp/datetime formats, JSON handling, and UUID conversion</li>
+            <li><strong>Character Encoding:</strong> Ensure you're using utf8mb4 in MySQL to properly support all Unicode characters</li>
+            <li><strong>Case Sensitivity:</strong> MySQL table names are case-sensitive on some operating systems but not others</li>
+            <li><strong>Transaction Isolation Levels:</strong> MySQL and PostgreSQL have different default transaction isolation levels</li>
+            <li><strong>Sequence Handling:</strong> PostgreSQL sequences must be converted to MySQL AUTO_INCREMENT</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h3>Step 9: Test and Deploy</h3>
+        <ol>
+            <li>Run a comprehensive test suite against the MySQL database</li>
+            <li>Test all application functionality that involves database interactions</li>
+            <li>Verify query performance on critical paths</li>
+            <li>Deploy the updated application to staging for final validation</li>
+            <li>Schedule the production migration during off-peak hours</li>
+        </ol>
+    </div>
+
+    <h2>Post-Migration Tasks</h2>
+    <ul>
+        <li>Configure MySQL backups</li>
+        <li>Set up monitoring for the MySQL database</li>
+        <li>Update documentation to reflect the new database system</li>
+        <li>Archive PostgreSQL data and configurations</li>
+    </ul>
+
+    <div class="info">
+        <h3>Need Assistance?</h3>
+        <p>If you encounter any issues during the migration process, please contact support at <a href="mailto:support@cvtransformers.com">support@cvtransformers.com</a> for assistance. Our technical team can provide guidance specific to your installation.</p>
+    </div>
+</body>
+</html>
