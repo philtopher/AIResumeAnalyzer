@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { updateAdminPassword } from "./auth";
+import { updateAdminPassword, setupAuth } from "./auth";
 import { createServer } from "http";
 import { AddressInfo } from "net";
 import stripeRoutes from "./routes/stripe";
@@ -39,6 +39,9 @@ app.use((req, res, next) => {
 console.log("Middleware setup completed");
 
 app.use(express.urlencoded({ extended: false }));
+
+// Setup authentication
+setupAuth(app);
 
 // Add health check endpoint with specific path
 app.get("/api/health", (_req, res) => {

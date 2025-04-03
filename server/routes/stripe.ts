@@ -115,7 +115,7 @@ router.get('/verify-subscription/:userId', async (req, res) => {
 
 // Protected route - requires authentication
 router.post('/create-payment-link', async (req, res) => {
-  if (!req.isAuthenticated()) {
+  if (!req.user) {
     return res.status(401).json({ error: 'You must be logged in to upgrade' });
   }
 
