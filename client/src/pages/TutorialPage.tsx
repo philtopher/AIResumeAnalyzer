@@ -289,19 +289,32 @@ export default function TutorialPage() {
                 <div className="flex flex-col md:flex-row justify-center items-center gap-16 py-4">
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                      <FileText className="w-8 h-8 text-blue-500" />
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="2" y="5" width="20" height="14" rx="2" stroke="#0088cc" strokeWidth="2" fill="#0088cc"/>
+                        <rect x="2" y="10" width="20" height="2" fill="black"/>
+                        <rect x="14" y="15" width="6" height="2" rx="1" fill="#0088cc" stroke="#ffffff"/>
+                      </svg>
                     </div>
                     <span className="text-sm font-medium">Card Payment</span>
                   </div>
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                      <img src="/images/apple-pay.png" alt="Apple Pay" className="w-8 h-8" />
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2Z" fill="#000000" />
+                        <path d="M17.5 12C17.5 10.07 16.43 8.32 14.95 7.4C13.87 6.73 12.57 6.5 11.26 6.7C8.46 7.15 6.3 9.65 6.5 12.5C6.7 15.35 9.01 17.7 11.86 17.95C12.31 18 12.76 17.99 13.21 17.93C15.39 17.67 17.17 16.15 17.47 13.95C17.5 13.55 17.5 12.61 17.5 12Z" fill="#ffffff" />
+                      </svg>
                     </div>
                     <span className="text-sm font-medium">Apple Pay</span>
                   </div>
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                      <img src="/images/google-pay.png" alt="Google Pay" className="h-8" />
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 8C3 6.5 5 4 8.5 4C12 4 13 7 11.5 8.5C14 10 12.5 14 9 14H4C2 14 2 11.5 3 10C2.33333 9.83333 3 8.6 3 8Z" fill="#4285F4" />
+                        <path d="M9 14H12V19H9C6.5 19 4.99996 17.5 4.99999 15.5C5.00001 14 6 14 9 14Z" fill="#34A853" />
+                        <path d="M4.99999 15.5C4.99996 17.5 6.5 19 9 19H12V14H9C6 14 5.00001 14 4.99999 15.5Z" fill="#FBBC04" />
+                        <path d="M19.5 9H13.5V10.5H19.5C20.5 10.5 20.5 12 19.5 12H16.5C14 12 13.5 15.5 16 16.5H21V18H16.5C13 18 12 14 14.5 12.5C14 12.5 13.5 12 13.5 10.5C13.5 9 14 8 14.5 7.5C13 6 12 3 15 2.5C18.5 2 19.5 5 19.5 6V9Z" fill="#4285F4" />
+                        <path d="M3 8C3 6.5 5 4 8.5 4C12 4 13 7 11.5 8.5C14 10 12.5 14 9 14H4C2 14 2 11.5 3 10C2.33333 9.83333 3 8.6 3 8Z" fill="#EA4335" />
+                      </svg>
                     </div>
                     <span className="text-sm font-medium">Google Pay</span>
                   </div>
