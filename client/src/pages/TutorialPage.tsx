@@ -286,22 +286,22 @@ export default function TutorialPage() {
             </h2>
             <Card>
               <CardContent className="pt-6">
-                <div className="flex flex-col md:flex-row justify-center items-center gap-8 py-4">
+                <div className="flex flex-col md:flex-row justify-center items-center gap-16 py-4">
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                      <img src="/images/payment-card.png" alt="Card Payment" className="w-10 h-10" />
+                      <FileText className="w-8 h-8 text-blue-500" />
                     </div>
                     <span className="text-sm font-medium">Card Payment</span>
                   </div>
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                      <img src="/images/apple-pay.png" alt="Apple Pay" className="w-10 h-10" />
+                      <img src="/images/apple-pay.png" alt="Apple Pay" className="w-8 h-8" />
                     </div>
                     <span className="text-sm font-medium">Apple Pay</span>
                   </div>
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                      <img src="/images/google-pay.png" alt="Google Pay" className="w-10 h-10" />
+                      <img src="/images/google-pay.png" alt="Google Pay" className="h-8" />
                     </div>
                     <span className="text-sm font-medium">Google Pay</span>
                   </div>
