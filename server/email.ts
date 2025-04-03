@@ -7,7 +7,7 @@ if (!process.env.SENDGRID_API_KEY) {
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const FROM_EMAIL = 'info@cvtransfromers.com';
+const FROM_EMAIL = 'info@cvtransformers.com';
 const SUPPORT_EMAIL = 'support@cvtransformers.com';
 const MAX_RETRY_ATTEMPTS = 3;
 
@@ -248,7 +248,7 @@ export async function sendVerificationEmail(email: string, verificationToken: st
 
   return sendEmail({
     to: email,
-    from: FROM_EMAIL,
+    from: SUPPORT_EMAIL,
     subject: "Verify Your CV Transformer Account",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
