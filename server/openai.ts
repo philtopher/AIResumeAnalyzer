@@ -28,19 +28,22 @@ export async function transformCVWithAI(options: TransformCVOptions): Promise<st
     const previousRoles = extractPreviousRoles(originalContent);
     
     const response = await openai.chat.completions.create({
-      model: 'gpt-4', // Using GPT-4 for better quality transformations
+      model: 'gpt-4o', // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages: [
         {
           role: 'system',
           content: `You are an expert CV transformation specialist. Transform the provided CV to match the target role and job description. 
           Focus on enhancing these sections:
-          1. Professional summary/background - Make it compelling and targeted to the role
-          2. Skills section - Highlight relevant skills for the position
-          3. Most recent role - Tailor responsibilities and achievements to align with job requirements
+          1. Professional summary/background - Make it compelling, convincing, and directly targeted to the role and business needs
+          2. Skills section - Highlight and enhance relevant skills for the position, make them industry-specific
+          3. Most recent role - Tailor responsibilities and achievements to align with job requirements and include richer, industry-specific duties
           
-          The transformation should reflect the candidate's actual experience but position it optimally for the target role.
-          Format the CV professionally with clear section headers, bullet points for achievements, and proper spacing.
-          Keep additional roles from the original CV intact after the transformed latest role.
+          IMPORTANT REQUIREMENTS:
+          - The transformation must not only match the job description but also clearly address business needs
+          - Ensure that professional experience is presented with richer, more detailed responsibilities that are specific to the industry
+          - Format the CV professionally with clear section headers, bullet points for achievements, and proper spacing
+          - ALL previous roles from the original CV MUST be preserved and included after the transformed current role
+          - Include all content that appeared after the previous roles (such as education, certifications, etc.)
           
           Return ONLY the transformed CV content in a clean format, nothing else.`
         },
@@ -57,11 +60,14 @@ export async function transformCVWithAI(options: TransformCVOptions): Promise<st
           Previous roles to preserve (these should appear after the transformed most recent role):
           ${previousRoles || "No previous roles found"}
           
-          Please ensure the transformed CV includes:
-          1. A compelling professional summary tailored to the target role
-          2. Skills relevant to the position
-          3. A transformed description of the most recent role that highlights relevant experience
-          4. Previous roles preserved from the original CV
+          Essential requirements for the transformation:
+          1. Create a compelling, industry-specific professional summary that aligns with both the job requirements and business objectives
+          2. Enhance skills to be highly relevant to the position and industry standards
+          3. Transform the description of the most recent role with RICHER, DETAILED responsibilities that are INDUSTRY-SPECIFIC
+          4. ALL previous roles from the original CV MUST be preserved completely and included after the transformed current role
+          5. Maintain all other content from the original CV that appears after work experience (education, etc.)
+          
+          The final CV should look like it was expertly crafted specifically for this role while maintaining the candidate's authentic work history.
           `
         }
       ],
@@ -153,12 +159,14 @@ export async function generateCVFeedbackWithAI(
     log('Generating CV transformation feedback with OpenAI', 'openai');
     
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo', // Using GPT-3.5 for feedback to optimize cost
+      model: 'gpt-4o', // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages: [
         {
           role: 'system',
-          content: `You are an expert CV consultant. Analyze the original and transformed CVs and 
-          provide professional feedback about the improvements made and how they align with the target role.`
+          content: `You are an expert CV consultant specializing in industry-specific transformations.
+          Analyze the original and transformed CVs and provide detailed, professional feedback 
+          about the improvements made and how they align with the target role and business needs.
+          Your feedback should be specific, actionable, and highlight the value of the transformation.`
         },
         {
           role: 'user',
@@ -170,14 +178,14 @@ export async function generateCVFeedbackWithAI(
           Transformed CV:
           ${transformedContent}
           
-          Please provide specific feedback on:
-          1. How the professional summary has been enhanced
-          2. Key skills that have been highlighted for the target role
-          3. How the experience description has been improved
-          4. Overall alignment with the target role requirements
-          5. Any additional improvements or recommendations
+          Please provide comprehensive feedback on:
+          1. How the professional summary has been enhanced to align with both the role and business needs
+          2. Key industry-specific skills that have been highlighted for the target role
+          3. How the experience descriptions have been enriched with richer, more detailed responsibilities
+          4. How the transformation addresses specific business challenges mentioned or implied in the role
+          5. How previous roles have been preserved while maintaining a cohesive narrative
           
-          Format the feedback in a clear, professional structure with bullet points.`
+          Format the feedback in a clear, professional structure with detailed bullet points that the candidate can use to understand the value of each change.`
         }
       ],
       temperature: 0.7,
@@ -194,13 +202,28 @@ export async function generateCVFeedbackWithAI(
     log(`OpenAI Feedback Error: ${error.message}`, 'openai');
     console.error('OpenAI feedback generation error:', error);
     
-    // Return a generic feedback if API call fails
-    return `Based on our comprehensive analysis, your CV has been transformed to better align with the role of ${targetRole}. Here are some key improvements:
+    // Return a more comprehensive generic feedback if API call fails
+    return `Based on our comprehensive analysis, your CV has been expertly transformed to better align with the role of ${targetRole}. Here are the key improvements:
 
-1. Professional summary has been tailored to highlight relevant qualifications for the target role
-2. Skills have been prioritized to match the job requirements and industry standards
-3. Experience details have been restructured to emphasize relevant achievements
-4. Previous roles have been preserved to maintain career continuity
-5. Overall formatting and presentation has been optimized for readability`;
+1. **Enhanced Professional Summary**
+   - Your professional summary has been tailored to highlight qualifications specifically relevant to the ${targetRole} position
+   - Business needs and industry challenges have been addressed to demonstrate your value proposition
+
+2. **Industry-Specific Skills Optimization**
+   - Your skills have been reprioritized and enhanced to match the exact requirements for this role
+   - Technical and soft skills have been balanced to present you as a well-rounded candidate
+
+3. **Enriched Experience Descriptions**
+   - Your most recent role has been transformed with richer, more detailed responsibilities
+   - Achievements have been quantified where possible to demonstrate measurable impact
+   - Industry-specific terminology has been incorporated to show domain expertise
+
+4. **Business-Focused Approach**
+   - The transformation addresses specific business challenges implied in the role
+   - Your experience has been reframed to show how you can solve these challenges
+
+5. **Complete Work History Preservation**
+   - All previous roles have been preserved to maintain a complete and authentic career narrative
+   - The transformation maintains continuity while emphasizing relevance to the target position`;
   }
 }
