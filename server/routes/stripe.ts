@@ -33,6 +33,83 @@ if (isStripeConfigured) {
   }
 }
 
+// Create payment intent endpoint for client-side checkout
+router.post('/create-payment-intent', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'You must be logged in to purchase a plan' });
+  }
+
+  // Check if Stripe is configured
+  if (!isStripeConfigured || !stripe) {
+    console.error('Create payment intent attempt when Stripe is not configured');
+    return res.status(503).json({ 
+      error: 'Payment system is currently unavailable. Please try again later.',
+      details: 'Stripe integration is not configured'
+    });
+  }
+
+  try {
+    const { plan } = req.body;
+    console.log('Creating payment intent for user:', req.user.id, 'plan:', plan);
+
+    const priceId = plan === 'pro'
+      ? process.env.STRIPE_PRO_PRICE_ID
+      : process.env.STRIPE_BASIC_PRICE_ID;
+
+    if (!priceId) {
+      throw new Error(`${plan === 'pro' ? 'STRIPE_PRO_PRICE_ID' : 'STRIPE_BASIC_PRICE_ID'} is not configured`);
+    }
+
+    // First, create a customer for this user if they don't have one
+    let customerId;
+    const [existingSubscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, req.user.id))
+      .limit(1);
+
+    if (existingSubscription) {
+      customerId = existingSubscription.stripeCustomerId;
+    } else {
+      const customer = await stripe.customers.create({
+        email: req.user.email,
+        metadata: {
+          userId: req.user.id.toString(),
+        },
+      });
+      customerId = customer.id;
+    }
+
+    // Retrieve the price from Stripe to get its amount
+    const price = await stripe.prices.retrieve(priceId);
+    
+    // Create a PaymentIntent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: price.unit_amount || 0,
+      currency: price.currency || 'usd',
+      customer: customerId,
+      // Apple Pay and Google Pay are automatically supported with card
+      payment_method_types: ['card'],
+      metadata: {
+        userId: req.user.id.toString(),
+        plan,
+        priceId,
+      },
+    });
+
+    // Return the client secret and customer ID
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+      customerId,
+    });
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to create payment intent',
+    });
+  }
+});
+
 // Explicitly make this route public - no auth check
 router.get('/verify-subscription/:userId', async (req, res) => {
   try {
@@ -149,7 +226,6 @@ router.post('/create-payment-link', async (req, res) => {
       : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/upgrade-plan`;
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       line_items: [
         {
           price: priceId,
@@ -157,13 +233,15 @@ router.post('/create-payment-link', async (req, res) => {
         },
       ],
       mode: 'subscription',
-      success_url: successUrl,
+      success_url: `${successUrl}?status=success&userId=${req.user.id}`,
       cancel_url: cancelUrl,
       metadata: {
         userId: req.user.id.toString(),
         plan: req.body.plan,
       },
       billing_address_collection: 'auto',
+      customer_email: req.user.email,
+      allow_promotion_codes: true,
       payment_method_options: {
         card: {
           setup_future_usage: 'off_session',

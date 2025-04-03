@@ -13,6 +13,7 @@ import PublicCVPage from "./pages/PublicCVPage";
 import TutorialPage from "./pages/TutorialPage";
 import ContactPage from "./pages/ContactPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import { useUser } from "./hooks/use-user";
 import {
   DropdownMenu,
@@ -223,6 +224,7 @@ function App() {
           <Route path="/privacy-policy" component={PrivacyPolicyPage} />
           <Route path="/terms-of-service" component={TermsOfServicePage} />
           <Route path="/upgrade" component={UpgradePlanPage} />
+          <Route path="/checkout" component={CheckoutPage} />
           <Route path="/payment-success" component={PaymentSuccessPage} />
           <Route path="/payment-complete" component={PaymentCompletePage} />
           {user && (

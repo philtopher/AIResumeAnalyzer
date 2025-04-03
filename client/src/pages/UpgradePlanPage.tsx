@@ -80,29 +80,25 @@ export default function UpgradePlanPage() {
 
     setIsProcessing(true);
     try {
-      // Determine which endpoint to call based on the action
-      const endpoint = action === 'downgrade' 
-        ? "/api/stripe/downgrade-subscription" 
-        : "/api/stripe/create-payment-link";
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          plan: selectedPlan,
-          action: action
-        }),
-        credentials: "include",
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to process subscription request");
-      }
-
       if (action === 'downgrade') {
+        // Handle downgrade through our API
+        const response = await fetch("/api/stripe/downgrade-subscription", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            plan: selectedPlan,
+            action: action
+          }),
+          credentials: "include",
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to process subscription request");
+        }
+
         // Handle downgrade success
         toast({
           title: "Downgrade Successful",
@@ -110,8 +106,8 @@ export default function UpgradePlanPage() {
         });
         refetch(); // Refresh user data
       } else {
-        // Redirect to Stripe for payment
-        window.location.href = data.url;
+        // Redirect to our new checkout page with embedded Stripe for Apple Pay/Google Pay support
+        setLocation(`/checkout?plan=${selectedPlan}`);
       }
     } catch (error) {
       console.error("Subscription action error:", error);
