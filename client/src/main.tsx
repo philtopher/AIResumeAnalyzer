@@ -1,3 +1,4 @@
+import React from "react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,11 +8,12 @@ import App from './App';
 import "./index.css";
 import "./i18n"; // Import i18n configuration
 
-createRoot(document.getElementById("root")!).render(
+const root = createRoot(document.getElementById("root")!);
+root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
       <Toaster />
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 );
