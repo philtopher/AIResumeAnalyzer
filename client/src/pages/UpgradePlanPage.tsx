@@ -34,7 +34,7 @@ export default function UpgradePlanPage() {
       console.log('Verifying payment success for userId:', paymentUserId);
       setIsVerifying(true);
 
-      fetch(`/api/verify-subscription/${paymentUserId}`)
+      fetch(`/api/stripe/verify-subscription/${paymentUserId}`)
         .then(async res => {
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Failed to verify subscription');
@@ -82,8 +82,8 @@ export default function UpgradePlanPage() {
     try {
       // Determine which endpoint to call based on the action
       const endpoint = action === 'downgrade' 
-        ? "/api/downgrade-subscription" 
-        : "/api/create-payment-link";
+        ? "/api/stripe/downgrade-subscription" 
+        : "/api/stripe/create-payment-link";
 
       const response = await fetch(endpoint, {
         method: "POST",

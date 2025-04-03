@@ -289,6 +289,63 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   }
 });
 
+// Downgrade subscription endpoint
+router.post('/downgrade-subscription', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'You must be logged in to manage your subscription' });
+  }
+
+  // Check if Stripe is configured
+  if (!isStripeConfigured || !stripe) {
+    console.error('Downgrade attempt when Stripe is not configured');
+    return res.status(503).json({ 
+      error: 'Payment system is currently unavailable. Please try again later.',
+      details: 'Stripe integration is not configured'
+    });
+  }
+
+  try {
+    const userId = req.user.id;
+    console.log('Processing subscription downgrade for user:', userId);
+
+    // First, find the user's subscription in our database
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .limit(1);
+
+    if (!subscription || subscription.status !== 'active') {
+      return res.status(400).json({ error: 'No active subscription found to downgrade' });
+    }
+
+    // Update our database to reflect the downgrade
+    // Mark isPro as false in the DB - this will take effect immediately since we're not actually changing
+    // the Stripe subscription (which would happen at the end of the billing period)
+    await db
+      .update(subscriptions)
+      .set({
+        isPro: false,
+        updatedAt: new Date()
+      })
+      .where(eq(subscriptions.userId, userId));
+
+    console.log('Subscription downgraded in database for user:', userId);
+
+    // Return success response
+    res.json({ 
+      success: true,
+      message: 'Your subscription has been downgraded to the Standard Plan'
+    });
+  } catch (error) {
+    console.error('Subscription downgrade error:', error);
+    res.status(500).json({
+      error: 'Failed to downgrade subscription',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // Add new test endpoint for sending welcome email
 router.post('/test-send-welcome-email/:userId', async (req, res) => {
   try {
