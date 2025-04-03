@@ -47,21 +47,49 @@ export default function AdminPage() {
 
   const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
+    queryFn: async () => {
+      const response = await fetch("/api/admin/users", {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch users");
+      return response.json();
+    },
     enabled: isSuperAdmin || activeTab === "users",
   });
 
   const { data: logs = [], isLoading: isLoadingLogs } = useQuery<ActivityLog[]>({
     queryKey: ["/api/admin/logs"],
+    queryFn: async () => {
+      const response = await fetch("/api/admin/logs", {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch logs");
+      return response.json();
+    },
     enabled: activeTab === "logs",
   });
 
   const { data: pendingCVs = [], isLoading: isLoadingCVs } = useQuery<CV[]>({
     queryKey: ["/api/admin/cvs/pending"],
+    queryFn: async () => {
+      const response = await fetch("/api/admin/cvs/pending", {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch pending CVs");
+      return response.json();
+    },
     enabled: activeTab === "cvs",
   });
 
   const { data: contacts = [], isLoading: isLoadingContacts } = useQuery<Contact[]>({
     queryKey: ["/api/admin/contacts"],
+    queryFn: async () => {
+      const response = await fetch("/api/admin/contacts", {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch contacts");
+      return response.json();
+    },
     enabled: activeTab === "contacts",
   });
 

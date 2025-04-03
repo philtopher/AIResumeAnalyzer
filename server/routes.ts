@@ -393,6 +393,198 @@ export function registerRoutes(app: Express): Express {
       }
     });
   });
+  
+  // Admin API Routes
+  app.get("/api/admin/users", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      if (req.user.role !== "super_admin" && req.user.role !== "sub_admin") {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      const result = await db.query.users.findMany({
+        with: {
+          subscriptions: true
+        },
+        orderBy: desc(users.createdAt),
+      });
+
+      const sanitizedUsers = result.map(user => {
+        // Remove sensitive information like password
+        const { password, resetToken, verificationToken, ...sanitizedUser } = user;
+        return sanitizedUser;
+      });
+
+      res.json(sanitizedUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/admin/analytics", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      if (req.user.role !== "super_admin" && req.user.role !== "sub_admin") {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      // Count total users
+      const totalUsers = await db.query.users.findMany({
+        columns: {
+          id: true
+        }
+      });
+
+      // Count active subscriptions
+      const activeSubscriptions = await db.query.subscriptions.findMany({
+        where: eq(db.schema.subscriptions.status, "active"),
+        columns: {
+          id: true
+        }
+      });
+
+      // Count verified users
+      const verifiedUsers = await db.query.users.findMany({
+        where: eq(users.emailVerified, true),
+        columns: {
+          id: true
+        }
+      });
+
+      // Get recent activity logs
+      const recentLogs = await db.query.activityLogs.findMany({
+        orderBy: desc(activityLogs.timestamp),
+        limit: 20
+      });
+
+      // Get system metrics (mocked here)
+      const systemMetrics = {
+        cpuUsage: 0.35, // Example value
+        memoryUsage: 0.42, // Example value
+        storageUsage: 0.28, // Example value
+        activeConnections: totalUsers.length,
+        systemMetricsHistory: Array.from({ length: 24 }, (_, i) => ({
+          timestamp: new Date(Date.now() - i * 3600000).toISOString(),
+          cpuUsage: 0.3 + (Math.random() * 0.3),
+          memoryUsage: 0.4 + (Math.random() * 0.2)
+        }))
+      };
+
+      const analytics = {
+        totalUsers: totalUsers.length,
+        activeUsers: verifiedUsers.length,
+        registeredUsers: totalUsers.length,
+        anonymousUsers: 0,
+        premiumUsers: activeSubscriptions.length,
+        totalConversions: await db.query.cvs.findMany({ columns: { id: true } }).then(res => res.length),
+        registeredConversions: await db.query.cvs.findMany({ 
+          where: eq(cvs.anonymous, false),
+          columns: { id: true }
+        }).then(res => res.length),
+        anonymousConversions: await db.query.cvs.findMany({ 
+          where: eq(cvs.anonymous, true),
+          columns: { id: true }
+        }).then(res => res.length),
+        conversionRate: 0.75, // Example value
+        ...systemMetrics
+      };
+
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
+  app.get("/api/admin/logs", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      if (req.user.role !== "super_admin" && req.user.role !== "sub_admin") {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      const logs = await db.query.activityLogs.findMany({
+        orderBy: desc(activityLogs.timestamp),
+        limit: 100,
+        with: {
+          user: {
+            columns: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching logs:", error);
+      res.status(500).json({ error: "Failed to fetch logs" });
+    }
+  });
+
+  app.get("/api/admin/cvs/pending", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      if (req.user.role !== "super_admin" && req.user.role !== "sub_admin") {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      const pendingCVs = await db.query.cvs.findMany({
+        where: eq(cvs.approved, false),
+        orderBy: desc(cvs.createdAt),
+        with: {
+          user: {
+            columns: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      res.json(pendingCVs);
+    } catch (error) {
+      console.error("Error fetching pending CVs:", error);
+      res.status(500).json({ error: "Failed to fetch pending CVs" });
+    }
+  });
+
+  app.get("/api/admin/contacts", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      if (req.user.role !== "super_admin" && req.user.role !== "sub_admin") {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      const contacts = await db.query.contacts.findMany({
+        orderBy: desc(db.schema.contacts.submittedAt)
+      });
+
+      res.json(contacts);
+    } catch (error) {
+      console.error("Error fetching contacts:", error);
+      res.status(500).json({ error: "Failed to fetch contacts" });
+    }
+  });
 
   // CV transformation endpoint (authenticated)
   app.post("/api/cv/transform", upload.single('file'), async (req: Request, res: Response) => {
@@ -546,6 +738,143 @@ export function registerRoutes(app: Express): Express {
     } catch (error: any) {
       console.error("Error retrieving CV history:", error);
       res.status(500).json({ error: error.message || "Failed to retrieve CV history" });
+    }
+  });
+  
+  // Download CV as Word document (authenticated)
+  app.get("/api/cv/:id/download", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { id } = req.params;
+
+      const [cv] = await db
+        .select()
+        .from(cvs)
+        .where(
+          and(
+            eq(cvs.id, parseInt(id)),
+            eq(cvs.userId, req.user.id)
+          )
+        )
+        .limit(1);
+
+      if (!cv) {
+        return res.status(404).json({ error: "CV not found" });
+      }
+      
+      // Use the docx library to create a Word document
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+      
+      // Split the transformed content into lines
+      const lines = cv.transformedContent.split('\n');
+      
+      // Convert the content to Word-friendly format
+      const documentContent = [];
+      
+      let currentHeading = null;
+      let inBulletList = false;
+      
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        
+        if (trimmedLine === '') {
+          // Add empty paragraph for spacing
+          documentContent.push(new Paragraph({}));
+          continue;
+        }
+        
+        // Check if this line is a heading (all caps or ends with a colon)
+        const isHeading = 
+          trimmedLine === trimmedLine.toUpperCase() || 
+          (trimmedLine.endsWith(':') && trimmedLine.length < 50);
+        
+        // Check if line is a bullet point
+        const isBullet = trimmedLine.startsWith('•') || 
+                         trimmedLine.startsWith('-') || 
+                         trimmedLine.startsWith('*');
+                         
+        if (isHeading) {
+          // Store current heading
+          currentHeading = trimmedLine;
+          
+          // Add as a heading
+          documentContent.push(
+            new Paragraph({
+              text: trimmedLine,
+              heading: HeadingLevel.HEADING_2,
+              thematicBreak: true,
+              spacing: {
+                after: 200,
+                before: 400
+              }
+            })
+          );
+          
+          inBulletList = false;
+        } else if (isBullet) {
+          // Add as a bullet point
+          documentContent.push(
+            new Paragraph({
+              text: trimmedLine.substring(1).trim(), // Remove the bullet character
+              bullet: {
+                level: 0
+              },
+              spacing: {
+                after: 100
+              }
+            })
+          );
+          
+          inBulletList = true;
+        } else {
+          // Regular paragraph
+          documentContent.push(
+            new Paragraph({
+              text: trimmedLine,
+              spacing: {
+                after: 120
+              }
+            })
+          );
+          
+          inBulletList = false;
+        }
+      }
+      
+      // Create the document
+      const doc = new Document({
+        sections: [
+          {
+            properties: {},
+            children: [
+              new Paragraph({
+                text: `${cv.targetRole} - CV`,
+                heading: HeadingLevel.HEADING_1,
+                spacing: {
+                  after: 400
+                }
+              }),
+              ...documentContent
+            ],
+          },
+        ],
+      });
+      
+      // Generate the document as a buffer
+      const buffer = await Packer.toBuffer(doc);
+      
+      // Set headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="${cv.targetRole.replace(/[^a-zA-Z0-9]/g, '_')}_CV.docx"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      
+      // Send the document
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Error generating Word document:", error);
+      res.status(500).json({ error: error.message || "Failed to generate Word document" });
     }
   });
 
