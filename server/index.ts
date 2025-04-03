@@ -36,6 +36,9 @@ app.use((req, res, next) => {
   }
 });
 
+// Serve attached_assets directory as static files
+app.use('/attached_assets', express.static('attached_assets'));
+
 console.log("Middleware setup completed");
 
 app.use(express.urlencoded({ extended: false }));

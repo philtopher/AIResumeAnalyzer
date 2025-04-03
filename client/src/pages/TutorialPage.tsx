@@ -299,13 +299,13 @@ export default function TutorialPage() {
                   </div>
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                      <img src="/apple-pay2.png" alt="Apple Pay" className="w-8 h-8" />
+                      <img src="/attached_assets/apple-pay2.png" alt="Apple Pay" className="w-8 h-8" />
                     </div>
                     <span className="text-sm font-medium">Apple Pay</span>
                   </div>
                   <div className="flex flex-col items-center">
                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                      <img src="/google-pay.png" alt="Google Pay" className="w-10 h-8" />
+                      <img src="/attached_assets/google-pay.png" alt="Google Pay" className="w-10 h-8" />
                     </div>
                     <span className="text-sm font-medium">Google Pay</span>
                   </div>
