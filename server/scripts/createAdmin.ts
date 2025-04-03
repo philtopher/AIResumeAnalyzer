@@ -1,6 +1,7 @@
 import { db } from '../../db';
 import { users } from '../../db/schema';
 import { hashPassword } from '../auth';
+import { eq } from 'drizzle-orm/pg-core';
 
 async function createAdminUser() {
   try {
@@ -9,7 +10,7 @@ async function createAdminUser() {
 
     // Check if user already exists
     const existingUser = await db.query.users.findFirst({
-      where: (users, { eq }) => eq(users.email, 'support@freindel.com')
+      where: (users, { eq }) => eq(users.email, 'support@cvtransformers.com')
     });
 
     if (existingUser) {
@@ -20,9 +21,9 @@ async function createAdminUser() {
           username: 'ittransform',
           password: hashedPassword,
           role: 'super_admin',
-          email_verified: true
+          emailVerified: true
         })
-        .where(users.email === 'support@freindel.com');
+        .where(eq(users.email, 'support@cvtransformers.com'));
       
       console.log('Admin user updated successfully');
     } else {
@@ -30,10 +31,10 @@ async function createAdminUser() {
       await db.insert(users).values({
         username: 'ittransform',
         password: hashedPassword,
-        email: 'support@freindel.com',
+        email: 'support@cvtransformers.com',
         role: 'super_admin',
-        email_verified: true,
-        created_at: new Date()
+        emailVerified: true,
+        createdAt: new Date()
       });
       
       console.log('Admin user created successfully');

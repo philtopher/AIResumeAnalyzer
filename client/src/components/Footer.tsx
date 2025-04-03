@@ -24,7 +24,7 @@ export function Footer() {
               <a href="https://facebook.com/cvtransformer" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary">
                 <Facebook className="h-5 w-5" />
               </a>
-              <a href="mailto:support@cvanalyzer.freindel.com" className="text-muted-foreground hover:text-primary">
+              <a href="mailto:info@cvtransformers.com" className="text-muted-foreground hover:text-primary">
                 <Mail className="h-5 w-5" />
               </a>
             </div>
@@ -74,8 +74,8 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <a href="mailto:support@cvanalyzer.freindel.com" className="text-sm text-muted-foreground hover:text-primary">
-                  support@cvanalyzer.freindel.com
+                <a href="mailto:info@cvtransformers.com" className="text-sm text-muted-foreground hover:text-primary">
+                  info@cvtransformers.com
                 </a>
               </li>
             </ul>
