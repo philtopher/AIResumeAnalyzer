@@ -14,6 +14,87 @@ interface TransformCVOptions {
 }
 
 /**
+ * Parse job description to extract key requirements
+ */
+function parseJobDescription(jobDescription: string): string {
+  if (!jobDescription) return "No job description provided";
+  
+  try {
+    // Split job description into lines for easier processing
+    const lines = jobDescription.split('\n');
+    
+    // Look for common requirement section indicators
+    const requirementSections = [
+      'requirements', 'qualifications', 'skills', 'responsibilities',
+      'we are looking for', 'what you will do', 'your role',
+      'the ideal candidate', 'what you need', 'key skills'
+    ];
+    
+    let extractedRequirements: string[] = [];
+    let inRequirementSection = false;
+    
+    // Find requirement sections and bullet points
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim().toLowerCase();
+      
+      // Check if this line indicates a requirements section
+      if (requirementSections.some(section => line.includes(section))) {
+        inRequirementSection = true;
+        continue;
+      }
+      
+      // If we're in a requirement section, look for bullet points or numbered lists
+      if (inRequirementSection) {
+        const trimmedLine = lines[i].trim();
+        
+        // Match bullet points, numbered lists, or lines that look like requirements
+        if (/^[•\-\*\d\.\(\)]+/.test(trimmedLine) || 
+            /^[A-Z]/.test(trimmedLine) && trimmedLine.length > 15) {
+          extractedRequirements.push(trimmedLine);
+        }
+        
+        // End of section detection
+        if (trimmedLine === '' && extractedRequirements.length > 0) {
+          inRequirementSection = false;
+        }
+      }
+    }
+    
+    // If we didn't find structured requirements, use a simple keyword extraction approach
+    if (extractedRequirements.length === 0) {
+      // Look for key phrases that might indicate requirements
+      const importantKeywords = [
+        'experience', 'expertise', 'proficiency', 'knowledge', 'familiar', 
+        'ability to', 'understand', 'skill', 'background', 'degree', 
+        'certification', 'qualified', 'responsible for', 'manage', 'develop'
+      ];
+      
+      for (const line of lines) {
+        if (importantKeywords.some(keyword => line.toLowerCase().includes(keyword))) {
+          extractedRequirements.push(line.trim());
+        }
+      }
+    }
+    
+    // If still no requirements found, return the first 10 lines of the job description
+    if (extractedRequirements.length === 0) {
+      extractedRequirements = lines.slice(0, Math.min(10, lines.length))
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+    }
+    
+    // Join the extracted requirements with bullet points
+    return extractedRequirements
+      .map(req => `• ${req}`)
+      .join('\n');
+      
+  } catch (error) {
+    console.error("Error parsing job description:", error);
+    return jobDescription; // Return the original job description if parsing fails
+  }
+}
+
+/**
  * Uses OpenAI to transform a CV based on job requirements
  * @param options The transformation options
  * @returns Promise with the transformed CV content
@@ -27,48 +108,60 @@ export async function transformCVWithAI(options: TransformCVOptions): Promise<st
     // Extract previous roles from original CV to preserve them
     const previousRoles = extractPreviousRoles(originalContent);
     
+    // Parse job description to extract key requirements
+    const keyRequirements = parseJobDescription(jobDescription);
+    
     const response = await openai.chat.completions.create({
       model: 'gpt-4o', // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages: [
         {
           role: 'system',
-          content: `You are an expert CV transformation specialist. Transform the provided CV to match the target role and job description. 
-          Focus on enhancing these sections:
-          1. Professional summary/background - Make it compelling, convincing, and directly targeted to the role and business needs
-          2. Skills section - Highlight and enhance relevant skills for the position, make them industry-specific
-          3. Most recent role - Tailor responsibilities and achievements to align with job requirements and include richer, industry-specific duties
+          content: `You are an expert CV transformation specialist with extensive experience in optimizing professional resumes. 
           
-          IMPORTANT REQUIREMENTS:
-          - The transformation must not only match the job description but also clearly address business needs
-          - Ensure that professional experience is presented with richer, more detailed responsibilities that are specific to the industry
+          Your task is to transform the provided CV to match the target role of "${targetRole}" based on the job description.
+          
+          FOCUS ON ENHANCING THESE SECTIONS:
+          1. Professional summary/background - Create a compelling, convincing summary directly targeted to the role and business needs
+          2. Skills section - Highlight and enhance relevant skills for the position, using industry-specific terminology
+          3. CURRENT/MOST RECENT ROLE - THIS MUST BE TRANSFORMED IN DETAIL - add richer, industry-specific responsibilities and achievements
+          
+          CRITICAL REQUIREMENTS:
+          - The CURRENT ROLE MUST BE TRANSFORMED with detailed, industry-specific responsibilities that match the job requirements
+          - The professional summary must directly address business needs and demonstrate value proposition
+          - Skills must be enhanced with relevant, industry-specific terminology
           - Format the CV professionally with clear section headers, bullet points for achievements, and proper spacing
-          - ALL previous roles from the original CV MUST be preserved and included after the transformed current role
-          - Include all content that appeared after the previous roles (such as education, certifications, etc.)
+          - ALL previous roles from the original CV MUST be preserved exactly as they appear after the transformed current role
+          - Include all content that appeared after work experience (such as education, certifications, etc.)
           
-          Return ONLY the transformed CV content in a clean format, nothing else.`
+          Return ONLY the transformed CV content in a clean, professional format.`
         },
         {
           role: 'user',
-          content: `Please transform this CV to target the role of "${targetRole}".
+          content: `Transform this CV for the "${targetRole}" position.
           
-          Job Description:
+          JOB DESCRIPTION:
           ${jobDescription}
           
-          Original CV:
+          KEY REQUIREMENTS EXTRACTED FROM JOB:
+          ${keyRequirements}
+          
+          ORIGINAL CV:
           ${originalContent}
           
-          Previous roles to preserve (these should appear after the transformed most recent role):
-          ${previousRoles || "No previous roles found"}
+          PREVIOUS ROLES TO PRESERVE EXACTLY AS THEY APPEAR:
+          ${previousRoles || "No previous roles identified - if there are any in the CV, make sure to include them after the transformed current role"}
           
-          Essential requirements for the transformation:
-          1. Create a compelling, industry-specific professional summary that aligns with both the job requirements and business objectives
-          2. Enhance skills to be highly relevant to the position and industry standards
-          3. Transform the description of the most recent role with RICHER, DETAILED responsibilities that are INDUSTRY-SPECIFIC
-          4. ALL previous roles from the original CV MUST be preserved completely and included after the transformed current role
-          5. Maintain all other content from the original CV that appears after work experience (education, etc.)
+          TRANSFORMATION REQUIREMENTS:
+          1. Create a compelling professional summary that directly addresses the business needs for a ${targetRole}
+          2. Enhance the skills section with industry-specific terminology relevant to the role
+          3. TRANSFORM THE CURRENT/MOST RECENT ROLE with DETAILED, SPECIFIC responsibilities and achievements that align perfectly with the job requirements
+          4. Make sure the current role transformation includes RICHER, MORE DETAILED descriptions than the original
+          5. ALL previous roles must be preserved and included after the transformed current role
+          6. Maintain all content after work experience (education, certifications, etc.)
           
-          The final CV should look like it was expertly crafted specifically for this role while maintaining the candidate's authentic work history.
-          `
+          THE TRANSFORMATION MUST FOCUS ON THE CURRENT/MOST RECENT ROLE - this is the most important part. Make the responsibilities and achievements much more detailed, specific, and aligned with the target role.
+          
+          The final CV must look expertly crafted for this specific role while maintaining authenticity in the work history.`
         }
       ],
       temperature: 0.7,
@@ -90,12 +183,12 @@ export async function transformCVWithAI(options: TransformCVOptions): Promise<st
 
 /**
  * Helper function to extract previous roles from the original CV
+ * This function splits the CV into: 
+ * 1. Current/most recent role (to be transformed)
+ * 2. Previous roles (to be preserved)
  */
 function extractPreviousRoles(originalContent: string): string | null {
   if (!originalContent) return null;
-  
-  // This is a simple approach - in a production environment,
-  // you would want to use more sophisticated NLP/parsing techniques
   
   // Look for common work experience section headers
   const experienceSectionRegexes = [
@@ -103,48 +196,69 @@ function extractPreviousRoles(originalContent: string): string | null {
     /employment history/i,
     /professional experience/i,
     /career history/i,
+    /work history/i,
   ];
   
   let experienceSection = null;
+  let experienceSectionIndex = -1;
   
+  // Find the experience section
   for (const regex of experienceSectionRegexes) {
     const match = originalContent.match(regex);
     if (match && match.index !== undefined) {
-      // Found the experience section
       experienceSection = originalContent.slice(match.index);
+      experienceSectionIndex = match.index;
       break;
     }
   }
   
   if (!experienceSection) return null;
   
-  // Try to find and skip the first role (which will be transformed)
-  // This is a simplified approach - production version would need more robust parsing
+  // Patterns for identifying role delimiters (dates, titles, etc.)
   const roleDelimiters = [
-    /\d{4}\s*(-|to|–)\s*\d{4}|\d{4}\s*(-|to|–)\s*(present|current)/i,
-    /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4}/i,
+    // Date patterns
+    /\b\d{4}\s*(-|to|–|—)\s*\d{4}\b|\b\d{4}\s*(-|to|–|—)\s*(present|current|now)\b/i,
+    // Month-Year patterns
+    /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4}\b/i,
+    // Job title patterns often followed by company name
+    /\b(senior|lead|principal|chief|head|director|manager|officer|specialist|engineer|developer|analyst|consultant|associate|assistant)\b.*?\bat\b/i,
   ];
   
-  let previousRolesContent = experienceSection;
+  let roleStartIndices = [];
   
-  // Find first role occurrence and try to skip it
+  // Find all potential role starting positions
   for (const delimiter of roleDelimiters) {
     const regex = new RegExp(delimiter, 'gi');
     let match;
-    const matches = [];
     
     while ((match = regex.exec(experienceSection)) !== null) {
-      matches.push(match);
-    }
-    
-    if (matches.length >= 2 && matches[1].index !== undefined) {
-      // We have at least 2 roles, skip the first one
-      previousRolesContent = experienceSection.slice(matches[1].index);
-      break;
+      // Check if this appears to be the start of a role (preceded by newline or paragraph)
+      const preContext = experienceSection.substring(Math.max(0, match.index - 30), match.index);
+      if (preContext.match(/\n\s*$/) || match.index < 30) {
+        roleStartIndices.push(match.index);
+      }
     }
   }
   
-  return previousRolesContent || null;
+  // Sort indices and remove duplicates (roles might be detected multiple times)
+  roleStartIndices = [...new Set(roleStartIndices)].sort((a, b) => a - b);
+  
+  // If we have at least 2 roles, we can get the second one's index
+  if (roleStartIndices.length >= 2) {
+    const secondRoleIndex = roleStartIndices[1];
+    // The content starting from second role is what we want to preserve
+    const previousRolesContent = experienceSection.slice(secondRoleIndex);
+    return previousRolesContent;
+  } else if (roleStartIndices.length === 1) {
+    // Only one role found - this is likely the current role to be transformed
+    // In this case, return null as there are no previous roles to preserve
+    log('Only one role detected in the CV - no previous roles to preserve', 'openai');
+    return null;
+  }
+  
+  // Fallback: If we couldn't identify roles precisely, return the experience section as-is
+  // This ensures we don't lose content even if our parsing was imperfect
+  return experienceSection;
 }
 
 /**
