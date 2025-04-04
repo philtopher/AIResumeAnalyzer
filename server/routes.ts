@@ -762,32 +762,48 @@ export function registerRoutes(app: Express): Express {
         return res.status(400).json({ error: "No file uploaded" });
       }
       
-      // Check if user is free user and needs to wait 24 hours
-      const isAdmin = req.user.role === "super_admin" || req.user.role === "sub_admin";
-      const hasPro = isAdmin || (req.user.subscription && req.user.subscription.status === "active");
+      // Check if user is admin or has a premium subscription
+      const isAdmin = req.user.role === "super_admin" || req.user.role === "sub_admin" || req.user.role === "admin";
       
-      // Only apply restriction to free users
-      if (!hasPro) {
-        // Check last transformation time
-        const oneDayAgo = new Date();
-        oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+      // For admin users, bypass all checks and allow the transformation
+      if (!isAdmin) {
+        // Only regular users get checked for subscription status
+        // Check if user has an active subscription (could be from old or new schema)
+        const hasActiveSubscription = 
+          // Check old schema format
+          (req.user.subscription && req.user.subscription.status === "active") ||
+          // Check new schema format (array of subscriptions)
+          (Array.isArray(req.user.subscriptions) && 
+           req.user.subscriptions.some((sub: any) => sub.status === "active"));
         
-        const recentTransformations = await db
-          .select()
-          .from(cvs)
-          .where(
-            and(
-              eq(cvs.userId, req.user.id),
-              gte(cvs.createdAt, oneDayAgo)
-            )
-          );
-        
-        if (recentTransformations.length > 0) {
-          // User has converted CV in the last 24 hours
-          return res.status(403).json({ 
-            error: "Free users can only convert CVs once every 24 hours. Please subscribe to our premium plan for unlimited conversions." 
-          });
+        // Only apply restriction to free users (non-admin, non-premium)
+        if (!hasActiveSubscription) {
+          // Check last transformation time
+          const oneDayAgo = new Date();
+          oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+          
+          const recentTransformations = await db
+            .select()
+            .from(cvs)
+            .where(
+              and(
+                eq(cvs.userId, req.user.id),
+                gte(cvs.createdAt, oneDayAgo)
+              )
+            );
+          
+          if (recentTransformations.length > 0) {
+            // User has converted CV in the last 24 hours
+            return res.status(403).json({ 
+              error: "Free users can only convert CVs once every 24 hours. Please subscribe to our premium plan for unlimited conversions." 
+            });
+          }
         }
+      }
+      
+      // Log admin access for debugging purposes
+      if (isAdmin) {
+        console.log("Admin user accessing CV transformation - bypassing all restrictions");
       }
 
       const { targetRole, jobDescription } = req.body;

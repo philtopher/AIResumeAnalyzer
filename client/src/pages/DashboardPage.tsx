@@ -25,6 +25,7 @@ export default function DashboardPage() {
 
   // Check for admin privileges - include 'admin' role
   const isAdmin = user?.role === "super_admin" || user?.role === "sub_admin" || user?.role === "admin";
+  // Admins always have all privileges regardless of subscription status
   const hasPro = isAdmin || subscription?.status === "active";
 
   // Handle form submission
