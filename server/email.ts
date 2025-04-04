@@ -274,3 +274,126 @@ export async function sendVerificationEmail(email: string, verificationToken: st
     `,
   });
 }
+
+export async function sendActivityReport(options: {
+  to: string;
+  username: string;
+  reportData: {
+    period: string;
+    totalCVs: number;
+    successfulTransformations: number;
+    failedTransformations: number;
+    popularRoles: Array<{role: string, count: number}>;
+    usageByDay?: {[key: string]: number};
+    averageTransformationTime?: number;
+  };
+}) {
+  console.log('[SendGrid] Sending activity report to:', options.to);
+  
+  // Create usage chart data if available
+  let usageChart = '';
+  if (options.reportData.usageByDay && Object.keys(options.reportData.usageByDay).length > 0) {
+    const days = Object.keys(options.reportData.usageByDay);
+    const values = Object.values(options.reportData.usageByDay);
+    const maxValue = Math.max(...values);
+    
+    // Create simple ASCII chart for email
+    usageChart = `
+      <h3 style="margin-top: 20px; margin-bottom: 10px;">Daily Usage</h3>
+      <div style="background-color: #f8fafc; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between;">
+          ${days.map(day => `<div style="text-align: center; width: ${100/days.length}%;"><strong>${day}</strong></div>`).join('')}
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 10px; align-items: flex-end; height: 150px;">
+          ${values.map(value => {
+            const heightPercentage = (value / maxValue) * 100;
+            return `<div style="text-align: center; width: ${100/values.length}%;">
+              <div style="background-color: #2563eb; height: ${heightPercentage}%; margin: 0 auto; width: 20px;"></div>
+              <div style="margin-top: 5px;">${value}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // Create popular roles list
+  let popularRolesList = '';
+  if (options.reportData.popularRoles && options.reportData.popularRoles.length > 0) {
+    popularRolesList = `
+      <h3 style="margin-top: 20px; margin-bottom: 10px;">Popular Target Roles</h3>
+      <ul style="list-style-type: none; padding: 0;">
+        ${options.reportData.popularRoles.map(item => `
+          <li style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+            <span>${item.role}</span>
+            <span style="font-weight: bold;">${item.count}</span>
+          </li>
+        `).join('')}
+      </ul>
+    `;
+  }
+
+  // Format average transformation time if available
+  let avgTimeInfo = '';
+  if (options.reportData.averageTransformationTime) {
+    const seconds = options.reportData.averageTransformationTime;
+    avgTimeInfo = `
+      <div style="margin-top: 15px;">
+        <strong>Average Transformation Time:</strong> ${seconds.toFixed(1)} seconds
+      </div>
+    `;
+  }
+
+  // Calculate success rate
+  const totalTransformations = options.reportData.successfulTransformations + options.reportData.failedTransformations;
+  const successRate = totalTransformations > 0 
+    ? ((options.reportData.successfulTransformations / totalTransformations) * 100).toFixed(1)
+    : '0';
+
+  return sendEmail({
+    to: options.to,
+    from: FROM_EMAIL,
+    subject: `CV Transformer Activity Report - ${options.reportData.period}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #2563eb; margin-bottom: 20px;">CV Transformer Activity Report</h1>
+        <p>Dear ${options.username},</p>
+        <p>Here is your activity report for the period: <strong>${options.reportData.period}</strong></p>
+        
+        <div style="background-color: #f8fafc; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <h2 style="color: #2563eb; margin-bottom: 15px;">Summary</h2>
+          
+          <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+            <div style="text-align: center; width: 30%;">
+              <div style="font-size: 24px; font-weight: bold; color: #2563eb;">${options.reportData.totalCVs}</div>
+              <div style="color: #64748b;">Total CVs</div>
+            </div>
+            <div style="text-align: center; width: 30%;">
+              <div style="font-size: 24px; font-weight: bold; color: #10b981;">${options.reportData.successfulTransformations}</div>
+              <div style="color: #64748b;">Successful</div>
+            </div>
+            <div style="text-align: center; width: 30%;">
+              <div style="font-size: 24px; font-weight: bold; color: ${parseFloat(successRate) >= 95 ? '#10b981' : parseFloat(successRate) >= 80 ? '#eab308' : '#ef4444'};">${successRate}%</div>
+              <div style="color: #64748b;">Success Rate</div>
+            </div>
+          </div>
+          
+          ${avgTimeInfo}
+        </div>
+        
+        ${popularRolesList}
+        ${usageChart}
+        
+        <p style="margin-top: 30px;">To view more detailed analytics, please visit your <a href="${process.env.APP_URL}/dashboard" style="color: #2563eb; text-decoration: underline;">dashboard</a>.</p>
+        
+        <p>Best regards,<br>The CV Transformer Team</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 12px;">
+            You're receiving this report as part of your subscription. To change your email preferences, visit your <a href="${process.env.APP_URL}/settings" style="color: #2563eb; text-decoration: underline;">account settings</a>.
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}

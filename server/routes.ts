@@ -3,13 +3,13 @@ import { Request, Response, NextFunction } from "express";
 import { setupAuth } from "./auth";
 import { db } from "@db";
 import { users, cvs, activityLogs } from "@db/schema";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, inArray } from "drizzle-orm";
 import multer from "multer";
 import { extname, resolve } from "path";
 import * as fs from 'fs';
 import { transformCVWithAI, generateCVFeedbackWithAI } from "./openai";
 import stripeRoutes from "./routes/stripe";
-import { sendContactFormNotification } from "./email";
+import { sendContactFormNotification, sendActivityReport } from "./email";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -584,6 +584,100 @@ export function registerRoutes(app: Express): Express {
     } catch (error) {
       console.error("Error fetching contacts:", error);
       res.status(500).json({ error: "Failed to fetch contacts" });
+    }
+  });
+  
+  // Send activity report to users (admin only)
+  app.post("/api/admin/send-activity-report", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      if (req.user.role !== "super_admin" && req.user.role !== "sub_admin") {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+      
+      const { userIds, reportData } = req.body;
+      
+      if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ error: "User IDs are required" });
+      }
+      
+      if (!reportData) {
+        return res.status(400).json({ error: "Report data is required" });
+      }
+      
+      const requiredFields = ['period', 'totalCVs', 'successfulTransformations', 'failedTransformations'];
+      for (const field of requiredFields) {
+        if (reportData[field] === undefined) {
+          return res.status(400).json({ error: `Report data is missing required field: ${field}` });
+        }
+      }
+      
+      // Fetch users
+      const usersList = await db.select().from(users).where(inArray(users.id, userIds));
+      
+      if (usersList.length === 0) {
+        return res.status(404).json({ error: "No users found with the provided IDs" });
+      }
+      
+      // Track success and failures
+      const results = {
+        success: [] as {id: number, email: string}[],
+        failed: [] as {id: number, email: string, reason: string}[]
+      };
+      
+      // Send reports to each user
+      for (const user of usersList) {
+        if (!user.email) {
+          results.failed.push({ id: user.id, email: 'missing', reason: 'No email address' });
+          continue;
+        }
+        
+        try {
+          const sent = await sendActivityReport({
+            to: user.email,
+            username: user.username,
+            reportData: reportData
+          });
+          
+          if (sent) {
+            results.success.push({ id: user.id, email: user.email });
+            
+            // Log activity
+            await db.insert(activityLogs).values({
+              userId: user.id,
+              action: 'activity_report_sent',
+              details: JSON.stringify({
+                reportPeriod: reportData.period,
+                sentBy: req.user.id
+              }),
+              createdAt: new Date()
+            });
+          } else {
+            results.failed.push({ id: user.id, email: user.email, reason: 'Email delivery failed' });
+          }
+        } catch (error) {
+          console.error(`Error sending activity report to user ${user.id}:`, error);
+          results.failed.push({ 
+            id: user.id, 
+            email: user.email, 
+            reason: error instanceof Error ? error.message : 'Unknown error' 
+          });
+        }
+      }
+      
+      // Return results
+      res.json({
+        success: results.success.length,
+        failed: results.failed.length,
+        details: results
+      });
+      
+    } catch (error) {
+      console.error("Error sending activity reports:", error);
+      res.status(500).json({ error: "Failed to send activity reports" });
     }
   });
 

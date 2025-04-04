@@ -424,6 +424,74 @@ router.post('/downgrade-subscription', async (req, res) => {
   }
 });
 
+// Cancel subscription endpoint (End Premium)
+router.post('/cancel-subscription', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'You must be logged in to cancel your subscription' });
+  }
+
+  // Check if Stripe is configured
+  if (!isStripeConfigured || !stripe) {
+    console.error('Cancel subscription attempt when Stripe is not configured');
+    return res.status(503).json({ 
+      error: 'Payment system is currently unavailable. Please try again later.',
+      details: 'Stripe integration is not configured'
+    });
+  }
+
+  try {
+    const userId = req.user.id;
+    console.log('Processing subscription cancellation for user:', userId);
+
+    // Find the user's subscription in our database
+    const [subscription] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .limit(1);
+
+    if (!subscription || subscription.status !== 'active') {
+      return res.status(400).json({ error: 'No active subscription found to cancel' });
+    }
+
+    // If there's a Stripe subscription ID, cancel it in Stripe
+    if (subscription.stripeSubscriptionId) {
+      try {
+        await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
+        console.log('Stripe subscription cancelled:', subscription.stripeSubscriptionId);
+      } catch (stripeError) {
+        console.error('Error cancelling Stripe subscription:', stripeError);
+        // Continue with local cancellation even if Stripe fails
+      }
+    }
+
+    // Update our database to reflect the cancellation
+    await db
+      .update(subscriptions)
+      .set({
+        status: 'canceled',
+        isPro: false,
+        updatedAt: new Date(),
+        endedAt: new Date()
+      })
+      .where(eq(subscriptions.userId, userId));
+
+    console.log('Subscription cancelled in database for user:', userId);
+
+    // Return success response
+    res.json({ 
+      success: true,
+      message: 'Your premium subscription has been cancelled'
+    });
+  } catch (error) {
+    console.error('Subscription cancellation error:', error);
+    res.status(500).json({
+      error: 'Failed to cancel subscription',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // Add new test endpoint for sending welcome email
 router.post('/test-send-welcome-email/:userId', async (req, res) => {
   try {

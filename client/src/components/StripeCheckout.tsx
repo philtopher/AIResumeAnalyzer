@@ -3,10 +3,13 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 // Make sure to call loadStripe outside of a component's render to avoid
 // recreating the Stripe object on every render
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY, {
+  apiVersion: '2023-10-16', // Latest version as of implementation
+});
 
 interface CheckoutFormProps {
   clientSecret: string;
@@ -130,11 +133,40 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
     appearance: {
       theme: 'stripe' as const,
     },
+    payment_method_types: ['card', 'apple_pay', 'google_pay'],
+    wallets: {
+      applePay: 'auto',
+      googlePay: 'auto'
+    }
   };
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h3 className="text-lg font-semibold mb-4">Complete your subscription</h3>
+      
+      <div className="mb-6">
+        <div className="flex justify-center items-center mb-3">
+          <div className="text-sm text-gray-500 mr-3">Pay with</div>
+          <div className="flex space-x-4 items-center">
+            <img 
+              src="/attached_assets/apple-pay2.png" 
+              alt="Apple Pay" 
+              className="h-8 object-contain" 
+            />
+            <img 
+              src="/attached_assets/google-pay.png" 
+              alt="Google Pay" 
+              className="h-8 object-contain" 
+            />
+          </div>
+        </div>
+        <div className="flex items-center my-4">
+          <Separator className="flex-grow" />
+          <span className="px-2 text-xs text-gray-500">OR PAY WITH CARD</span>
+          <Separator className="flex-grow" />
+        </div>
+      </div>
+      
       <Elements stripe={stripePromise} options={options}>
         <CheckoutForm 
           clientSecret={clientSecret} 
@@ -142,6 +174,11 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
           onError={onError}
         />
       </Elements>
+      
+      <div className="mt-6 text-center text-sm text-gray-500">
+        <p>Your payment is secure and encrypted.</p>
+        <p className="mt-1">You can cancel your subscription anytime from your account settings.</p>
+      </div>
     </div>
   );
 }
