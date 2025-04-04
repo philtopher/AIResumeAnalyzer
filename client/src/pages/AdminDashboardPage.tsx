@@ -182,21 +182,41 @@ function AdminDashboardPage() {
 
   const sendActivityReport = async (userId: number) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/activity-report`, {
+      // This now matches our server-side implementation that sends individual reports
+      const response = await fetch(`/api/admin/send-activity-report`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
+        body: JSON.stringify({
+          userIds: [userId] // Send only to the selected user
+        }),
       });
 
-      if (!response.ok) throw new Error(await response.text());
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to send activity report");
+      }
 
-      toast({
-        title: "Success",
-        description: "Activity report has been sent to the user's email",
-      });
+      const result = await response.json();
+
+      if (result.success > 0) {
+        toast({
+          title: "Success",
+          description: "Activity report has been sent to the user's email",
+        });
+      } else {
+        toast({
+          title: "Warning",
+          description: "Failed to send activity report to user", 
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
       });
     }

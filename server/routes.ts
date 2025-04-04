@@ -598,21 +598,10 @@ export function registerRoutes(app: Express): Express {
         return res.status(403).json({ error: "Not authorized" });
       }
       
-      const { userIds, reportData } = req.body;
+      const { userIds } = req.body;
       
       if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
         return res.status(400).json({ error: "User IDs are required" });
-      }
-      
-      if (!reportData) {
-        return res.status(400).json({ error: "Report data is required" });
-      }
-      
-      const requiredFields = ['period', 'totalCVs', 'successfulTransformations', 'failedTransformations'];
-      for (const field of requiredFields) {
-        if (reportData[field] === undefined) {
-          return res.status(400).json({ error: `Report data is missing required field: ${field}` });
-        }
       }
       
       // Fetch users
@@ -628,18 +617,97 @@ export function registerRoutes(app: Express): Express {
         failed: [] as {id: number, email: string, reason: string}[]
       };
       
-      // Send reports to each user
+      // Send individual reports to each user
       for (const user of usersList) {
         if (!user.email) {
           results.failed.push({ id: user.id, email: 'missing', reason: 'No email address' });
           continue;
         }
-        
+
         try {
+          // Get user-specific activity data
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+          // Get user's CV count
+          const userCVs = await db.query.cvs.findMany({
+            where: eq(cvs.userId, user.id),
+            columns: {
+              id: true,
+              status: true,
+              createdAt: true
+            }
+          });
+          
+          // Calculate successful and failed transformations
+          const successfulTransformations = userCVs.filter(cv => cv.status === 'completed').length;
+          const failedTransformations = userCVs.filter(cv => cv.status === 'failed').length;
+          
+          // Get recent CV roles if available
+          const userCVsWithRoles = await db.query.cvs.findMany({
+            where: eq(cvs.userId, user.id),
+            columns: {
+              id: true,
+              targetRole: true
+            },
+            orderBy: desc(cvs.createdAt),
+            limit: 10
+          });
+          
+          // Calculate popular roles
+          const roleCount: Record<string, number> = {};
+          userCVsWithRoles.forEach(cv => {
+            if (cv.targetRole) {
+              roleCount[cv.targetRole] = (roleCount[cv.targetRole] || 0) + 1;
+            }
+          });
+          
+          const popularRoles = Object.entries(roleCount)
+            .map(([role, count]) => ({ role, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5);
+          
+          // Calculate usage by day
+          const usageByDay: Record<string, number> = {};
+          const now = new Date();
+          const lastThirtyDays = Array.from({length: 30}, (_, i) => {
+            const date = new Date();
+            date.setDate(now.getDate() - i);
+            return date.toISOString().split('T')[0];
+          });
+          
+          // Initialize days with zero
+          lastThirtyDays.forEach(day => {
+            usageByDay[day] = 0;
+          });
+          
+          // Populate with actual usage
+          userCVs.forEach(cv => {
+            if (cv.createdAt) {
+              const day = cv.createdAt.toISOString().split('T')[0];
+              if (usageByDay[day] !== undefined) {
+                usageByDay[day] += 1;
+              }
+            }
+          });
+          
+          // Generate user-specific report data
+          const userReportData = {
+            period: `Last 30 days (${new Date(thirtyDaysAgo).toLocaleDateString()} - ${new Date().toLocaleDateString()})`,
+            totalCVs: userCVs.length,
+            successfulTransformations,
+            failedTransformations,
+            popularRoles,
+            usageByDay,
+            // Average time can be calculated if you have start and end times for transformations
+            averageTransformationTime: 0 // Placeholder for now
+          };
+          
+          // Send the user-specific report
           const sent = await sendActivityReport({
             to: user.email,
             username: user.username,
-            reportData: reportData
+            reportData: userReportData
           });
           
           if (sent) {
@@ -650,7 +718,7 @@ export function registerRoutes(app: Express): Express {
               userId: user.id,
               action: 'activity_report_sent',
               details: JSON.stringify({
-                reportPeriod: reportData.period,
+                reportPeriod: userReportData.period,
                 sentBy: req.user.id
               }),
               createdAt: new Date()
