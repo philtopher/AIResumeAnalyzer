@@ -17,7 +17,14 @@ interface CheckoutFormProps {
   onError: (message: string) => void;
 }
 
-const CheckoutForm = ({ clientSecret, onSuccess, onError }: CheckoutFormProps) => {
+interface CheckoutFormProps {
+  clientSecret: string;
+  onSuccess: () => void;
+  onError: (message: string) => void;
+  planType: 'standard' | 'pro';
+}
+
+const CheckoutForm = ({ clientSecret, onSuccess, onError, planType }: CheckoutFormProps) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -51,18 +58,21 @@ const CheckoutForm = ({ clientSecret, onSuccess, onError }: CheckoutFormProps) =
     setIsProcessing(false);
   };
 
+  // Display the appropriate amount based on plan type
+  const planAmount = planType === 'pro' ? '£15' : '£5';
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <PaymentElement />
+      <PaymentElement className="mb-4" />
       
       {errorMessage && (
-        <div className="text-red-500 text-sm">{errorMessage}</div>
+        <div className="text-red-500 text-sm bg-red-50 p-2 rounded-md">{errorMessage}</div>
       )}
       
       <Button 
         type="submit" 
         disabled={!stripe || isProcessing}
-        className="w-full"
+        className="w-full bg-primary hover:bg-primary/90 text-white"
       >
         {isProcessing ? (
           <>
@@ -70,7 +80,7 @@ const CheckoutForm = ({ clientSecret, onSuccess, onError }: CheckoutFormProps) =
             Processing...
           </>
         ) : (
-          'Pay Now'
+          <>Pay {planAmount} Now</>
         )}
       </Button>
     </form>
@@ -142,22 +152,30 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
-      <h3 className="text-lg font-semibold mb-4">Complete your subscription</h3>
+      <h3 className="text-lg font-semibold mb-4">
+        Complete your {planType === 'pro' ? 'Pro' : 'Standard'} Plan subscription
+      </h3>
       
       <div className="mb-6">
-        <div className="flex justify-center items-center mb-3">
-          <div className="text-sm text-gray-500 mr-3">Pay with</div>
-          <div className="flex space-x-4 items-center">
-            <img 
-              src="/attached_assets/apple-pay2.png" 
-              alt="Apple Pay" 
-              className="h-8 object-contain" 
-            />
-            <img 
-              src="/attached_assets/google-pay.png" 
-              alt="Google Pay" 
-              className="h-8 object-contain" 
-            />
+        <div className="flex justify-center items-center mb-4">
+          <div className="text-sm text-gray-600 mr-3">Pay with</div>
+          <div className="flex space-x-6 items-center">
+            <div className="flex flex-col items-center">
+              <img 
+                src="/attached_assets/apple-pay2.png" 
+                alt="Apple Pay" 
+                className="h-8 w-auto object-contain"
+              />
+              <span className="text-xs text-gray-500 mt-1">Apple Pay</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <img 
+                src="/attached_assets/google-pay.png" 
+                alt="Google Pay" 
+                className="h-8 w-auto object-contain"
+              />
+              <span className="text-xs text-gray-500 mt-1">Google Pay</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center my-4">
@@ -172,11 +190,17 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
           clientSecret={clientSecret} 
           onSuccess={onSuccess}
           onError={onError}
+          planType={planType}
         />
       </Elements>
       
       <div className="mt-6 text-center text-sm text-gray-500">
-        <p>Your payment is secure and encrypted.</p>
+        <p className="font-medium">Your payment is secure and encrypted.</p>
+        <p className="mt-1">
+          {planType === 'pro' 
+            ? 'Pro Plan: £15 for premium features and advanced tools' 
+            : 'Standard Plan: £5 for basic premium features'}
+        </p>
         <p className="mt-1">You can cancel your subscription anytime from your account settings.</p>
       </div>
     </div>

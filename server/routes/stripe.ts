@@ -294,19 +294,22 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object; // Use any type to avoid TS errors
       const userId = parseInt(session.metadata?.userId || '0');
+      const planType = session.metadata?.plan || 'standard'; // Default to standard if not specified
+      const isPro = planType === 'pro';
 
-      console.log('Processing successful checkout for user:', userId);
+      console.log('Processing successful checkout for user:', userId, 'plan:', planType);
 
       if (!userId) {
         throw new Error('Missing userId in session metadata');
       }
 
-      // Update subscription status
+      // Update subscription status with isPro flag based on the plan type
       await db.insert(subscriptions).values({
         userId,
         stripeCustomerId: session.customer as string,
         stripeSubscriptionId: session.subscription as string,
         status: 'active',
+        isPro, // Set the Pro status based on plan type
         createdAt: new Date(),
       });
 
@@ -330,19 +333,31 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           }
 
           console.log('Sending confirmation email to:', user.email);
-          await sendEmail({
-            to: user.email,
-            subject: 'Welcome to CV Transformer Pro!',
-            html: `
-              <h1>Welcome to CV Transformer Pro!</h1>
-              <p>Thank you for upgrading to our Pro Plan! Your subscription is now active.</p>
-              <h2>Your Pro Features Include:</h2>
-              <ul>
+          // Change email content based on plan type
+          const planName = isPro ? 'Pro' : 'Standard';
+          const features = isPro 
+            ? `<ul>
                 <li>Advanced CV Analysis</li>
                 <li>Employer Competitor Analysis</li>
                 <li>Interviewer LinkedIn Insights</li>
                 <li>Unlimited CV Downloads</li>
-              </ul>
+                <li>Premium Support</li>
+              </ul>`
+            : `<ul>
+                <li>CV Transformations</li>
+                <li>Basic CV Analysis</li>
+                <li>Download Transformed CVs</li>
+                <li>Email Support</li>
+              </ul>`;
+              
+          await sendEmail({
+            to: user.email,
+            subject: `Welcome to CV Transformer ${planName} Plan!`,
+            html: `
+              <h1>Welcome to CV Transformer ${planName} Plan!</h1>
+              <p>Thank you for subscribing to our ${planName} Plan! Your subscription is now active.</p>
+              <h2>Your ${planName} Plan Features Include:</h2>
+              ${features}
               <p>Start exploring your new features now by visiting your <a href="${baseUrl}/dashboard">dashboard</a>.</p>
               <p>If you have any questions, our support team is here to help!</p>
               <p>Best regards,<br>CV Transformer Team</p>
@@ -537,19 +552,43 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
 
     console.log('Sending test welcome email to:', user.email);
 
-    await sendEmail({
-      to: user.email,
-      subject: 'Welcome to CV Transformer Pro!',
-      html: `
-        <h1>Welcome to CV Transformer Pro!</h1>
-        <p>Thank you for upgrading to our Pro Plan! Your subscription is now active.</p>
-        <h2>Your Pro Features Include:</h2>
-        <ul>
+    // Check if the subscription is Pro or not
+    let isPro = false;
+    if (isStripeConfigured) {
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, userId))
+        .limit(1);
+      
+      isPro = subscription?.isPro || false;
+    }
+    
+    // Change email content based on plan type
+    const planName = isPro ? 'Pro' : 'Standard';
+    const features = isPro 
+      ? `<ul>
           <li>Advanced CV Analysis</li>
           <li>Employer Competitor Analysis</li>
           <li>Interviewer LinkedIn Insights</li>
           <li>Unlimited CV Downloads</li>
-        </ul>
+          <li>Premium Support</li>
+        </ul>`
+      : `<ul>
+          <li>CV Transformations</li>
+          <li>Basic CV Analysis</li>
+          <li>Download Transformed CVs</li>
+          <li>Email Support</li>
+        </ul>`;
+        
+    await sendEmail({
+      to: user.email,
+      subject: `Welcome to CV Transformer ${planName} Plan!`,
+      html: `
+        <h1>Welcome to CV Transformer ${planName} Plan!</h1>
+        <p>Thank you for subscribing to our ${planName} Plan! Your subscription is now active.</p>
+        <h2>Your ${planName} Plan Features Include:</h2>
+        ${features}
         <p>Start exploring your new features now by visiting your <a href="${baseUrl}/dashboard">dashboard</a>.</p>
         <p>If you have any questions, our support team is here to help!</p>
         <p>Best regards,<br>CV Transformer Team</p>
