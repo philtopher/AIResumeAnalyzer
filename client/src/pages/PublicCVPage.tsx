@@ -144,197 +144,83 @@ export default function PublicCVPage() {
         <div className="max-w-2xl mx-auto">
           <Card>
             <CardContent className="pt-6">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* File upload section with warning message */}
-                <div className="space-y-2">
-                  <Label htmlFor="cv">Upload CV (PDF or DOCX)</Label>
-                  <div className="border rounded-md p-4">
-                    <Input
-                      id="cv"
-                      type="file"
-                      accept=".pdf,.docx"
-                      onChange={(e) => setFile(e.target.files?.[0] || null)}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="cv"
-                      className="flex flex-col items-center gap-2 cursor-pointer"
-                    >
-                      <Upload className="h-8 w-8 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">
-                        {file ? file.name : "Click to upload"}
-                      </span>
-                    </label>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    <span className="font-medium text-yellow-600">Note:</span> Your CV will be processed in real-time and automatically deleted after transformation. We do not store your CV permanently.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="role">Target Role</Label>
-                  <Input id="role" name="role" required />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Job Description</Label>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    rows={5}
-                    required
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full transition-all duration-200 hover:scale-[1.02]"
-                  disabled={isProcessing || !file}
-                >
-                  {isProcessing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Transform CV"
-                  )}
-                </Button>
-              </form>
-
-              {transformedCV && (
-                <div className="mt-8 space-y-6">
-                  <div>
-                    <h3 className="font-medium mb-2">Transformed CV</h3>
-                    <div className="flex gap-2 mb-4">
-                      <Button
-                        variant="secondary"
-                        onClick={handleView}
-                        className="transition-all duration-200 hover:scale-[1.02]"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={handleDownload}
-                        className="transition-all duration-200 hover:scale-[1.02]"
-                      >
-                        <Download className="h-4 w-4 mr-1" />
-                        Download as Word
+              <div className="text-center space-y-6 py-8">
+                <h2 className="text-3xl font-bold">Upgrade Your Career with AI-Powered CV Transformation</h2>
+                <p className="text-muted-foreground">
+                  Our AI-powered CV transformation service helps you stand out from the competition by tailoring your CV to specific job roles and descriptions.
+                </p>
+                
+                <div className="bg-primary/10 p-6 rounded-lg my-8">
+                  <h3 className="text-xl font-semibold mb-4">Choose a Subscription Plan</h3>
+                  
+                  <div className="grid gap-6 md:grid-cols-3 mb-6">
+                    {/* Basic Plan */}
+                    <div className="border rounded-lg p-4 flex flex-col">
+                      <h4 className="font-bold text-lg">Basic Plan</h4>
+                      <p className="text-2xl font-bold my-2">£3 <span className="text-sm font-normal">/month</span></p>
+                      <ul className="list-disc list-inside text-sm space-y-2 mb-4 flex-grow">
+                        <li>10 CV transformations per month</li>
+                        <li>AI-powered CV analysis</li>
+                        <li>Job-specific optimization</li>
+                      </ul>
+                      <Button variant="outline" className="w-full" onClick={() => window.location.href = "/register"}>
+                        Choose Basic
                       </Button>
                     </div>
-
-                    {transformedContent && (
-                      <div className="bg-muted p-4 rounded-md mt-4">
-                        <pre className="whitespace-pre-wrap text-sm">
-                          {transformedContent}
-                        </pre>
+                    
+                    {/* Standard Plan */}
+                    <div className="border rounded-lg p-4 flex flex-col relative bg-primary/5">
+                      <div className="absolute -top-3 left-0 right-0 flex justify-center">
+                        <span className="bg-primary text-primary-foreground text-xs px-3 py-1 rounded-full">
+                          POPULAR
+                        </span>
                       </div>
-                    )}
+                      <h4 className="font-bold text-lg">Standard Plan</h4>
+                      <p className="text-2xl font-bold my-2">£5 <span className="text-sm font-normal">/month</span></p>
+                      <ul className="list-disc list-inside text-sm space-y-2 mb-4 flex-grow">
+                        <li>20 CV transformations per month</li>
+                        <li>AI-powered CV analysis</li>
+                        <li>Job-specific optimization</li>
+                        <li>Advanced competition insights</li>
+                      </ul>
+                      <Button className="w-full" onClick={() => window.location.href = "/register"}>
+                        Choose Standard
+                      </Button>
+                    </div>
+                    
+                    {/* Pro Plan */}
+                    <div className="border rounded-lg p-4 flex flex-col">
+                      <h4 className="font-bold text-lg">Pro Plan</h4>
+                      <p className="text-2xl font-bold my-2">£30 <span className="text-sm font-normal">/month</span></p>
+                      <ul className="list-disc list-inside text-sm space-y-2 mb-4 flex-grow">
+                        <li>Unlimited CV transformations</li>
+                        <li>Priority processing</li>
+                        <li>Enhanced feedback & analysis</li>
+                        <li>Organizational insights</li>
+                        <li>Interviewer analysis tools</li>
+                      </ul>
+                      <Button variant="outline" className="w-full" onClick={() => window.location.href = "/register"}>
+                        Choose Pro
+                      </Button>
+                    </div>
                   </div>
-
-                  {transformedCV.feedback && (
-                    <>
-                      <div className="space-y-4">
-                        <h3 className="font-medium">Analysis & Feedback</h3>
-                        <div className="grid gap-4">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-5 w-5 text-green-500" />
-                              <h4 className="font-medium">Strengths</h4>
-                            </div>
-                            <ul className="list-disc list-inside text-sm text-muted-foreground">
-                              {transformedCV.feedback.strengths.map(
-                                (strength: string, i: number) => (
-                                  <li key={i}>{strength}</li>
-                                )
-                              )}
-                            </ul>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <XCircle className="h-5 w-5 text-red-500" />
-                              <h4 className="font-medium">Areas for Improvement</h4>
-                            </div>
-                            <ul className="list-disc list-inside text-sm text-muted-foreground">
-                              {transformedCV.feedback.weaknesses.map(
-                                (weakness: string, i: number) => (
-                                  <li key={i}>{weakness}</li>
-                                )
-                              )}
-                            </ul>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Lightbulb className="h-5 w-5 text-yellow-500" />
-                              <h4 className="font-medium">Suggestions</h4>
-                            </div>
-                            <ul className="list-disc list-inside text-sm text-muted-foreground">
-                              {transformedCV.feedback.suggestions.map(
-                                (suggestion: string, i: number) => (
-                                  <li key={i}>{suggestion}</li>
-                                )
-                              )}
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-
-                      {transformedCV.feedback.organizationalInsights && (
-                        <div className="space-y-4">
-                          <h3 className="font-medium">Organization Insights</h3>
-                          <div className="grid gap-4">
-                            {/* Glassdoor Reviews */}
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Building className="h-5 w-5 text-blue-500" />
-                                <h4 className="font-medium">Glassdoor Reviews</h4>
-                              </div>
-                              <ul className="list-disc list-inside text-sm text-muted-foreground">
-                                {(transformedCV.feedback.organizationalInsights[0] || []).map(
-                                  (insight: string, i: number) => (
-                                    <li key={i}>{insight}</li>
-                                  )
-                                )}
-                              </ul>
-                            </div>
-
-                            {/* Indeed Reviews */}
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <MessageSquare className="h-5 w-5 text-purple-500" />
-                                <h4 className="font-medium">Indeed Reviews</h4>
-                              </div>
-                              <ul className="list-disc list-inside text-sm text-muted-foreground">
-                                {(transformedCV.feedback.organizationalInsights[1] || []).map(
-                                  (insight: string, i: number) => (
-                                    <li key={i}>{insight}</li>
-                                  )
-                                )}
-                              </ul>
-                            </div>
-
-                            {/* Latest News */}
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Newspaper className="h-5 w-5 text-orange-500" />
-                                <h4 className="font-medium">Latest News</h4>
-                              </div>
-                              <ul className="list-disc list-inside text-sm text-muted-foreground">
-                                {(transformedCV.feedback.organizationalInsights[2] || []).map(
-                                  (insight: string, i: number) => (
-                                    <li key={i}>{insight}</li>
-                                  )
-                                )}
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
+                  
+                  <p className="text-sm text-muted-foreground">
+                    All plans include secure payment processing and SSL encryption. 
+                    Cancel anytime. No free trials available.
+                  </p>
                 </div>
-              )}
+                
+                <div className="flex justify-center">
+                  <Button 
+                    size="lg" 
+                    className="animate-pulse"
+                    onClick={() => window.location.href = "/register"}
+                  >
+                    Get Started Now
+                  </Button>
+                </div>
+              </div>
               {/* Add feedback form section */}
               <div className="mt-12 pt-8 border-t">
                 <h2 className="text-2xl font-semibold mb-6">Send Us Your Feedback</h2>
