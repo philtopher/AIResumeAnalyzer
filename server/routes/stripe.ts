@@ -343,7 +343,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         stripeSubscriptionId: session.subscription as string,
         status: 'active',
         isPro, // Keeping for backward compatibility
-        tier: planType, // Subscription plan: 'basic', 'standard', or 'pro'
+        tier: planType, // Subscription plan level: 'basic', 'standard', or 'pro'
         monthlyLimit, // Number of transformations allowed per month
         conversionsUsed: 0, // Reset usage counter
         lastResetDate: new Date(), // Set reset date to now
@@ -495,7 +495,7 @@ router.post('/downgrade-subscription', async (req, res) => {
       });
     }
     
-    console.log(`Downgrading user ${userId} from ${subscription.tier} to ${targetPlan}`);
+    console.log(`Downgrading user ${userId} from ${subscription.tier} subscription plan to ${targetPlan} subscription plan`);
     
     // Update our database to reflect the downgrade - this takes effect immediately
     // Note: The actual Stripe subscription changes would happen at the end of the billing period
@@ -569,7 +569,7 @@ router.post('/cancel-subscription', async (req, res) => {
     }
 
     // Get the subscription plan name for the response message
-    const tierName = subscription.tier || (subscription.isPro ? 'pro' : 'standard');
+    const planName = subscription.tier || (subscription.isPro ? 'pro' : 'standard');
     
     // Update our database to reflect the cancellation
     await db
@@ -583,13 +583,13 @@ router.post('/cancel-subscription', async (req, res) => {
       })
       .where(eq(subscriptions.userId, userId));
 
-    console.log('Subscription cancelled in database for user:', userId, 'previous subscription plan:', tierName);
+    console.log('Subscription cancelled in database for user:', userId, 'previous subscription plan:', planName);
 
     // Return success response
     res.json({ 
       success: true,
-      message: `Your ${tierName} subscription has been cancelled`,
-      previousTier: tierName
+      message: `Your ${planName} subscription plan has been cancelled`,
+      previousTier: planName
     });
   } catch (error) {
     console.error('Subscription cancellation error:', error);
