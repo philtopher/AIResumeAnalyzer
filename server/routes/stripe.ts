@@ -319,28 +319,41 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object; // Use any type to avoid TS errors
       const userId = parseInt(session.metadata?.userId || '0');
-      const planType = session.metadata?.plan || 'standard'; // Default to standard if not specified
+      const planType = session.metadata?.plan || 'basic'; // Default to basic if not specified
       const isPro = planType === 'pro';
+      
+      // Determine monthly conversion limits based on tier
+      let monthlyLimit = 10; // Default for basic tier
+      if (planType === 'standard') {
+        monthlyLimit = 20;
+      } else if (planType === 'pro') {
+        monthlyLimit = 9999; // Essentially unlimited
+      }
 
-      console.log('Processing successful checkout for user:', userId, 'plan:', planType);
+      console.log('Processing successful checkout for user:', userId, 'plan:', planType, 'monthly limit:', monthlyLimit);
 
       if (!userId) {
         throw new Error('Missing userId in session metadata');
       }
 
-      // Update subscription status with isPro flag based on the plan type
+      // Insert or update subscription with tier information
       await db.insert(subscriptions).values({
         userId,
         stripeCustomerId: session.customer as string,
         stripeSubscriptionId: session.subscription as string,
         status: 'active',
-        isPro, // Set the Pro status based on plan type
+        isPro, // Keeping for backward compatibility
+        tier: planType, // New field: 'basic', 'standard', or 'pro'
+        monthlyLimit, // Number of transformations allowed per month
+        conversionsUsed: 0, // Reset usage counter
+        lastResetDate: new Date(), // Set reset date to now
         createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
-      console.log('Subscription record created for user:', userId);
+      console.log('Subscription record created for user:', userId, 'tier:', planType);
 
-      // Send confirmation email
+      // Send confirmation email with tier-specific content
       try {
         const [user] = await db.query.users.findMany({
           where: eq(users.id, userId),
@@ -358,22 +371,40 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           }
 
           console.log('Sending confirmation email to:', user.email);
-          // Change email content based on plan type
-          const planName = isPro ? 'Pro' : 'Standard';
-          const features = isPro 
-            ? `<ul>
-                <li>Advanced CV Analysis</li>
-                <li>Employer Competitor Analysis</li>
-                <li>Interviewer LinkedIn Insights</li>
-                <li>Unlimited CV Downloads</li>
-                <li>Premium Support</li>
-              </ul>`
-            : `<ul>
-                <li>CV Transformations</li>
-                <li>Basic CV Analysis</li>
-                <li>Download Transformed CVs</li>
-                <li>Email Support</li>
-              </ul>`;
+          
+          // Change email content based on subscription tier
+          let planName = 'Basic';
+          let conversionsText = '10 CV transformations per month';
+          let features = '';
+          
+          if (planType === 'standard') {
+            planName = 'Standard';
+            conversionsText = '20 CV transformations per month';
+            features = `<ul>
+              <li>${conversionsText}</li>
+              <li>Basic CV Analysis</li>
+              <li>Download Transformed CVs</li>
+              <li>Email Support</li>
+            </ul>`;
+          } else if (planType === 'pro') {
+            planName = 'Pro';
+            conversionsText = 'Unlimited CV transformations';
+            features = `<ul>
+              <li>${conversionsText}</li>
+              <li>Advanced CV Analysis</li>
+              <li>Employer Competitor Analysis</li>
+              <li>Interviewer LinkedIn Insights</li>
+              <li>Priority Email Support</li>
+            </ul>`;
+          } else {
+            // Basic tier
+            features = `<ul>
+              <li>${conversionsText}</li>
+              <li>Basic CV Analysis</li>
+              <li>Download Transformed CVs</li>
+              <li>Email Support</li>
+            </ul>`;
+          }
               
           await sendEmail({
             to: user.email,
@@ -437,23 +468,52 @@ router.post('/downgrade-subscription', async (req, res) => {
       return res.status(400).json({ error: 'No active subscription found to downgrade' });
     }
 
-    // Update our database to reflect the downgrade
-    // Mark isPro as false in the DB - this will take effect immediately since we're not actually changing
-    // the Stripe subscription (which would happen at the end of the billing period)
+    // Get target downgrade plan from request body with default to 'standard'
+    const targetPlan = req.body.targetPlan || 'standard';
+    
+    // Determine monthly conversion limits based on target tier
+    let monthlyLimit = 20; // Default for standard tier downgrade
+    
+    if (targetPlan === 'basic') {
+      monthlyLimit = 10;
+    }
+    
+    // Validate the target plan is valid
+    if (targetPlan !== 'standard' && targetPlan !== 'basic') {
+      return res.status(400).json({ error: 'Invalid target plan. Must be "standard" or "basic"' });
+    }
+    
+    // Check if the subscription is already at or below the requested tier
+    if ((targetPlan === 'standard' && subscription.tier === 'basic') || 
+        (targetPlan === 'basic' && subscription.tier === 'basic')) {
+      return res.status(400).json({ 
+        error: `Cannot downgrade from ${subscription.tier} to ${targetPlan} tier`,
+        message: `Your current tier (${subscription.tier}) is already at or below the requested tier (${targetPlan})`
+      });
+    }
+    
+    console.log(`Downgrading user ${userId} from ${subscription.tier} to ${targetPlan}`);
+    
+    // Update our database to reflect the downgrade - this takes effect immediately
+    // Note: The actual Stripe subscription changes would happen at the end of the billing period
     await db
       .update(subscriptions)
       .set({
-        isPro: false,
+        isPro: targetPlan === 'pro', // Keep backward compatibility
+        tier: targetPlan,
+        monthlyLimit,
         updatedAt: new Date()
       })
       .where(eq(subscriptions.userId, userId));
 
-    console.log('Subscription downgraded in database for user:', userId);
+    console.log(`Subscription downgraded in database for user: ${userId} to ${targetPlan} tier`);
 
     // Return success response
     res.json({ 
       success: true,
-      message: 'Your subscription has been downgraded to the Standard Plan'
+      message: `Your subscription has been downgraded to the ${targetPlan.charAt(0).toUpperCase()}${targetPlan.slice(1)} Plan`,
+      tier: targetPlan,
+      monthlyLimit
     });
   } catch (error) {
     console.error('Subscription downgrade error:', error);
@@ -505,23 +565,28 @@ router.post('/cancel-subscription', async (req, res) => {
       }
     }
 
+    // Get the tier name for the response message
+    const tierName = subscription.tier || (subscription.isPro ? 'pro' : 'standard');
+    
     // Update our database to reflect the cancellation
     await db
       .update(subscriptions)
       .set({
         status: 'canceled',
         isPro: false,
+        // Keep the original tier for reference but mark the status as canceled
         updatedAt: new Date(),
         endedAt: new Date()
       })
       .where(eq(subscriptions.userId, userId));
 
-    console.log('Subscription cancelled in database for user:', userId);
+    console.log('Subscription cancelled in database for user:', userId, 'previous tier:', tierName);
 
     // Return success response
     res.json({ 
       success: true,
-      message: 'Your premium subscription has been cancelled'
+      message: `Your ${tierName} subscription has been cancelled`,
+      previousTier: tierName
     });
   } catch (error) {
     console.error('Subscription cancellation error:', error);
@@ -577,8 +642,10 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
 
     console.log('Sending test welcome email to:', user.email);
 
-    // Check if the subscription is Pro or not
-    let isPro = false;
+    // Get the user's subscription tier
+    let tier = 'basic'; // Default to basic tier
+    let monthlyLimit = 10; // Default for basic tier
+    
     if (isStripeConfigured) {
       const [subscription] = await db
         .select()
@@ -586,25 +653,45 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
         .where(eq(subscriptions.userId, userId))
         .limit(1);
       
-      isPro = subscription?.isPro || false;
+      if (subscription) {
+        tier = subscription.tier || (subscription.isPro ? 'pro' : 'standard');
+        monthlyLimit = subscription.monthlyLimit || (tier === 'pro' ? 9999 : tier === 'standard' ? 20 : 10);
+      }
     }
     
-    // Change email content based on plan type
-    const planName = isPro ? 'Pro' : 'Standard';
-    const features = isPro 
-      ? `<ul>
-          <li>Advanced CV Analysis</li>
-          <li>Employer Competitor Analysis</li>
-          <li>Interviewer LinkedIn Insights</li>
-          <li>Unlimited CV Downloads</li>
-          <li>Premium Support</li>
-        </ul>`
-      : `<ul>
-          <li>CV Transformations</li>
-          <li>Basic CV Analysis</li>
-          <li>Download Transformed CVs</li>
-          <li>Email Support</li>
-        </ul>`;
+    // Change email content based on subscription tier
+    let planName = 'Basic';
+    let conversionsText = '10 CV transformations per month';
+    let features = '';
+    
+    if (tier === 'standard') {
+      planName = 'Standard';
+      conversionsText = '20 CV transformations per month';
+      features = `<ul>
+        <li>${conversionsText}</li>
+        <li>Basic CV Analysis</li>
+        <li>Download Transformed CVs</li>
+        <li>Email Support</li>
+      </ul>`;
+    } else if (tier === 'pro') {
+      planName = 'Pro';
+      conversionsText = 'Unlimited CV transformations';
+      features = `<ul>
+        <li>${conversionsText}</li>
+        <li>Advanced CV Analysis</li>
+        <li>Employer Competitor Analysis</li>
+        <li>Interviewer LinkedIn Insights</li>
+        <li>Priority Email Support</li>
+      </ul>`;
+    } else {
+      // Basic tier
+      features = `<ul>
+        <li>${conversionsText}</li>
+        <li>Basic CV Analysis</li>
+        <li>Download Transformed CVs</li>
+        <li>Email Support</li>
+      </ul>`;
+    }
         
     await sendEmail({
       to: user.email,
