@@ -1,16 +1,39 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, EyeOff } from "lucide-react";
-import { usePasswordStrength } from "@/hooks/use-password-strength";
-import { AnimatePresence, motion } from "framer-motion";
-import { apiRequest } from "@/lib/queryClient";
-import StripeCheckout from "@/components/StripeCheckout";
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useNavigate } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { 
+  Form, 
+  FormControl, 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormMessage
+} from '@/components/ui/form';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
+import StripeCheckout from '@/components/StripeCheckout';
 
+// Create a schema for form validation
+const registerFormSchema = z.object({
+  username: z.string().min(3, {
+    message: "Username must be at least 3 characters."
+  }),
+  email: z.string().email({
+    message: "Please enter a valid email address."
+  }),
+  password: z.string().min(8, {
+    message: "Password must be at least 8 characters."
+  }),
+});
+
+// Define the form values type from the schema
+type RegisterFormValues = z.infer<typeof registerFormSchema>;
+
+// Define the data structure for registration requests
 interface RegistrationData {
   username: string;
   email: string;
@@ -18,281 +41,216 @@ interface RegistrationData {
 }
 
 export default function RegisterPage() {
-  const [, setLocation] = useLocation();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tempUserId, setTempUserId] = useState<number | null>(null);
+  const [showPayment, setShowPayment] = useState(false);
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const { score, feedback, color, label } = usePasswordStrength(password);
 
-  // Stage of the registration process
-  // 1. form - Initial registration form
-  // 2. payment - Payment stage with Stripe
-  const [stage, setStage] = useState<"form" | "payment">("form");
-  
-  // Store temporary user data after form submission, before payment
-  const [tempUserData, setTempUserData] = useState<{ id: number; username: string } | null>(null);
-  const [clientSecret, setClientSecret] = useState<string>("");
+  const form = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerFormSchema),
+    defaultValues: {
+      username: '',
+      email: '',
+      password: '',
+    },
+  });
 
   async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setIsLoading(true);
+    form.handleSubmit(async (data) => {
+      try {
+        setIsSubmitting(true);
+        
+        // Create a temporary registration to get a user ID
+        const registrationData: RegistrationData = {
+          username: data.username,
+          email: data.email,
+          password: data.password
+        };
 
-    // Validate form data
-    if (password !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
+        const response = await apiRequest('POST', '/api/register-temp', registrationData);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || 'Registration failed');
+        }
 
-    if (score < 2) {
-      toast({
-        title: "Weak Password",
-        description: "Please choose a stronger password for better security.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    const registrationData: RegistrationData = {
-      username,
-      email,
-      password
-    };
-
-    try {
-      // Create a temporary user record
-      const response = await apiRequest("POST", "/api/register-temp", registrationData);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Registration failed');
+        const responseData = await response.json();
+        setTempUserId(responseData.userId);
+        setShowPayment(true);
+        
+        toast({
+          title: "Step 1 complete",
+          description: "Please complete your payment to activate your account.",
+        });
+      } catch (error) {
+        toast({
+          title: "Registration failed",
+          description: error instanceof Error ? error.message : 'An unexpected error occurred',
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
       }
-
-      const data = await response.json();
-      setTempUserData(data.user);
-      
-      // Initialize payment flow
-      const paymentResponse = await apiRequest("POST", "/api/create-checkout-session", {
-        plan: "basic", // Default to basic plan for registration
-        userId: data.user.id
-      });
-      
-      if (!paymentResponse.ok) {
-        const errorData = await paymentResponse.json();
-        throw new Error(errorData.message || 'Payment initialization failed');
-      }
-      
-      const paymentData = await paymentResponse.json();
-      
-      // Redirect to Stripe checkout page
-      window.location.href = paymentData.url;
-      
-    } catch (error: any) {
-      toast({
-        title: "Registration Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    })(e);
   }
 
   function handlePaymentSuccess() {
     toast({
-      title: "Payment Successful",
-      description: "Your registration is now complete. Redirecting to dashboard...",
+      title: "Payment successful",
+      description: "Your account has been created and subscription activated.",
     });
-    setTimeout(() => {
-      setLocation("/dashboard");
-    }, 2000);
+    navigate('/');
   }
 
   function handlePaymentError(message: string) {
     toast({
-      title: "Payment Failed",
+      title: "Payment failed",
       description: message,
       variant: "destructive",
     });
-    setStage("form");
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>{stage === "form" ? "Create Account" : "Complete Payment"}</CardTitle>
-          {stage === "form" && (
-            <CardDescription>
-              Register for CV Transformer with a £3 Basic Plan subscription
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent>
-          {stage === "form" ? (
-            <form onSubmit={handleFormSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary"
-                />
-              </div>
+    <div className="container mx-auto px-4 py-10 max-w-6xl">
+      <div className="flex flex-col md:flex-row bg-card rounded-xl shadow-lg overflow-hidden">
+        {/* Left side - Form */}
+        <div className="md:w-1/2 p-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2">
+              {showPayment ? 'Complete Your Registration' : 'Create an Account'}
+            </h1>
+            <p className="text-muted-foreground">
+              {showPayment 
+                ? 'Please select a subscription plan to continue.'
+                : 'Sign up to get started with CV transformation.'}
+            </p>
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    disabled={isLoading}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-
-                <AnimatePresence>
-                  {password && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="space-y-2"
-                    >
-                      <div className="flex gap-1 mt-1">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className={`h-2 flex-1 rounded-full transition-colors ${
-                              i < score
-                                ? `bg-${color}-500`
-                                : "bg-gray-200 dark:bg-gray-700"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <p
-                        className={`text-xs font-medium text-${color}-600 dark:text-${color}-400`}
-                      >
-                        {label}
-                      </p>
-                      {feedback.length > 0 && (
-                        <ul className="text-xs text-gray-500 space-y-1 mt-1 list-disc pl-4">
-                          {feedback.map((tip, i) => (
-                            <li key={i}>{tip}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </motion.div>
+          {!showPayment ? (
+            <Form {...form}>
+              <form onSubmit={handleFormSubmit} className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your username" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </AnimatePresence>
-              </div>
+                />
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    disabled={isLoading}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="text-sm text-red-500">Passwords do not match</p>
-                )}
-              </div>
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="email" 
+                          placeholder="Enter your email" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <Button
-                type="submit"
-                className="w-full transition-all duration-200 hover:scale-[1.02]"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Continue to Payment (£3/month)"
-                )}
-              </Button>
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="password" 
+                          placeholder="Create a password" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <div className="mt-4 text-center">
-                <button
-                  className="text-sm text-muted-foreground hover:underline transition-colors"
-                  onClick={() => setLocation("/login")}
-                  type="button"
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isSubmitting}
                 >
-                  Already have an account? Login
-                </button>
-              </div>
-            </form>
+                  {isSubmitting ? 'Creating account...' : 'Continue to Payment'}
+                </Button>
+
+                <p className="text-sm text-center mt-4">
+                  Already have an account?{' '}
+                  <a href="/login" className="text-primary hover:underline">
+                    Sign in
+                  </a>
+                </p>
+              </form>
+            </Form>
           ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Please complete your payment to activate your account. You will be charged £3 for the Basic Plan subscription.
-              </p>
-              
-              {clientSecret && (
-                <StripeCheckout 
+            <div className="mt-6">
+              {tempUserId && (
+                <StripeCheckout
                   planType="basic"
                   onSuccess={handlePaymentSuccess}
                   onError={handlePaymentError}
+                  isRegistration={true}
+                  userId={tempUserId}
                 />
               )}
-              
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setStage("form")}
-                disabled={isLoading}
-              >
-                Back to Registration
-              </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Right side - Hero */}
+        <div className="md:w-1/2 bg-primary p-8 text-white flex flex-col justify-center">
+          <h2 className="text-2xl font-bold mb-4">
+            Transform Your CV for Any Job
+          </h2>
+          <p className="mb-6">
+            Create a CV that gets results with our AI-powered CV transformation.
+          </p>
+          
+          <div className="space-y-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0 bg-white rounded-full p-1 mr-3">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p>Tailor your CV to specific job descriptions</p>
+            </div>
+            
+            <div className="flex items-start">
+              <div className="flex-shrink-0 bg-white rounded-full p-1 mr-3">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p>Get insights on how to improve your CV</p>
+            </div>
+            
+            <div className="flex items-start">
+              <div className="flex-shrink-0 bg-white rounded-full p-1 mr-3">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p>Advanced AI technology to highlight your strengths</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -19,7 +19,7 @@ interface CheckoutFormProps {
   isRegistration?: boolean;
 }
 
-const CheckoutForm = ({ clientSecret, onSuccess, onError, planType }: CheckoutFormProps) => {
+const CheckoutForm = ({ clientSecret, onSuccess, onError, planType, isRegistration }: CheckoutFormProps) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -34,11 +34,16 @@ const CheckoutForm = ({ clientSecret, onSuccess, onError, planType }: CheckoutFo
 
     setIsProcessing(true);
 
+    // Determine return URL based on flow (registration vs subscription upgrade)
+    const returnUrl = isRegistration 
+      ? window.location.origin + '/registration-complete'
+      : window.location.origin + '/payment-success';
+
     // Confirm payment with Stripe
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.origin + '/payment-success',
+        return_url: returnUrl,
       },
       redirect: 'if_required',
     });
@@ -54,7 +59,11 @@ const CheckoutForm = ({ clientSecret, onSuccess, onError, planType }: CheckoutFo
   };
 
   // Display the appropriate amount based on plan type
-  const planAmount = planType === 'pro' ? '£30' : '£5';
+  const planAmount = planType === 'pro' 
+    ? '£30' 
+    : planType === 'standard' 
+      ? '£5' 
+      : '£3';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -83,12 +92,14 @@ const CheckoutForm = ({ clientSecret, onSuccess, onError, planType }: CheckoutFo
 };
 
 interface StripeCheckoutProps {
-  planType: 'standard' | 'pro';
+  planType: 'basic' | 'standard' | 'pro';
   onSuccess: () => void;
   onError: (message: string) => void;
+  isRegistration?: boolean;
+  userId?: number; // Required for registration flow
 }
 
-export default function StripeCheckout({ planType, onSuccess, onError }: StripeCheckoutProps) {
+export default function StripeCheckout({ planType, onSuccess, onError, isRegistration = false, userId }: StripeCheckoutProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -96,26 +107,42 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
     const fetchClientSecret = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/stripe/create-payment-intent', {
+        
+        // Determine which endpoint to use based on whether this is registration or normal subscription
+        const endpoint = isRegistration 
+          ? '/api/create-checkout-session'
+          : '/api/stripe/create-payment-intent';
+        
+        const body = isRegistration
+          ? { plan: planType, userId } // Include userId for registration
+          : { plan: planType };        // Just plan type for existing users
+          
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ 
-            plan: planType,
-          }),
+          body: JSON.stringify(body),
           credentials: 'include',
         });
         
         const data = await response.json();
         
         if (!response.ok) {
-          throw new Error(data.error || 'Could not create payment intent');
+          throw new Error(data.error || 'Could not create payment session');
         }
         
-        setClientSecret(data.clientSecret);
+        // Handle different responses from the two endpoints
+        if (isRegistration && data.url) {
+          // For registration, we get a checkout URL to redirect to
+          window.location.href = data.url;
+          return;
+        } else {
+          // For normal subscription, we get a client secret for Stripe Elements
+          setClientSecret(data.clientSecret);
+        }
       } catch (error) {
-        console.error('Error creating payment intent:', error);
+        console.error('Error setting up payment:', error);
         onError(error instanceof Error ? error.message : 'Failed to setup payment');
       } finally {
         setIsLoading(false);
@@ -123,7 +150,7 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
     };
 
     fetchClientSecret();
-  }, [planType, onError]);
+  }, [planType, onError, isRegistration, userId]);
 
   if (isLoading || !clientSecret) {
     return (
@@ -148,7 +175,11 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h3 className="text-lg font-semibold mb-4">
-        Complete your {planType === 'pro' ? 'Pro' : 'Standard'} Subscription Plan
+        {isRegistration 
+          ? 'Complete Your Registration' 
+          : `Upgrade to ${planType === 'pro' 
+              ? 'Pro' 
+              : planType === 'standard' ? 'Standard' : 'Basic'} Subscription Plan`}
       </h3>
       
       <div className="mb-6">
@@ -186,6 +217,7 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
           onSuccess={onSuccess}
           onError={onError}
           planType={planType}
+          isRegistration={isRegistration}
         />
       </Elements>
       
@@ -194,7 +226,9 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
         <p className="mt-1">
           {planType === 'pro' 
             ? 'Pro Subscription Plan: £30/month for unlimited transformations and advanced tools' 
-            : 'Standard Subscription Plan: £5/month for 20 transformations per month'}
+            : planType === 'standard'
+              ? 'Standard Subscription Plan: £5/month for 20 transformations per month'
+              : 'Basic Subscription Plan: £3/month for 10 transformations per month'}
         </p>
         <p className="mt-1">You can cancel your subscription anytime from your account settings.</p>
       </div>

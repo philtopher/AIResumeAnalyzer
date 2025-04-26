@@ -1,170 +1,154 @@
-import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Loader2, Check, AlertCircle } from "lucide-react";
-import { useUser } from "@/hooks/use-user";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'wouter';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 type RegistrationStatus = "loading" | "success" | "error" | "invalid";
 
 export default function RegistrationCompletePage() {
   const [status, setStatus] = useState<RegistrationStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string>("");
-  const [, setLocation] = useLocation();
-  const { refetch } = useUser();
+  const [errorMessage, setErrorMessage] = useState('');
+  const navigate = useNavigate();
+  const [location] = useLocation();
   const { toast } = useToast();
-
+  
   useEffect(() => {
-    const verifyRegistration = async () => {
+    async function completeRegistration() {
       try {
+        // Parse URL params to get the session ID
         const params = new URLSearchParams(window.location.search);
         const sessionId = params.get('session_id');
-        const userId = params.get('user_id');
-
-        if (!sessionId || !userId) {
+        
+        if (!sessionId) {
           setStatus("invalid");
+          setErrorMessage("Invalid request. Session ID not found.");
           return;
         }
-
-        const response = await fetch(`/api/registration-complete?session_id=${sessionId}&user_id=${userId}`, {
-          credentials: 'include'
+        
+        // Complete the registration
+        const response = await fetch(`/api/registration-complete?session_id=${sessionId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         });
-
+        
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Registration verification failed');
+          const errorData = await response.text();
+          throw new Error(errorData || 'Failed to complete registration');
         }
-
-        const data = await response.json();
-
-        if (data.status === 'success') {
-          setStatus("success");
-          refetch(); // Refresh user data after successful registration completion
-          
-          toast({
-            title: "Registration Complete",
-            description: "Your account has been successfully created and activated.",
-          });
-        } else {
-          throw new Error(data.message || 'Registration verification failed');
-        }
+        
+        setStatus("success");
+        toast({
+          title: "Registration successful",
+          description: "Your account has been created and is ready to use.",
+        });
+        
+        // Redirect to home after a delay
+        setTimeout(() => {
+          navigate('/');
+        }, 5000);
       } catch (error) {
         console.error('Registration completion error:', error);
-        setErrorMessage(error instanceof Error ? error.message : 'Unknown error occurred');
         setStatus("error");
-        
+        setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
         toast({
-          title: "Registration Error",
-          description: error instanceof Error ? error.message : 'Unknown error occurred',
+          title: "Registration failed",
+          description: error instanceof Error ? error.message : 'An unexpected error occurred',
           variant: "destructive",
         });
       }
-    };
-
-    verifyRegistration();
-  }, [refetch, toast]);
-
-  const getContent = () => {
-    switch (status) {
-      case "loading":
-        return (
+    }
+    
+    completeRegistration();
+  }, [location, navigate, toast]);
+  
+  return (
+    <div className="container max-w-md mx-auto py-16 px-4">
+      <div className="bg-card p-8 rounded-lg shadow-lg text-center">
+        {status === "loading" && (
           <>
-            <CardHeader>
-              <CardTitle className="text-center">
-                <div className="flex items-center justify-center space-x-2">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                  <span>Finalizing your registration...</span>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center text-sm text-muted-foreground">
-              Please wait while we set up your account. This should only take a moment.
-            </CardContent>
+            <div className="flex justify-center mb-6">
+              <Loader2 className="h-16 w-16 text-primary animate-spin" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Completing Your Registration</h1>
+            <p className="text-muted-foreground">
+              Please wait while we set up your account...
+            </p>
           </>
-        );
-      case "success":
-        return (
+        )}
+        
+        {status === "success" && (
           <>
-            <CardHeader>
-              <CardTitle className="text-center">
-                <div className="flex items-center justify-center space-x-2 text-green-500">
-                  <Check className="h-6 w-6" />
-                  <span>Registration Complete!</span>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-center text-sm text-muted-foreground">
-                Your account has been successfully created and your subscription is now active.
-              </p>
-              <Button 
-                className="w-full" 
-                onClick={() => setLocation("/dashboard")}
-              >
-                Go to Dashboard
-              </Button>
-            </CardContent>
+            <div className="flex justify-center mb-6">
+              <CheckCircle2 className="h-16 w-16 text-green-500" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Registration Complete!</h1>
+            <p className="text-muted-foreground mb-6">
+              Your account has been created successfully and your subscription is active.
+              You will be redirected to the homepage shortly.
+            </p>
+            <Button 
+              onClick={() => navigate('/')}
+              className="w-full"
+            >
+              Go to Homepage
+            </Button>
           </>
-        );
-      case "error":
-        return (
+        )}
+        
+        {status === "error" && (
           <>
-            <CardHeader>
-              <CardTitle className="text-center">
-                <div className="flex items-center justify-center space-x-2 text-destructive">
-                  <AlertCircle className="h-6 w-6" />
-                  <span>Registration Error</span>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-center text-sm text-muted-foreground">
-                {errorMessage || "There was a problem completing your registration."}
-              </p>
+            <div className="flex justify-center mb-6">
+              <XCircle className="h-16 w-16 text-red-500" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Registration Failed</h1>
+            <p className="text-muted-foreground mb-2">
+              We encountered an error while completing your registration.
+            </p>
+            {errorMessage && (
+              <div className="p-3 bg-red-50 text-red-800 rounded-md mb-6 text-sm">
+                {errorMessage}
+              </div>
+            )}
+            <div className="space-y-3">
               <Button 
-                className="w-full" 
-                onClick={() => setLocation("/register")}
+                onClick={() => navigate('/register')}
+                className="w-full"
                 variant="outline"
               >
                 Try Again
               </Button>
-            </CardContent>
-          </>
-        );
-      case "invalid":
-        return (
-          <>
-            <CardHeader>
-              <CardTitle className="text-center">
-                <div className="flex items-center justify-center space-x-2 text-amber-500">
-                  <AlertCircle className="h-6 w-6" />
-                  <span>Invalid Registration Data</span>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-center text-sm text-muted-foreground">
-                The registration information provided is invalid or incomplete.
-              </p>
               <Button 
-                className="w-full" 
-                onClick={() => setLocation("/register")}
-                variant="outline"
+                onClick={() => navigate('/contact')}
+                className="w-full"
               >
-                Return to Registration
+                Contact Support
               </Button>
-            </CardContent>
+            </div>
           </>
-        );
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md mx-auto">
-        {getContent()}
-      </Card>
+        )}
+        
+        {status === "invalid" && (
+          <>
+            <div className="flex justify-center mb-6">
+              <XCircle className="h-16 w-16 text-amber-500" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Invalid Request</h1>
+            <p className="text-muted-foreground mb-6">
+              Your registration request is invalid or expired.
+              Please try registering again.
+            </p>
+            <Button 
+              onClick={() => navigate('/register')}
+              className="w-full"
+            >
+              Register Again
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
