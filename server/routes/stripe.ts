@@ -474,8 +474,8 @@ router.post('/downgrade-subscription', async (req, res) => {
     // Get target downgrade plan from request body with default to 'standard'
     const targetPlan = req.body.targetPlan || 'standard';
     
-    // Determine monthly conversion limits based on target tier
-    let monthlyLimit = 20; // Default for standard tier downgrade
+    // Determine monthly conversion limits based on target subscription plan
+    let monthlyLimit = 20; // Default for standard plan downgrade
     
     if (targetPlan === 'basic') {
       monthlyLimit = 10;
@@ -486,12 +486,12 @@ router.post('/downgrade-subscription', async (req, res) => {
       return res.status(400).json({ error: 'Invalid target plan. Must be "standard" or "basic"' });
     }
     
-    // Check if the subscription is already at or below the requested tier
+    // Check if the subscription is already at or below the requested subscription plan
     if ((targetPlan === 'standard' && subscription.tier === 'basic') || 
         (targetPlan === 'basic' && subscription.tier === 'basic')) {
       return res.status(400).json({ 
-        error: `Cannot downgrade from ${subscription.tier} to ${targetPlan} tier`,
-        message: `Your current tier (${subscription.tier}) is already at or below the requested tier (${targetPlan})`
+        error: `Cannot downgrade from ${subscription.tier} to ${targetPlan} subscription plan`,
+        message: `Your current subscription plan (${subscription.tier}) is already at or below the requested subscription plan (${targetPlan})`
       });
     }
     
@@ -509,7 +509,7 @@ router.post('/downgrade-subscription', async (req, res) => {
       })
       .where(eq(subscriptions.userId, userId));
 
-    console.log(`Subscription downgraded in database for user: ${userId} to ${targetPlan} tier`);
+    console.log(`Subscription downgraded in database for user: ${userId} to ${targetPlan} subscription plan`);
 
     // Return success response
     res.json({ 
@@ -568,7 +568,7 @@ router.post('/cancel-subscription', async (req, res) => {
       }
     }
 
-    // Get the tier name for the response message
+    // Get the subscription plan name for the response message
     const tierName = subscription.tier || (subscription.isPro ? 'pro' : 'standard');
     
     // Update our database to reflect the cancellation
@@ -583,7 +583,7 @@ router.post('/cancel-subscription', async (req, res) => {
       })
       .where(eq(subscriptions.userId, userId));
 
-    console.log('Subscription cancelled in database for user:', userId, 'previous tier:', tierName);
+    console.log('Subscription cancelled in database for user:', userId, 'previous subscription plan:', tierName);
 
     // Return success response
     res.json({ 
@@ -645,9 +645,9 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
 
     console.log('Sending test welcome email to:', user.email);
 
-    // Get the user's subscription tier
-    let tier = 'basic'; // Default to basic tier
-    let monthlyLimit = 10; // Default for basic tier
+    // Get the user's subscription plan
+    let tier = 'basic'; // Default to basic plan
+    let monthlyLimit = 10; // Default for basic plan
     
     if (isStripeConfigured) {
       const [subscription] = await db
@@ -690,7 +690,7 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
         <li>Priority Email Support</li>
       </ul>`;
     } else {
-      // Basic tier
+      // Basic plan
       features = `<ul>
         <li>${conversionsText}</li>
         <li>Basic CV Analysis</li>
