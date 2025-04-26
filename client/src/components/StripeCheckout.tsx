@@ -153,7 +153,7 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h3 className="text-lg font-semibold mb-4">
-        Complete your {planType === 'pro' ? 'Pro' : 'Standard'} Plan subscription
+        Complete your {planType === 'pro' ? 'Pro' : 'Standard'} Subscription Plan
       </h3>
       
       <div className="mb-6">
@@ -198,8 +198,8 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
         <p className="font-medium">Your payment is secure and encrypted.</p>
         <p className="mt-1">
           {planType === 'pro' 
-            ? 'Pro Plan: £30/month for unlimited transformations and advanced tools' 
-            : 'Standard Plan: £5/month for 20 transformations per month'}
+            ? 'Pro Subscription Plan: £30/month for unlimited transformations and advanced tools' 
+            : 'Standard Subscription Plan: £5/month for 20 transformations per month'}
         </p>
         <p className="mt-1">You can cancel your subscription anytime from your account settings.</p>
       </div>

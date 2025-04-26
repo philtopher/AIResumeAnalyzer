@@ -102,7 +102,7 @@ export default function UpgradePlanPage() {
         // Handle downgrade success
         toast({
           title: "Downgrade Successful",
-          description: "Your subscription has been downgraded to the Standard Plan. Changes will take effect at the end of your current billing period.",
+          description: "Your subscription has been downgraded to the Standard Subscription Plan. Changes will take effect at the end of your current billing period.",
         });
         refetch(); // Refresh user data
       } else {
@@ -131,7 +131,7 @@ export default function UpgradePlanPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <h1 className="text-3xl font-bold mb-8">Choose Your Plan</h1>
+      <h1 className="text-3xl font-bold mb-8">Choose Your Subscription Plan</h1>
 
       {verificationError && (
         <Alert variant="destructive" className="mb-8">
@@ -231,7 +231,7 @@ export default function UpgradePlanPage() {
                 ) : (
                   <>
                     <ArrowDown className="mr-2 h-4 w-4" />
-                    Downgrade to Standard
+                    Downgrade to Standard Subscription
                   </>
                 )}
               </Button>
