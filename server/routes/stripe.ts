@@ -55,7 +55,7 @@ router.post('/create-payment-intent', async (req, res) => {
 
     let priceId: string | undefined;
     
-    // Select the appropriate price ID based on the plan tier
+    // Select the appropriate price ID based on the subscription plan
     switch(plan) {
       case 'pro':
         priceId = process.env.STRIPE_PRO_PRICE_ID;
@@ -223,7 +223,7 @@ router.post('/create-payment-link', async (req, res) => {
 
     let priceId: string | undefined;
     
-    // Select the appropriate price ID based on the plan tier
+    // Select the appropriate price ID based on the subscription plan
     switch(req.body.plan) {
       case 'pro':
         priceId = process.env.STRIPE_PRO_PRICE_ID;

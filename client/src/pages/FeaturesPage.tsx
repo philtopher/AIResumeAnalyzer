@@ -84,7 +84,7 @@ const ProPlanContent = () => {
           Pro Plan
         </CardTitle>
         <CardDescription>
-          £15/month - Unlock premium features and interview insights
+          £30/month - Unlock premium features and interview insights
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -117,11 +117,11 @@ const ProPlanContent = () => {
 
         <Link href="/upgrade">
           <Button className="w-full" variant="default">
-            Upgrade to Pro - £15/month
+            Upgrade to Pro - £30/month
           </Button>
         </Link>
         <p className="text-sm text-muted-foreground text-center">
-          Already on Standard? Upgrade for just £10 more
+          Already on Standard? Upgrade for just £25 more
         </p>
       </CardContent>
     </Card>
