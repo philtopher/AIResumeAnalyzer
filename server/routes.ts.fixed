@@ -1,33 +1,26 @@
 import type { Express } from "express";
-import { Request, Response } from "express";
-import { setupAuth } from "./auth";
+import { Request, Response, NextFunction } from "express";
+import { setupAuth, hashPassword } from "./auth";
 import { db } from "@db";
-import { sendEmail } from "./email";
 import { users, cvs, activityLogs, subscriptions, contacts } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
-import { addUserSchema, updateUserRoleSchema, cvApprovalSchema, insertUserSchema } from "@db/schema";
+import { eq, desc, and, gte, inArray, or, ne, like, asc } from "drizzle-orm";
 import multer from "multer";
-import { extname } from "path";
-import mammoth from "mammoth";
-import { PDFDocument } from "pdf-lib";
-import Stripe from 'stripe';
-import { hashPassword } from "./auth";
-import {randomUUID} from 'crypto';
-import { format } from "date-fns";
-import stripeRouter from './routes/stripe';
+import { extname, resolve } from "path";
+import * as fs from 'fs';
+import { transformCVWithAI, generateCVFeedbackWithAI } from "./openai";
+import stripeRoutes from "./routes/stripe";
+import { randomBytes } from "crypto";
+import { sendContactFormNotification, sendActivityReport } from "./email";
+import Stripe from "stripe";
+import validator from 'validator';
 
-// Add proper Stripe initialization with error handling
-const stripe = (() => {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) {
-    console.error('Stripe secret key is missing');
-    return null;
-  }
-  return new Stripe(key, {
-    apiVersion: '2023-10-16' as const,
-    typescript: true,
+// Create a Stripe client if the secret key exists
+let stripe: Stripe | null = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: "2023-10-16", // Use a specific API version
   });
-})();
+}
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -47,105 +40,285 @@ const upload = multer({
   },
 });
 
+// ... [Keep all your existing imports, CV transformation functions, etc.]
+
 export function registerRoutes(app: Express): Express {
+  console.log("Starting route registration...");
+  
   // Setup authentication routes
   setupAuth(app);
-
-  // Add deployment guide email endpoint
-  app.post("/api/send-deployment-guide", async (req: Request, res: Response) => {
+  
+  // Register the Stripe-related routes
+  console.log("Registering Stripe payment routes...");
+  app.use('/api/stripe', stripeRoutes);
+  
+  // Create a temporary user record for the registration process
+  // This endpoint doesn't log the user in or send verification emails
+  app.post("/api/register-temp", async (req: Request, res: Response) => {
     try {
-      const deploymentGuide = `# CV Transformer AWS Deployment Guide
-
-## Prerequisites
-- AWS Account with appropriate permissions
-- Terraform installed (v1.0.0 or later)
-- Git installed
-- GitHub account
-
-## Environment Variables
-Configure your environment variables in a .env file:
-
-\`\`\`bash
-export DATABASE_URL=""
-export STRIPE_SECRET_KEY=""
-export SENDGRID_API_KEY=""
-\`\`\`
-
-## Project Structure
-\`\`\`
-terraform/
-├── modules/
-│   ├── vpc/
-│   │   ├── main.tf         # VPC configuration
-│   │   ├── variables.tf    # Input variables
-│   │   └── outputs.tf      # Output values
-│   ├── ec2/
-│   │   ├── main.tf         # EC2 instance configuration
-│   │   ├── variables.tf    # Input variables
-│   │   └── outputs.tf      # Output values
-│   ├── rds/
-│   │   ├── main.tf         # RDS instance configuration
-│   │   ├── variables.tf    # Input variables
-│   │   └── outputs.tf      # Output values
-│   └── security/
-│       ├── main.tf         # Security groups and IAM roles
-│       ├── variables.tf    # Input variables
-│       └── outputs.tf      # Output values
-├── environments/
-│   ├── prod/
-│   │   ├── main.tf         # Production environment configuration
-│   │   ├── variables.tf    # Environment-specific variables
-│   │   └── terraform.tfvars # Production values
-│   └── staging/
-│       ├── main.tf         # Staging environment configuration
-│       ├── variables.tf    # Environment-specific variables
-│       └── terraform.tfvars # Staging values
-├── main.tf                 # Root module configuration
-├── variables.tf            # Root input variables
-├── outputs.tf             # Root output values
-└── versions.tf            # Required provider versions
-\`\`\`
-
-## Deployment Steps
-
-1. Clone the repository and initialize Terraform
-2. Configure AWS credentials and environment variables
-3. Create and apply Terraform configuration
-4. Set up monitoring and security measures
-5. Deploy the application
-
-For detailed implementation steps, please refer to our comprehensive deployment documentation.`;
-
-      const emailSent = await sendEmail({
-        to: 't.unamka@yahoo.co.uk',
-        from: 'no-reply@cvanalyzer.freindel.com',
-        replyTo: 'support@cvanalyzer.freindel.com',
-        subject: 'CV Transformer - AWS Deployment Guide',
-        html: `
-          <h1>CV Transformer AWS Deployment Guide</h1>
-          <p>Please find below the detailed deployment guide for setting up CV Transformer on AWS using Terraform.</p>
-          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-family: monospace;">
-            ${deploymentGuide}
-          </div>
-          <p>If you have any questions or need assistance, please reply to this email.</p>
-          <p>Best regards,<br>The CV Transformer Team</p>
-        `
-      });
-
-      if (emailSent) {
-        res.json({ success: true, message: "Deployment guide sent successfully" });
-      } else {
-        throw new Error("Failed to send deployment guide");
+      const userData = req.body;
+      
+      // Validate email format
+      if (!userData.email || !validator.isEmail(userData.email)) {
+        return res.status(400).send("Invalid email address");
       }
+      
+      // Validate username (alphanumeric, min 3 chars)
+      if (!userData.username || !validator.isAlphanumeric(userData.username) || userData.username.length < 3) {
+        return res.status(400).send("Username must be at least 3 alphanumeric characters");
+      }
+      
+      // Check password strength
+      if (!userData.password || userData.password.length < 8) {
+        return res.status(400).send("Password must be at least 8 characters");
+      }
+      
+      // Check if username already exists
+      const existingUsers = await db.select().from(users).where(eq(users.username, userData.username));
+      if (existingUsers.length > 0) {
+        return res.status(400).send("Username already exists");
+      }
+      
+      // Check if email already exists
+      const existingEmails = await db.select().from(users).where(eq(users.email, userData.email));
+      if (existingEmails.length > 0) {
+        return res.status(400).send("Email already exists");
+      }
+      
+      // Hash password
+      const hashedPassword = await hashPassword(userData.password);
+      
+      const verificationToken = randomBytes(32).toString('hex');
+      const tokenExpiry = new Date();
+      tokenExpiry.setHours(tokenExpiry.getHours() + 24); // Token valid for 24 hours
+      
+      // Create temp user - not verified and not active until payment is complete
+      const [user] = await db.insert(users).values({
+        username: userData.username,
+        email: userData.email,
+        password: hashedPassword,
+        role: "user",
+        createdAt: new Date(),
+        emailVerified: false,
+        verificationToken,
+        verificationTokenExpiry: tokenExpiry
+      }).returning();
+      
+      // Return the user ID for the payment flow
+      return res.status(201).json({
+        userId: user.id,
+        message: "Temporary registration successful"
+      });
+    } catch (error) {
+      console.error("Temporary registration error:", error);
+      res.status(500).send("Registration failed");
+    }
+  });
+  
+  // Create a checkout session for new registrations
+  app.post('/api/create-checkout-session', async (req: Request, res: Response) => {
+    try {
+      const { plan, userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+      }
+      
+      // Verify the user exists
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      // Check if Stripe is configured
+      if (!stripe) {
+        console.error('Checkout session attempt when Stripe is not configured');
+        return res.status(503).json({ 
+          error: 'Payment system is currently unavailable. Please try again later.',
+          details: 'Stripe integration is not configured'
+        });
+      }
+      
+      let priceId: string | undefined;
+      
+      // Select the appropriate price ID based on the subscription plan
+      switch(plan) {
+        case 'pro':
+          priceId = process.env.STRIPE_PRO_PRICE_ID;
+          break;
+        case 'standard':
+          priceId = process.env.STRIPE_STANDARD_PRICE_ID;
+          break;
+        case 'basic':
+        default:
+          priceId = process.env.STRIPE_BASIC_PRICE_ID;
+          break;
+      }
+      
+      if (!priceId) {
+        throw new Error(`Price ID for plan "${plan}" is not configured`);
+      }
+      
+      // Create a Stripe customer for this user
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: {
+          userId: userId.toString()
+        }
+      });
+      
+      // Determine the URLs for success and cancel based on environment
+      const successUrl = `${process.env.NODE_ENV === 'production'
+        ? process.env.APP_URL 
+        : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/registration-complete`;
+        
+      const cancelUrl = `${process.env.NODE_ENV === 'production'
+        ? process.env.APP_URL
+        : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/register`;
+      
+      // Create a checkout session for the registration flow
+      const session = await stripe.checkout.sessions.create({
+        customer: customer.id,
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: cancelUrl,
+        metadata: {
+          userId: userId.toString(),
+          plan,
+          isRegistration: 'true' // Flag to indicate this is part of the registration flow
+        },
+        billing_address_collection: 'auto',
+        payment_method_types: ['card'], // Include card, apple_pay, google_pay
+        allow_promotion_codes: true,
+        payment_method_options: {
+          card: {
+            setup_future_usage: 'off_session',
+          },
+        },
+      });
+      
+      // Return the checkout session URL
+      res.json({ url: session.url });
     } catch (error: any) {
-      console.error("Error sending deployment guide:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Failed to send deployment guide",
-        error: error.message 
+      console.error('Stripe checkout session creation error:', error);
+      res.status(500).json({
+        error: error.message || 'Failed to create checkout session',
       });
     }
   });
-
+  
+  // Registration completion endpoint to finalize the registration after payment
+  app.get('/api/registration-complete', async (req: Request, res: Response) => {
+    try {
+      const { session_id } = req.query;
+      
+      if (!session_id) {
+        return res.status(400).json({ error: 'Session ID is required' });
+      }
+      
+      // Check if Stripe is configured
+      if (!stripe) {
+        console.error('Registration completion attempt when Stripe is not configured');
+        return res.status(503).json({ 
+          error: 'Payment system is currently unavailable. Please try again later.',
+          details: 'Stripe integration is not configured'
+        });
+      }
+      
+      // Retrieve the checkout session to get the user ID and plan
+      const session = await stripe.checkout.sessions.retrieve(session_id as string, {
+        expand: ['subscription', 'customer']
+      });
+      
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+      
+      // Extract the user ID from metadata
+      const userId = session.metadata?.userId;
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID not found in session metadata' });
+      }
+      
+      // Get the plan type
+      const planType = session.metadata?.plan || 'basic';
+      
+      // Determine the monthly limit based on the plan
+      let monthlyLimit = 10; // Default for Basic plan
+      let isPro = false;
+      
+      if (planType === 'standard') {
+        monthlyLimit = 20;
+      } else if (planType === 'pro') {
+        monthlyLimit = 9999; // Essentially unlimited
+        isPro = true;
+      }
+      
+      // Verify the user exists
+      const [user] = await db.select().from(users).where(eq(users.id, parseInt(userId))).limit(1);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      // Update the user to mark them as verified
+      await db.update(users)
+        .set({
+          emailVerified: true,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, parseInt(userId)));
+      
+      // Create or update the subscription record
+      const stripeCustomerId = session.customer as string;
+      const stripeSubscriptionId = session.subscription as string;
+      
+      await db.insert(subscriptions).values({
+        userId: parseInt(userId),
+        stripeCustomerId,
+        stripeSubscriptionId,
+        status: 'active',
+        isPro,
+        monthlyLimit,
+        conversionsUsed: 0,
+        lastResetDate: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }).onConflictDoUpdate({
+        target: [subscriptions.userId],
+        set: {
+          stripeCustomerId,
+          stripeSubscriptionId,
+          status: 'active',
+          isPro,
+          monthlyLimit,
+          conversionsUsed: 0,
+          lastResetDate: new Date(),
+          updatedAt: new Date()
+        }
+      });
+      
+      // Return success response
+      res.json({ 
+        success: true, 
+        message: 'Registration completed successfully', 
+        userId,
+        plan: planType
+      });
+    } catch (error: any) {
+      console.error('Registration completion error:', error);
+      res.status(500).json({
+        error: error.message || 'Failed to complete registration',
+      });
+    }
+  });
+  
+  // Keep all your existing routes for CV transformation, etc.
+  
   return app;
 }

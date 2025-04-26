@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'wouter';
+import { useLocation } from 'wouter';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -9,8 +9,8 @@ type RegistrationStatus = "loading" | "success" | "error" | "invalid";
 export default function RegistrationCompletePage() {
   const [status, setStatus] = useState<RegistrationStatus>("loading");
   const [errorMessage, setErrorMessage] = useState('');
-  const navigate = useNavigate();
-  const [location] = useLocation();
+  const [_, navigate] = useLocation();
+
   const { toast } = useToast();
   
   useEffect(() => {
@@ -62,7 +62,7 @@ export default function RegistrationCompletePage() {
     }
     
     completeRegistration();
-  }, [location, navigate, toast]);
+  }, [navigate, toast]);
   
   return (
     <div className="container max-w-md mx-auto py-16 px-4">
