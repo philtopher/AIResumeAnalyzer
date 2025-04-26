@@ -309,12 +309,16 @@ export function setupAuth(app: Express) {
           });
         }
 
-        // Determine subscription tier based on isPro flag (until migration is complete)
+        // Determine subscription tier from the database (tier field) or fallback to isPro flag
         let subscriptionTier = 'basic';
-        if (user.subscription && user.subscription.isPro) {
+        if (user.subscription && user.subscription.tier) {
+          // Use the existing tier from the database
+          subscriptionTier = user.subscription.tier;
+        } else if (user.subscription && user.subscription.isPro) {
+          // If tier is not available but isPro is true, use 'pro'
           subscriptionTier = 'pro';
         } else if (user.subscription) {
-          // If they have a subscription but not pro, default to standard
+          // If they have a subscription but no tier and not pro, default to standard
           subscriptionTier = 'standard';
         }
 
@@ -378,12 +382,16 @@ export function setupAuth(app: Express) {
         }
       }
       
-      // Determine subscription tier based on isPro flag (until migration is complete)
+      // Determine subscription tier from the database (tier field) or fallback to isPro flag
       let subscriptionTier = 'basic';
-      if (subscription && subscription.isPro) {
+      if (subscription && subscription.tier) {
+        // Use the existing tier from the database
+        subscriptionTier = subscription.tier;
+      } else if (subscription && subscription.isPro) {
+        // If tier is not available but isPro is true, use 'pro'
         subscriptionTier = 'pro';
       } else if (subscription) {
-        // If they have a subscription but not pro, default to standard
+        // If they have a subscription but no tier and not pro, default to standard
         subscriptionTier = 'standard';
       }
       
@@ -516,16 +524,27 @@ export function setupAuth(app: Express) {
         .where(eq(subscriptions.userId, user.id))
         .limit(1);
 
-      // Determine subscription tier based on isPro flag (until migration is complete)
+      // Determine subscription tier from the database (tier field) or fallback to isPro flag
       let subscriptionTier = 'basic';
       let monthlyLimit = 10; // Default basic tier limit
       
       if (subscription) {
-        if (subscription.isPro) {
+        if (subscription.tier) {
+          // Use the existing tier from the database
+          subscriptionTier = subscription.tier;
+          
+          // Set monthly limit based on the tier
+          if (subscriptionTier === 'pro') {
+            monthlyLimit = Number.MAX_SAFE_INTEGER; // Unlimited for pro tier
+          } else if (subscriptionTier === 'standard') {
+            monthlyLimit = 20; // Standard tier limit
+          }
+        } else if (subscription.isPro) {
+          // If tier is not available but isPro is true, use 'pro'
           subscriptionTier = 'pro';
           monthlyLimit = Number.MAX_SAFE_INTEGER; // Unlimited for pro tier
         } else {
-          // If they have a subscription but not pro, default to standard
+          // If they have a subscription but no tier and not pro, default to standard
           subscriptionTier = 'standard';
           monthlyLimit = 20; // Standard tier limit
         }
