@@ -59,7 +59,7 @@ const CheckoutForm = ({ clientSecret, onSuccess, onError, planType }: CheckoutFo
   };
 
   // Display the appropriate amount based on plan type
-  const planAmount = planType === 'pro' ? '£15' : '£5';
+  const planAmount = planType === 'pro' ? '£30' : '£5';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -198,8 +198,8 @@ export default function StripeCheckout({ planType, onSuccess, onError }: StripeC
         <p className="font-medium">Your payment is secure and encrypted.</p>
         <p className="mt-1">
           {planType === 'pro' 
-            ? 'Pro Plan: £15 for premium features and advanced tools' 
-            : 'Standard Plan: £5 for basic premium features'}
+            ? 'Pro Plan: £30/month for unlimited transformations and advanced tools' 
+            : 'Standard Plan: £5/month for 20 transformations per month'}
         </p>
         <p className="mt-1">You can cancel your subscription anytime from your account settings.</p>
       </div>

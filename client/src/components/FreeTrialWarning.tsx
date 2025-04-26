@@ -205,7 +205,7 @@ export function FreeTrialWarning() {
                   </>
                 )
               ) : (
-                subscriptionTier === "basic" ? (
+                subscriptionPlan === "basic" ? (
                   <>
                     You've reached the limit of {totalLimit} transformations in your Basic plan. 
                     <p className="mt-2">Upgrade to our Standard plan for £5/month to get 20 transformations per month, or Pro plan for £30/month for unlimited transformations.</p>

@@ -56,7 +56,7 @@ export default function SettingsPage() {
       const result = await cancelSubscription();
       toast({
         title: "Subscription Cancelled",
-        description: "Your premium subscription has been cancelled. You've been returned to the Free tier.",
+        description: "Your premium subscription has been cancelled. You've been returned to the Basic plan.",
       });
       setShowCancelConfirm(false);
     } catch (error) {
@@ -106,8 +106,8 @@ export default function SettingsPage() {
                 <p className="font-medium">Current Plan</p>
                 <p className="text-muted-foreground">
                   {isActive 
-                    ? (isPro ? "Pro Plan (£15/month)" : "Standard Plan (£5/month)") 
-                    : "Free Tier"}
+                    ? (isPro ? "Pro Plan (£30/month)" : "Standard Plan (£5/month)") 
+                    : "Basic Plan (£3/month)"}
                 </p>
                 {isActive && (
                   <p className="text-xs text-muted-foreground mt-1">
