@@ -336,14 +336,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         throw new Error('Missing userId in session metadata');
       }
 
-      // Insert or update subscription with tier information
+      // Insert or update subscription with subscription plan information
       await db.insert(subscriptions).values({
         userId,
         stripeCustomerId: session.customer as string,
         stripeSubscriptionId: session.subscription as string,
         status: 'active',
         isPro, // Keeping for backward compatibility
-        tier: planType, // New field: 'basic', 'standard', or 'pro'
+        tier: planType, // Subscription plan: 'basic', 'standard', or 'pro'
         monthlyLimit, // Number of transformations allowed per month
         conversionsUsed: 0, // Reset usage counter
         lastResetDate: new Date(), // Set reset date to now
@@ -351,9 +351,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         updatedAt: new Date(),
       });
 
-      console.log('Subscription record created for user:', userId, 'tier:', planType);
+      console.log('Subscription record created for user:', userId, 'subscription plan:', planType);
 
-      // Send confirmation email with tier-specific content
+      // Send confirmation email with subscription plan-specific content
       try {
         const [user] = await db.query.users.findMany({
           where: eq(users.id, userId),
@@ -400,7 +400,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
               <li>Priority Email Support</li>
             </ul>`;
           } else {
-            // Basic tier
+            // Basic plan
             features = `<ul>
               <li>${conversionsText}</li>
               <li>Basic CV Analysis</li>
@@ -577,7 +577,7 @@ router.post('/cancel-subscription', async (req, res) => {
       .set({
         status: 'canceled',
         isPro: false,
-        // Keep the original tier for reference but mark the status as canceled
+        // Keep the original subscription plan for reference but mark the status as canceled
         updatedAt: new Date(),
         endedAt: new Date()
       })
@@ -690,7 +690,7 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
         <li>Priority Email Support</li>
       </ul>`;
     } else {
-      // Basic plan
+      // Basic subscription plan
       features = `<ul>
         <li>${conversionsText}</li>
         <li>Basic CV Analysis</li>
