@@ -701,11 +701,11 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
         
     await sendEmail({
       to: user.email,
-      subject: `Welcome to CV Transformer ${planName} Plan!`,
+      subject: `Welcome to CV Transformer ${planName} Subscription Plan!`,
       html: `
-        <h1>Welcome to CV Transformer ${planName} Plan!</h1>
-        <p>Thank you for subscribing to our ${planName} Plan (${planPrice})! Your subscription is now active.</p>
-        <h2>Your ${planName} Plan Features Include:</h2>
+        <h1>Welcome to CV Transformer ${planName} Subscription Plan!</h1>
+        <p>Thank you for subscribing to our ${planName} Subscription Plan (${planPrice})! Your subscription is now active.</p>
+        <h2>Your ${planName} Subscription Plan Features Include:</h2>
         ${features}
         <p>Start exploring your new features now by visiting your <a href="${baseUrl}/dashboard">dashboard</a>.</p>
         <p>If you have any questions, our support team is here to help!</p>
