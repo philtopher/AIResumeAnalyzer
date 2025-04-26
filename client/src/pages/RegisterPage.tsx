@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useNavigate } from 'wouter';
+import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -44,7 +44,7 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tempUserId, setTempUserId] = useState<number | null>(null);
   const [showPayment, setShowPayment] = useState(false);
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
 
   const form = useForm<RegisterFormValues>({
@@ -191,7 +191,7 @@ export default function RegisterPage() {
 
                 <p className="text-sm text-center mt-4">
                   Already have an account?{' '}
-                  <a href="/login" className="text-primary hover:underline">
+                  <a href="/auth" className="text-primary hover:underline">
                     Sign in
                   </a>
                 </p>

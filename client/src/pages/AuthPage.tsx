@@ -239,9 +239,15 @@ export default function AuthPage() {
             <button
               className="text-sm text-muted-foreground hover:underline transition-colors"
               onClick={() => {
-                setIsLogin(!isLogin);
-                setPassword("");
-                setConfirmPassword("");
+                if (isLogin) {
+                  // Redirect to the new registration page
+                  setLocation("/register");
+                } else {
+                  // Set to login mode
+                  setIsLogin(true);
+                  setPassword("");
+                  setConfirmPassword("");
+                }
               }}
               type="button"
             >

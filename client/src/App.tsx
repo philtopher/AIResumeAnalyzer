@@ -221,6 +221,8 @@ function App() {
           <Route path="/how-it-works" component={TutorialPage} />
           <Route path="/features" component={FeaturesPage} />
           <Route path="/auth" component={AuthPage} />
+          <Route path="/register" component={RegisterPage} />
+          <Route path="/registration-complete" component={RegistrationCompletePage} />
           <Route path="/reset-password" component={ResetPasswordPage} />
           <Route path="/public-cv" component={PublicCVPage} />
           <Route path="/contact" component={ContactPage} />
