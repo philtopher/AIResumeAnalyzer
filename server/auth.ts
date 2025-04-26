@@ -431,7 +431,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Update registration endpoint to use reliable email sending
+  // Update registration endpoint to create pending user and redirect to payment
   app.post("/api/register", async (req, res, next) => {
     try {
       const result = insertUserSchema.safeParse(req.body);
@@ -466,10 +466,9 @@ export function setupAuth(app: Express) {
 
       // Hash the password
       const hashedPassword = await hashPassword(password);
-      const trialStart = new Date();
-      const trialEnd = new Date(trialStart.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
 
-      const [newUser] = await db
+      // Create pending user with registration_pending status
+      const [pendingUser] = await db
         .insert(users)
         .values({
           username,
@@ -479,38 +478,61 @@ export function setupAuth(app: Express) {
           emailVerified: false,
           verificationToken: randomUUID(),
           verificationTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
-          trialStartedAt: trialStart,
-          trialEndedAt: trialEnd,
+          // No trial period - requires payment
         })
         .returning();
-
-      // Send verification email - keep existing email sending code
-      try {
-        await sendVerificationEmail(email, newUser.verificationToken!);
-        console.log("[Auth] Verification email sent successfully to:", email);
-      } catch (emailError) {
-        console.error("[Auth] Failed to send verification email:", emailError);
-        // Continue with registration even if email fails
-      }
-
-      // Log the user in after registration
-      req.login(newUser, (err) => {
-        if (err) {
-          return next(err);
-        }
-        return res.json({
-          message: "Registration successful! Please check your email to verify your account.",
-          user: {
-            id: newUser.id,
-            username: newUser.username,
-            email: newUser.email,
-            role: newUser.role,
-            emailVerified: false,
-            trialStartedAt: trialStart,
-            trialEndedAt: trialEnd,
-          },
-        });
+      
+      // Create Stripe checkout session for Basic plan (£3)
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2023-10-16',
       });
+
+      try {
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price: process.env.STRIPE_BASIC_PRICE_ID, // Basic plan price ID £3
+              quantity: 1,
+            },
+          ],
+          mode: 'subscription',
+          success_url: `${process.env.APP_URL}/registration-complete?session_id={CHECKOUT_SESSION_ID}&user_id=${pendingUser.id}`,
+          cancel_url: `${process.env.APP_URL}/register?cancelled=true`,
+          customer_email: email,
+          client_reference_id: pendingUser.id.toString(),
+          metadata: {
+            userId: pendingUser.id,
+            plan: 'basic',
+            username: username,
+            email: email
+          }
+        });
+
+        // Return the session info to redirect to payment
+        return res.json({
+          message: "Registration initiated! Please complete payment to activate your account.",
+          user: {
+            id: pendingUser.id,
+            username: pendingUser.username,
+            email: pendingUser.email,
+          },
+          payment: {
+            sessionId: session.id,
+            url: session.url
+          },
+          requiresPayment: true
+        });
+      } catch (stripeError) {
+        console.error("Stripe session creation error:", stripeError);
+        
+        // Clean up the pending user since payment couldn't be initiated
+        await db
+          .delete(users)
+          .where(eq(users.id, pendingUser.id));
+        
+        return res.status(500).send("Payment setup failed. Please try again later.");
+      }
     } catch (error) {
       console.error("Registration error:", error);
       res.status(500).send("An unexpected error occurred during registration. Please try again.");
