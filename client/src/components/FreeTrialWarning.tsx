@@ -33,7 +33,12 @@ const apiRequest = async (method: string, endpoint: string, data?: any) => {
 export function FreeTrialWarning() {
   const { toast } = useToast();
   const [showDialog, setShowDialog] = useState(false);
-  const [transformationsLeft, setTransformationsLeft] = useState(3);
+  const [transformationsLeft, setTransformationsLeft] = useState(0);
+  const [transformationsUsed, setTransformationsUsed] = useState(0);
+  const [totalLimit, setTotalLimit] = useState(0);
+  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
+  const [requiresPayment, setRequiresPayment] = useState(false);
+  const [isUnlimited, setIsUnlimited] = useState(false);
 
   // Query to get recent transformations count
   const { data: transformationsData } = useQuery({
@@ -47,7 +52,7 @@ export function FreeTrialWarning() {
         return response.json();
       } catch (error) {
         console.error("Error fetching recent transformations:", error);
-        return { count: 0, limit: 3 };
+        return { count: 0, limit: 10, remaining: 10, tier: "basic", requiresPayment: false, unlimited: false };
       }
     },
     refetchOnWindowFocus: true,
@@ -55,12 +60,25 @@ export function FreeTrialWarning() {
 
   useEffect(() => {
     if (transformationsData) {
-      const { count, limit } = transformationsData;
-      const remaining = Math.max(0, limit - count);
-      setTransformationsLeft(remaining);
+      const { 
+        count, 
+        limit, 
+        remaining, 
+        tier, 
+        requiresPayment: needsPayment = false,
+        unlimited = false
+      } = transformationsData;
       
-      // Show warning dialog when user has only 1 transformation left
-      if (remaining === 1) {
+      setTransformationsUsed(count || 0);
+      setTotalLimit(limit || 0);
+      setTransformationsLeft(remaining || 0);
+      setSubscriptionTier(tier || "basic");
+      setRequiresPayment(!!needsPayment);
+      setIsUnlimited(!!unlimited);
+      
+      // Show warning dialog when user is close to their limit (less than 3 remaining)
+      // or if they need to make a payment
+      if ((remaining && remaining <= 3 && !unlimited) || needsPayment) {
         setShowDialog(true);
       }
     }
@@ -80,57 +98,131 @@ export function FreeTrialWarning() {
       });
     }
   };
+  
+  const handleUpgrade = () => {
+    try {
+      // Redirect to upgrade page
+      window.location.href = "/upgrade";
+      setShowDialog(false);
+    } catch (error) {
+      console.error("Error starting upgrade process:", error);
+      toast({
+        title: "Upgrade Error",
+        description: "There was an error redirecting to the upgrade page. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Don't show anything for unlimited users (Pro tier or admin)
+  if (isUnlimited) {
+    return null;
+  }
+  
+  // Don't show anything if user has no subscription yet
+  if (requiresPayment) {
+    return null; // The payment requirement will be handled elsewhere in the app
+  }
+
+  // Get friendly name and tier color
+  const getTierInfo = (tier: string | null) => {
+    switch(tier) {
+      case "basic":
+        return { name: "Basic", color: "amber" };
+      case "standard":
+        return { name: "Standard", color: "emerald" };
+      default:
+        return { name: "Basic", color: "amber" };
+    }
+  };
+  
+  const { name: tierName, color: tierColor } = getTierInfo(subscriptionTier);
+  const colorClasses = {
+    amber: {
+      bg: "bg-amber-50",
+      border: "border-amber-500",
+      text: "text-amber-700",
+      button: "text-amber-700 border-amber-500 hover:bg-amber-100",
+      icon: "text-amber-400",
+    },
+    emerald: {
+      bg: "bg-emerald-50",
+      border: "border-emerald-500",
+      text: "text-emerald-700",
+      button: "text-emerald-700 border-emerald-500 hover:bg-emerald-100",
+      icon: "text-emerald-400",
+    }
+  };
+  const classes = colorClasses[tierColor as keyof typeof colorClasses];
 
   return (
     <>
-      {transformationsLeft < 3 && transformationsLeft > 0 && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4">
+      {transformationsLeft <= 5 && transformationsLeft > 0 && (
+        <div className={`${classes.bg} border-l-4 ${classes.border} p-4 mb-4`}>
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+              <svg className={`h-5 w-5 ${classes.icon}`} viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.485 3.879l-6.364 6.364a1 1 0 000 1.414l6.364 6.364a1 1 0 001.414 0l6.364-6.364a1 1 0 000-1.414L9.9 3.879a1 1 0 00-1.414 0zM10 11a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm text-amber-700">
-                <span className="font-bold">Free Trial Warning:</span> You have {transformationsLeft} CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your free trial.
+              <p className={`text-sm ${classes.text}`}>
+                <span className="font-bold">{tierName} Plan:</span> You have used {transformationsUsed} of {totalLimit} CV transformations this month ({transformationsLeft} remaining).
               </p>
             </div>
           </div>
-          <div className="mt-2 pl-8">
-            <Button 
-              variant="outline" 
-              className="text-amber-700 border-amber-500 hover:bg-amber-100"
-              onClick={() => setShowDialog(true)}
-            >
-              Upgrade Now
-            </Button>
-          </div>
+          {subscriptionTier === "basic" && (
+            <div className="mt-2 pl-8">
+              <Button 
+                variant="outline" 
+                className={classes.button}
+                onClick={() => setShowDialog(true)}
+              >
+                Upgrade to Standard or Pro
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
       <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Free Trial Limit</AlertDialogTitle>
+            <AlertDialogTitle>
+              {subscriptionTier === "basic" ? "Basic Plan Limit" : "Standard Plan Limit"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {transformationsLeft > 0 ? (
-                <>
-                  You have only <strong>{transformationsLeft}</strong> CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your free trial. 
-                  After that, you'll need to subscribe to continue using our service.
-                </>
+                subscriptionTier === "basic" ? (
+                  <>
+                    You have only <strong>{transformationsLeft}</strong> CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your Basic plan. 
+                    <p className="mt-2">Upgrade to our Standard plan for £5/month to get 20 transformations per month, or Pro plan for £15/month for unlimited transformations.</p>
+                  </>
+                ) : (
+                  <>
+                    You have only <strong>{transformationsLeft}</strong> CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your Standard plan. 
+                    <p className="mt-2">Upgrade to our Pro plan for £15/month to get unlimited transformations and additional premium features.</p>
+                  </>
+                )
               ) : (
-                <>
-                  You've reached the limit of your free trial. 
-                  Subscribe now to unlock unlimited CV transformations and access all premium features.
-                </>
+                subscriptionTier === "basic" ? (
+                  <>
+                    You've reached the limit of {totalLimit} transformations in your Basic plan. 
+                    <p className="mt-2">Upgrade to our Standard plan for £5/month to get 20 transformations per month, or Pro plan for £15/month for unlimited transformations.</p>
+                  </>
+                ) : (
+                  <>
+                    You've reached the limit of {totalLimit} transformations in your Standard plan. 
+                    <p className="mt-2">Upgrade to our Pro plan for £15/month to get unlimited transformations and additional premium features.</p>
+                  </>
+                )
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Later</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSubscribe} className="bg-primary text-primary-foreground">
-              Subscribe Now
+            <AlertDialogAction onClick={handleUpgrade} className="bg-primary text-primary-foreground">
+              Upgrade Now
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
