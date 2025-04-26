@@ -13,6 +13,7 @@ const router = Router();
 const isStripeConfigured = !!(
   process.env.STRIPE_SECRET_KEY && 
   process.env.STRIPE_BASIC_PRICE_ID && 
+  process.env.STRIPE_STANDARD_PRICE_ID &&
   process.env.STRIPE_PRO_PRICE_ID
 );
 
@@ -52,12 +53,24 @@ router.post('/create-payment-intent', async (req, res) => {
     const { plan } = req.body;
     console.log('Creating payment intent for user:', req.user.id, 'plan:', plan);
 
-    const priceId = plan === 'pro'
-      ? process.env.STRIPE_PRO_PRICE_ID
-      : process.env.STRIPE_BASIC_PRICE_ID;
+    let priceId: string | undefined;
+    
+    // Select the appropriate price ID based on the plan tier
+    switch(plan) {
+      case 'pro':
+        priceId = process.env.STRIPE_PRO_PRICE_ID;
+        break;
+      case 'standard':
+        priceId = process.env.STRIPE_STANDARD_PRICE_ID;
+        break;
+      case 'basic':
+      default:
+        priceId = process.env.STRIPE_BASIC_PRICE_ID;
+        break;
+    }
 
     if (!priceId) {
-      throw new Error(`${plan === 'pro' ? 'STRIPE_PRO_PRICE_ID' : 'STRIPE_BASIC_PRICE_ID'} is not configured`);
+      throw new Error(`Price ID for plan "${plan}" is not configured`);
     }
 
     // First, create a customer for this user if they don't have one
@@ -208,12 +221,24 @@ router.post('/create-payment-link', async (req, res) => {
   try {
     console.log('Creating payment link for user:', req.user.id, 'plan:', req.body.plan);
 
-    const priceId = req.body.plan === 'pro'
-      ? process.env.STRIPE_PRO_PRICE_ID
-      : process.env.STRIPE_BASIC_PRICE_ID;
+    let priceId: string | undefined;
+    
+    // Select the appropriate price ID based on the plan tier
+    switch(req.body.plan) {
+      case 'pro':
+        priceId = process.env.STRIPE_PRO_PRICE_ID;
+        break;
+      case 'standard':
+        priceId = process.env.STRIPE_STANDARD_PRICE_ID;
+        break;
+      case 'basic':
+      default:
+        priceId = process.env.STRIPE_BASIC_PRICE_ID;
+        break;
+    }
 
     if (!priceId) {
-      throw new Error(`${req.body.plan === 'pro' ? 'STRIPE_PRO_PRICE_ID' : 'STRIPE_BASIC_PRICE_ID'} is not configured`);
+      throw new Error(`Price ID for plan "${req.body.plan}" is not configured`);
     }
 
     // Create a checkout session instead of a payment link to support Apple Pay/Google Pay

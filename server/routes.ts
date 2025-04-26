@@ -2,14 +2,15 @@ import type { Express } from "express";
 import { Request, Response, NextFunction } from "express";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { users, cvs, activityLogs } from "@db/schema";
-import { eq, desc, and, gte, inArray } from "drizzle-orm";
+import { users, cvs, activityLogs, subscriptions, contacts } from "@db/schema";
+import { eq, desc, and, gte, inArray, or, ne, like, asc } from "drizzle-orm";
 import multer from "multer";
 import { extname, resolve } from "path";
 import * as fs from 'fs';
 import { transformCVWithAI, generateCVFeedbackWithAI } from "./openai";
 import stripeRoutes from "./routes/stripe";
 import { sendContactFormNotification, sendActivityReport } from "./email";
+import Stripe from "stripe";
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
