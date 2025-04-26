@@ -241,7 +241,7 @@ export default function UpgradePlanPage() {
                 variant="outline"
                 disabled
               >
-                Current Plan
+                Current Subscription Plan
               </Button>
             ) : (
               <Button
@@ -304,7 +304,7 @@ export default function UpgradePlanPage() {
                 variant="outline"
                 disabled
               >
-                Current Plan
+                Current Subscription Plan
               </Button>
             ) : hasStandardPlan ? (
               <Button
