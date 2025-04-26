@@ -543,29 +543,21 @@ export function setupAuth(app: Express) {
         .where(eq(subscriptions.userId, user.id))
         .limit(1);
 
-      // Determine subscription tier from the database (tier field) or fallback to isPro flag
-      let subscriptionTier = 'basic';
-      let monthlyLimit = 10; // Default basic tier limit
+      // Determine subscription plan based on isPro flag and monthlyLimit
+      let subscriptionPlan = 'basic';
+      let monthlyLimit = subscription?.monthlyLimit || 10; // Default basic tier limit
       
       if (subscription) {
-        if (subscription.tier) {
-          // Use the existing tier from the database
-          subscriptionTier = subscription.tier;
-          
-          // Set monthly limit based on the tier
-          if (subscriptionTier === 'pro') {
-            monthlyLimit = Number.MAX_SAFE_INTEGER; // Unlimited for pro tier
-          } else if (subscriptionTier === 'standard') {
-            monthlyLimit = 20; // Standard tier limit
-          }
-        } else if (subscription.isPro) {
-          // If tier is not available but isPro is true, use 'pro'
-          subscriptionTier = 'pro';
+        if (subscription.isPro) {
+          // If isPro is true, use 'pro'
+          subscriptionPlan = 'pro';
           monthlyLimit = Number.MAX_SAFE_INTEGER; // Unlimited for pro tier
+        } else if (subscription.monthlyLimit === 20) {
+          // If monthly limit is 20, it's the standard plan
+          subscriptionPlan = 'standard';
         } else {
-          // If they have a subscription but no tier and not pro, default to standard
-          subscriptionTier = 'standard';
-          monthlyLimit = 20; // Standard tier limit
+          // Default to basic
+          subscriptionPlan = 'basic';
         }
       }
 
@@ -583,7 +575,7 @@ export function setupAuth(app: Express) {
             role: user.role,
             subscription: subscription ? { 
               status: subscription.status,
-              tier: subscriptionTier,
+              tier: subscriptionPlan, // Still use 'tier' in API for backwards compatibility
               conversionsUsed: subscription.conversionsUsed || 0,
               monthlyLimit: monthlyLimit,
             } : null,
