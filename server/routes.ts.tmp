@@ -1,11 +1,26 @@
 import type { Express } from "express";
-import { Request, Response } from "express";
-import { setupAuth } from "./auth";
+import { Request, Response, NextFunction } from "express";
+import { setupAuth, hashPassword } from "./auth";
 import { db } from "@db";
-import { users, cvs, activityLogs } from "@db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { users, cvs, activityLogs, subscriptions, contacts } from "@db/schema";
+import { eq, desc, and, gte, inArray, or, ne, like, asc } from "drizzle-orm";
 import multer from "multer";
-import { extname } from "path";
+import { extname, resolve } from "path";
+import * as fs from 'fs';
+import { transformCVWithAI, generateCVFeedbackWithAI } from "./openai";
+import stripeRoutes from "./routes/stripe";
+import { randomBytes } from "crypto";
+import { sendContactFormNotification, sendActivityReport } from "./email";
+import Stripe from "stripe";
+import validator from 'validator';
+
+// Create a Stripe client if the secret key exists
+let stripe: Stripe | null = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: "2023-10-16", // Use a specific API version
+  });
+}
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -25,367 +40,287 @@ const upload = multer({
   },
 });
 
-// CV transformation helper functions
-interface GenerateTransformedCVOptions {
-  originalContent: string;
-  targetRole: string;
-  jobDescription: string;
-}
-
-function getSkillsFromJobDescription(jobDescription: string): string {
-  const skillCategories = {
-    technical: [
-      "programming", "coding", "development", "software", "systems", "architecture", 
-      "database", "SQL", "Java", "Python", "JavaScript", "React", "Node", "AWS", "cloud"
-    ],
-    business: [
-      "strategy", "planning", "management", "leadership", "budget", "forecasting", 
-      "analysis", "reporting", "KPI", "metrics", "ROI", "stakeholder"
-    ],
-    soft: [
-      "communication", "teamwork", "collaboration", "problem solving", "critical thinking", 
-      "decision making", "time management", "organization", "adaptability"
-    ]
-  };
-
-  const allSkills = Object.values(skillCategories).flat();
-  const lowercaseDesc = jobDescription.toLowerCase();
-  const extractedSkills = allSkills.filter(skill => 
-    lowercaseDesc.includes(skill.toLowerCase())
-  );
-
-  const formattedSkills = extractedSkills.map(skill => 
-    skill.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-  );
-
-  return formattedSkills.join(", ");
-}
-
-function extractKeyRequirements(jobDescription: string): string[] {
-  const requirementIndicators = [
-    "required", "requirement", "must have", "essential", "necessary",
-    "qualification", "qualified", "experience in", "expertise in"
-  ];
-
-  const sentences = jobDescription.split(/[.!?]+/);
-  const requirementSentences = sentences.filter(sentence => 
-    requirementIndicators.some(indicator => 
-      sentence.toLowerCase().includes(indicator.toLowerCase())
-    )
-  );
-
-  return requirementSentences.length > 0 
-    ? requirementSentences.map(sentence => sentence.trim())
-    : [
-        "Leading teams to achieve strategic objectives",
-        "Developing and implementing innovative solutions",
-        "Managing complex projects from inception to completion"
-      ];
-}
-
-function extractProblemsFromJobDescription(jobDescription: string): string[] {
-  const problemIndicators = [
-    "challenges", "problems", "issues", "difficulties", "obstacles",
-    "improve", "enhance", "optimize", "streamline"
-  ];
-
-  const sentences = jobDescription.split(/[.!?]+/);
-  const problemSentences = sentences.filter(sentence => 
-    problemIndicators.some(indicator => 
-      sentence.toLowerCase().includes(indicator.toLowerCase())
-    )
-  );
-
-  return problemSentences.length > 0 
-    ? problemSentences.map(sentence => sentence.trim())
-    : [
-        "Improving team efficiency and productivity",
-        "Streamlining operational processes",
-        "Enhancing service delivery quality"
-      ];
-}
-
-function extractPreviousRoles(originalContent: string): string | null {
-  const experienceSectionHeaders = [
-    "EXPERIENCE", "WORK EXPERIENCE", "EMPLOYMENT HISTORY", "PROFESSIONAL EXPERIENCE",
-    "CAREER HISTORY", "WORK HISTORY", "PREVIOUS ROLES", "EMPLOYMENT"
-  ];
-  
-  for (const header of experienceSectionHeaders) {
-    const headerIndex = originalContent.indexOf(header);
-    if (headerIndex !== -1) {
-      const nextSectionIndex = experienceSectionHeaders
-        .map(h => originalContent.indexOf(h, headerIndex + header.length))
-        .filter(i => i !== -1)
-        .sort((a, b) => a - b)[0] || originalContent.length;
-      
-      const experienceSection = originalContent
-        .substring(headerIndex, nextSectionIndex)
-        .trim();
-      
-      return `\nPREVIOUS EXPERIENCE\n${experienceSection}`;
-    }
-  }
-  
-  return null;
-}
-
-function generateRicherProfessionalSummary(targetRole: string, skills: string, problems: string[]): string {
-  const roleKeywords = {
-    "manager": ["strategic leadership", "team development", "operational excellence"],
-    "developer": ["technical innovation", "solution architecture", "agile methodologies"], 
-    "analyst": ["data-driven insights", "analytical expertise", "strategic planning"],
-    "marketing": ["market strategy", "brand development", "growth initiatives"],
-    "sales": ["revenue generation", "relationship building", "business development"]
-  };
-
-  const roleType = Object.keys(roleKeywords).find(type => 
-    targetRole.toLowerCase().includes(type)
-  ) || "professional";
-
-  const keywords = roleKeywords[roleType as keyof typeof roleKeywords] || 
-    ["professional excellence", "strategic thinking", "innovative solutions"];
-
-  return `PROFESSIONAL SUMMARY
-
-Accomplished ${targetRole} with demonstrated expertise in ${skills} and a proven track record of delivering exceptional results in fast-paced environments. Distinguished by ${keywords[0]} and ${keywords[1]}, consistently achieving measurable outcomes through ${keywords[2]}. Demonstrated success in ${problems[0] || "addressing complex challenges"} while driving ${problems[1] || "organizational growth"}. 
-
-Recognized for translating strategic vision into actionable plans that deliver substantial business value. Combines analytical rigor with innovative problem-solving to develop comprehensive solutions that address core business challenges. Strong track record of building and leading high-performing teams that consistently exceed expectations.`;
-}
-
-function generateRicherResponsibilities(targetRole: string, problems: string[]): string[] {
-  const baseResponsibilities = [
-    `Lead strategic initiatives addressing ${problems[0] || "key organizational challenges"}, implementing innovative solutions that drive measurable improvements in operational efficiency`,
-    `Orchestrate cross-functional collaboration to develop and execute comprehensive strategies that align with organizational objectives`,
-    `Establish and maintain strategic relationships with key stakeholders, ensuring effective communication and project success`,
-    `Develop and implement robust analytical frameworks to track performance metrics and translate data into actionable insights`
-  ];
-
-  const roleSpecificResponsibilities: Record<string, string[]> = {
-    "manager": [
-      "Direct comprehensive resource allocation and budget planning processes, optimizing financial performance",
-      "Implement data-driven performance management systems with cascading KPIs",
-      "Lead organizational change management initiatives while maintaining team cohesion"
-    ],
-    "developer": [
-      "Architect scalable, maintainable code infrastructures adhering to industry best practices",
-      "Implement sophisticated CI/CD pipelines enhancing code quality and reliability",
-      "Lead technical reviews and documentation initiatives improving system integrity"
-    ],
-    "analyst": [
-      "Synthesize complex datasets to extract actionable insights informing strategic decisions",
-      "Develop comprehensive data visualization frameworks for diverse stakeholders",
-      "Design predictive modeling systems forecasting market trends and outcomes"
-    ]
-  };
-
-  const roleType = Object.keys(roleSpecificResponsibilities).find(type => 
-    targetRole.toLowerCase().includes(type)
-  );
-
-  return roleType 
-    ? [...baseResponsibilities, ...roleSpecificResponsibilities[roleType]]
-    : baseResponsibilities;
-}
-
-function generateTransformedCV({ originalContent, targetRole, jobDescription }: GenerateTransformedCVOptions): string {
-  const problems = extractProblemsFromJobDescription(jobDescription);
-  const requirements = extractKeyRequirements(jobDescription);
-  const skills = getSkillsFromJobDescription(jobDescription);
-  
-  const professionalSummary = generateRicherProfessionalSummary(targetRole, skills, problems);
-  const responsibilities = generateRicherResponsibilities(targetRole, problems);
-  const previousRoles = extractPreviousRoles(originalContent);
-
-  return `${targetRole.toUpperCase()} - TRANSFORMED CV
-
-${professionalSummary}
-
-CURRENT ROLE AND RESPONSIBILITIES
-${responsibilities.map(resp => `• ${resp}`).join('\n')}
-
-${previousRoles || `PREVIOUS EXPERIENCE
-• ${targetRole} experience with demonstrated success in similar roles
-• Track record of achieving measurable results and driving organizational growth
-• History of successful project delivery and team leadership`}
-
-TECHNICAL SKILLS
-${skills}
-
-EDUCATION
-Bachelor's Degree in relevant field
-Professional certifications and continued education in ${targetRole} specialization
-
-REFERENCES
-Available upon request`;
-}
-
-function generateMockFeedback(targetRole: string): string {
-  return `Based on our analysis, your CV has been transformed to better align with the role of ${targetRole}. Here are some key improvements:
-
-1. Skills and qualifications have been tailored to match the job requirements
-2. Work experience has been reframed to emphasize relevant accomplishments
-3. Professional summary has been strengthened to highlight your fit for the role
-4. Technical competencies have been prioritized based on industry standards
-5. Achievements have been quantified with metrics where possible
-
-Your CV now more effectively demonstrates your suitability for the ${targetRole} position, increasing your chances of securing an interview.`;
-}
+// ... [Keep all your existing imports, CV transformation functions, etc.]
 
 export function registerRoutes(app: Express): Express {
   console.log("Starting route registration...");
   
   // Setup authentication routes
   setupAuth(app);
-
-  // Add health check endpoint
-  app.get("/api/health", (_req, res) => {
-    res.status(200).send("OK");
-  });
-
-  // CV transformation endpoint (authenticated) 
-  app.post("/api/cv/transform", upload.single('file'), async (req: Request, res: Response) => {
+  
+  // Register the Stripe-related routes
+  console.log("Registering Stripe payment routes...");
+  app.use('/api/stripe', stripeRoutes);
+  
+  // Create a temporary user record for the registration process
+  // This endpoint doesn't log the user in or send verification emails
+  app.post("/api/register-temp", async (req: Request, res: Response) => {
     try {
-      console.log("CV transformation request received (authenticated)");
-
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
+      const userData = req.body;
+      
+      // Validate email format
+      if (!userData.email || !validator.isEmail(userData.email)) {
+        return res.status(400).send("Invalid email address");
       }
-
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
+      
+      // Validate username (alphanumeric, min 3 chars)
+      if (!userData.username || !validator.isAlphanumeric(userData.username) || userData.username.length < 3) {
+        return res.status(400).send("Username must be at least 3 alphanumeric characters");
       }
-
-      const { targetRole, jobDescription } = req.body;
-
-      if (!targetRole || !jobDescription) {
-        return res.status(400).json({ error: "Target role and job description are required" });
+      
+      // Check password strength
+      if (!userData.password || userData.password.length < 8) {
+        return res.status(400).send("Password must be at least 8 characters");
       }
-
-      let fileContent = "";
-
-      try {
-        if (req.file.mimetype === 'application/pdf') {
-          console.log("Processing PDF file...");
-          const { PDFDocument } = await import('pdf-lib');
-          const pdfBytes = req.file.buffer;
-          const pdfDoc = await PDFDocument.load(pdfBytes);
-          const pages = pdfDoc.getPages();
-          fileContent = `PDF document with ${pages.length} pages`;
-        } else {
-          console.log("Processing DOCX file...");
-          const mammoth = await import('mammoth');
-          const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-          fileContent = result.value;
-        }
-      } catch (error) {
-        console.error("File processing error:", error);
-        throw error;
+      
+      // Check if username already exists
+      const existingUsers = await db.select().from(users).where(eq(users.username, userData.username));
+      if (existingUsers.length > 0) {
+        return res.status(400).send("Username already exists");
       }
-
-      const transformedContent = generateTransformedCV({
-        originalContent: fileContent,
-        targetRole,
-        jobDescription
+      
+      // Check if email already exists
+      const existingEmails = await db.select().from(users).where(eq(users.email, userData.email));
+      if (existingEmails.length > 0) {
+        return res.status(400).send("Email already exists");
+      }
+      
+      // Hash password
+      const hashedPassword = await hashPassword(userData.password);
+      
+      const verificationToken = randomBytes(32).toString('hex');
+      const tokenExpiry = new Date();
+      tokenExpiry.setHours(tokenExpiry.getHours() + 24); // Token valid for 24 hours
+      
+      // Create temp user - not verified and not active until payment is complete
+      const [user] = await db.insert(users).values({
+        username: userData.username,
+        email: userData.email,
+        password: hashedPassword,
+        role: "user",
+        createdAt: new Date(),
+        emailVerified: false,
+        verificationToken,
+        verificationTokenExpiry: tokenExpiry
+      }).returning();
+      
+      // Return the user ID for the payment flow
+      return res.status(201).json({
+        userId: user.id,
+        message: "Temporary registration successful"
       });
-
-      const feedback = generateMockFeedback(targetRole);
-
-      const [newTransformation] = await db.insert(cvs).values({
-        userId: req.user.id,
-        originalFilename: req.file.originalname,
-        fileContent,
-        transformedContent,
-        targetRole,
-        jobDescription,
-        feedback,
-        score: 75,
-        isFullyRegenerated: false,
-        needsApproval: false,
-        approvalStatus: "pending",
+    } catch (error) {
+      console.error("Temporary registration error:", error);
+      res.status(500).send("Registration failed");
+    }
+  });
+  
+  // Create a checkout session for new registrations
+  app.post('/api/create-checkout-session', async (req: Request, res: Response) => {
+    try {
+      const { plan, userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+      }
+      
+      // Verify the user exists
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      // Check if Stripe is configured
+      if (!stripe) {
+        console.error('Checkout session attempt when Stripe is not configured');
+        return res.status(503).json({ 
+          error: 'Payment system is currently unavailable. Please try again later.',
+          details: 'Stripe integration is not configured'
+        });
+      }
+      
+      let priceId: string | undefined;
+      
+      // Select the appropriate price ID based on the subscription plan
+      switch(plan) {
+        case 'pro':
+          priceId = process.env.STRIPE_PRO_PRICE_ID;
+          break;
+        case 'standard':
+          priceId = process.env.STRIPE_STANDARD_PRICE_ID;
+          break;
+        case 'basic':
+        default:
+          priceId = process.env.STRIPE_BASIC_PRICE_ID;
+          break;
+      }
+      
+      if (!priceId) {
+        throw new Error(`Price ID for plan "${plan}" is not configured`);
+      }
+      
+      // Create a Stripe customer for this user
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: {
+          userId: userId.toString()
+        }
+      });
+      
+      // Determine the URLs for success and cancel based on environment
+      const successUrl = `${process.env.NODE_ENV === 'production'
+        ? process.env.APP_URL 
+        : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/registration-complete`;
+        
+      const cancelUrl = `${process.env.NODE_ENV === 'production'
+        ? process.env.APP_URL
+        : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/register`;
+      
+      // Create a checkout session for the registration flow
+      const session = await stripe.checkout.sessions.create({
+        customer: customer.id,
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: cancelUrl,
+        metadata: {
+          userId: userId.toString(),
+          plan,
+          isRegistration: 'true' // Flag to indicate this is part of the registration flow
+        },
+        billing_address_collection: 'auto',
+        payment_method_types: ['card'], // Include card, apple_pay, google_pay
+        allow_promotion_codes: true,
+        payment_method_options: {
+          card: {
+            setup_future_usage: 'off_session',
+          },
+        },
+      });
+      
+      // Return the checkout session URL
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error('Stripe checkout session creation error:', error);
+      res.status(500).json({
+        error: error.message || 'Failed to create checkout session',
+      });
+    }
+  });
+  
+  // Registration completion endpoint to finalize the registration after payment
+  app.get('/api/registration-complete', async (req: Request, res: Response) => {
+    try {
+      const { session_id } = req.query;
+      
+      if (!session_id) {
+        return res.status(400).json({ error: 'Session ID is required' });
+      }
+      
+      // Check if Stripe is configured
+      if (!stripe) {
+        console.error('Registration completion attempt when Stripe is not configured');
+        return res.status(503).json({ 
+          error: 'Payment system is currently unavailable. Please try again later.',
+          details: 'Stripe integration is not configured'
+        });
+      }
+      
+      // Retrieve the checkout session to get the user ID and plan
+      const session = await stripe.checkout.sessions.retrieve(session_id as string, {
+        expand: ['subscription', 'customer']
+      });
+      
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+      
+      // Extract the user ID from metadata
+      const userId = session.metadata?.userId;
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID not found in session metadata' });
+      }
+      
+      // Get the plan type
+      const planType = session.metadata?.plan || 'basic';
+      
+      // Determine the monthly limit based on the plan
+      let monthlyLimit = 10; // Default for Basic plan
+      let isPro = false;
+      
+      if (planType === 'standard') {
+        monthlyLimit = 20;
+      } else if (planType === 'pro') {
+        monthlyLimit = 9999; // Essentially unlimited
+        isPro = true;
+      }
+      
+      // Verify the user exists
+      const [user] = await db.select().from(users).where(eq(users.id, parseInt(userId))).limit(1);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      // Update the user to mark them as active and verified
+      await db.update(users)
+        .set({
+          emailVerified: true,
+          active: true,
+          lastLogin: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, parseInt(userId)));
+      
+      // Create or update the subscription record
+      const stripeCustomerId = session.customer as string;
+      const stripeSubscriptionId = session.subscription as string;
+      
+      await db.insert(subscriptions).values({
+        userId: parseInt(userId),
+        stripeCustomerId,
+        stripeSubscriptionId,
+        status: 'active',
+        isPro,
+        monthlyLimit,
+        conversionsUsed: 0,
+        lastResetDate: new Date(),
         createdAt: new Date(),
         updatedAt: new Date()
-      }).returning();
-
-      await db.insert(activityLogs).values({
-        userId: req.user.id,
-        action: "cv_transform",
-        details: {
-          cvId: newTransformation.id,
-          targetRole
-        },
-        createdAt: new Date()
+      }).onConflictDoUpdate({
+        target: [subscriptions.userId],
+        set: {
+          stripeCustomerId,
+          stripeSubscriptionId,
+          status: 'active',
+          isPro,
+          monthlyLimit,
+          conversionsUsed: 0,
+          lastResetDate: new Date(),
+          updatedAt: new Date()
+        }
       });
-
-      res.status(201).json({
-        id: newTransformation.id,
-        targetRole: newTransformation.targetRole,
-        feedback: newTransformation.feedback,
-        approvalStatus: newTransformation.approvalStatus
+      
+      // Return success response
+      res.json({ 
+        success: true, 
+        message: 'Registration completed successfully', 
+        userId,
+        plan: planType
       });
     } catch (error: any) {
-      console.error("CV transformation error:", error);
-      res.status(500).json({ error: error.message || "Failed to transform CV" });
+      console.error('Registration completion error:', error);
+      res.status(500).json({
+        error: error.message || 'Failed to complete registration',
+      });
     }
   });
-
-  // Get CV content (authenticated)
-  app.get("/api/cv/:id/content", async (req: Request, res: Response) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-
-      const { id } = req.params;
-
-      const [cv] = await db
-        .select()
-        .from(cvs)
-        .where(
-          and(
-            eq(cvs.id, parseInt(id)),
-            eq(cvs.userId, req.user.id)
-          )
-        )
-        .limit(1);
-
-      if (!cv) {
-        return res.status(404).json({ error: "CV not found" });
-      }
-
-      res.setHeader('Content-Type', 'text/plain');
-      res.send(cv.transformedContent);
-    } catch (error: any) {
-      console.error("Error retrieving CV content:", error);
-      res.status(500).json({ error: error.message || "Failed to retrieve CV content" });
-    }
-  });
-
-  // Get CV history (authenticated)
-  app.get("/api/cv/history", async (req: Request, res: Response) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-
-      const userCVs = await db
-        .select()
-        .from(cvs)
-        .where(eq(cvs.userId, req.user.id))
-        .orderBy(desc(cvs.createdAt));
-
-      res.json(userCVs.map(cv => ({
-        id: cv.id,
-        originalFilename: cv.originalFilename,
-        targetRole: cv.targetRole,
-        createdAt: cv.createdAt,
-        approvalStatus: cv.approvalStatus
-      })));
-    } catch (error: any) {
-      console.error("Error retrieving CV history:", error);
-      res.status(500).json({ error: error.message || "Failed to retrieve CV history" });
-    }
-  });
-
+  
+  // Keep all your existing routes for CV transformation, etc.
+  
   return app;
 }
