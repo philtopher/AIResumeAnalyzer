@@ -272,7 +272,7 @@ export default function UpgradePlanPage() {
           </div>
           <CardHeader>
             <CardTitle>Pro Plan</CardTitle>
-            <CardDescription>£15/month - Premium features</CardDescription>
+            <CardDescription>£30/month - Premium features</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -321,7 +321,7 @@ export default function UpgradePlanPage() {
                     Processing...
                   </>
                 ) : (
-                  "Upgrade - £15/month"
+                  "Upgrade - £30/month"
                 )}
               </Button>
             ) : (
@@ -339,7 +339,7 @@ export default function UpgradePlanPage() {
                     Processing...
                   </>
                 ) : (
-                  "Subscribe - £15/month"
+                  "Subscribe - £30/month"
                 )}
               </Button>
             )}

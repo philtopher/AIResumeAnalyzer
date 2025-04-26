@@ -245,7 +245,7 @@ export default function TutorialPage() {
                   </div>
                   <CardHeader>
                     <CardTitle>Pro Plan</CardTitle>
-                    <CardDescription>£15/month - Premium features</CardDescription>
+                    <CardDescription>£30/month - Premium features</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
