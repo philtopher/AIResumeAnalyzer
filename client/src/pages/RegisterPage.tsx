@@ -42,9 +42,15 @@ interface RegistrationData {
   password: string;
 }
 
+interface RegistrationFormData {
+  username: string;
+  email: string;
+  password: string;
+}
+
 export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [tempUserId, setTempUserId] = useState<number | null>(null);
+  const [registrationFormData, setRegistrationFormData] = useState<RegistrationFormData | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'standard' | 'pro'>('basic');
   const [showPlanSelection, setShowPlanSelection] = useState(false);
@@ -66,22 +72,22 @@ export default function RegisterPage() {
       try {
         setIsSubmitting(true);
         
-        // Create a temporary registration to get a user ID
-        const registrationData: RegistrationData = {
+        // Store form data in component state instead of sending to server
+        const formData = {
           username: data.username,
           email: data.email,
           password: data.password
         };
-
-        const response = await apiRequest('POST', '/api/register-temp', registrationData);
         
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || 'Registration failed');
+        // Check for basic validation (this would typically happen server-side too)
+        if (!formData.username || !formData.email || !formData.password) {
+          throw new Error('All fields are required');
         }
-
-        const responseData = await response.json();
-        setTempUserId(responseData.userId);
+        
+        // Store the form data in state temporarily (not in the database)
+        setRegistrationFormData(formData);
+        
+        // Move directly to plan selection
         setShowPlanSelection(true);
         
         toast({
@@ -328,13 +334,13 @@ export default function RegisterPage() {
             </div>
           ) : (
             <div className="mt-6">
-              {tempUserId && (
+              {registrationFormData && (
                 <StripeCheckout
                   planType={selectedPlan}
                   onSuccess={handlePaymentSuccess}
                   onError={handlePaymentError}
                   isRegistration={true}
-                  userId={tempUserId}
+                  registrationData={registrationFormData}
                 />
               )}
             </div>

@@ -91,15 +91,22 @@ const CheckoutForm = ({ clientSecret, onSuccess, onError, planType, isRegistrati
   );
 };
 
+interface RegistrationData {
+  username: string;
+  email: string;
+  password: string;
+}
+
 interface StripeCheckoutProps {
   planType: 'basic' | 'standard' | 'pro';
   onSuccess: () => void;
   onError: (message: string) => void;
   isRegistration?: boolean;
-  userId?: number; // Required for registration flow
+  userId?: number; // For existing users
+  registrationData?: RegistrationData; // For new registrations
 }
 
-export default function StripeCheckout({ planType, onSuccess, onError, isRegistration = false, userId }: StripeCheckoutProps) {
+export default function StripeCheckout({ planType, onSuccess, onError, isRegistration = false, userId, registrationData }: StripeCheckoutProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -113,9 +120,14 @@ export default function StripeCheckout({ planType, onSuccess, onError, isRegistr
           ? '/api/create-checkout-session'
           : '/api/stripe/create-payment-intent';
         
-        const body = isRegistration
-          ? { plan: planType, userId } // Include userId for registration
-          : { plan: planType };        // Just plan type for existing users
+        const body = isRegistration 
+          ? registrationData 
+            ? { 
+                plan: planType, 
+                registrationData // Send the registration data instead of userId
+              } 
+            : { plan: planType, userId }
+          : { plan: planType };
           
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -150,7 +162,7 @@ export default function StripeCheckout({ planType, onSuccess, onError, isRegistr
     };
 
     fetchClientSecret();
-  }, [planType, onError, isRegistration, userId]);
+  }, [planType, onError, isRegistration, userId, registrationData]);
 
   if (isLoading || !clientSecret) {
     return (

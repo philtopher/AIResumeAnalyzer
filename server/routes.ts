@@ -1282,78 +1282,13 @@ export function registerRoutes(app: Express): Express {
     }
   });
 
-  // Endpoint to create a temporary user record before payment
+  // This endpoint is no longer needed since we're storing registration data in session
+  // Kept for backward compatibility with existing users
   app.post("/api/register-temp", async (req: Request, res: Response) => {
-    try {
-      const { username, email, password } = req.body;
-      
-      if (!username || !email || !password) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Missing required fields'
-        });
-      }
-
-      // Check if username already exists
-      const [existingUsername] = await db
-        .select()
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
-
-      if (existingUsername) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Username already exists'
-        });
-      }
-
-      // Check if email already exists
-      const [existingEmail] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (existingEmail) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Email already exists'
-        });
-      }
-
-      // Hash the password
-      const hashedPassword = await hashPassword(password);
-
-      // Create a temporary user record (not verified yet)
-      const [user] = await db
-        .insert(users)
-        .values({
-          username,
-          email,
-          password: hashedPassword,
-          role: 'user',
-          emailVerified: false, // Not verified until payment is completed
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .returning();
-
-      return res.status(201).json({
-        status: 'success',
-        message: 'Temporary user record created',
-        user: {
-          id: user.id,
-          username: user.username
-        }
-      });
-    } catch (error: any) {
-      console.error('Temporary registration error:', error);
-      return res.status(500).json({
-        status: 'error',
-        message: error.message || 'An unexpected error occurred'
-      });
-    }
+    return res.status(400).json({
+      status: 'error',
+      message: 'This endpoint is deprecated. Please use the new registration flow.'
+    });
   });
 
   // Endpoint to create a checkout session for registration
