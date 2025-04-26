@@ -1294,26 +1294,73 @@ export function registerRoutes(app: Express): Express {
   // Endpoint to create a checkout session for registration
   app.post("/api/create-checkout-session", async (req: Request, res: Response) => {
     try {
-      const { plan, userId } = req.body;
+      const { plan, registrationData, userId } = req.body;
       
-      if (!plan || !userId) {
+      if (!plan) {
         return res.status(400).json({
           status: 'error',
-          message: 'Missing required fields'
+          message: 'Plan type is required'
         });
       }
+      
+      // Handle both new way (registrationData) and legacy way (userId)
+      if (registrationData) {
+        // New flow - store registration data in session
+        const { username, email, password } = registrationData;
+        
+        if (!username || !email || !password) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Missing registration information'
+          });
+        }
+        
+        // Check if username or email already exists
+        const existingUser = await db
+          .select()
+          .from(users)
+          .where(
+            or(
+              eq(users.username, username),
+              eq(users.email, email)
+            )
+          )
+          .limit(1);
+          
+        if (existingUser.length > 0) {
+          return res.status(400).json({
+            status: 'error',
+            message: existingUser[0].username === username 
+              ? 'Username already exists' 
+              : 'Email already exists'
+          });
+        }
+        
+        // Store registration data in session
+        req.session.registrationData = {
+          username,
+          email,
+          password,
+          plan
+        };
+      } else if (userId) {
+        // Legacy flow - check if user exists
+        const [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
 
-      // Check if user exists
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
-      if (!user) {
-        return res.status(404).json({
+        if (!user) {
+          return res.status(404).json({
+            status: 'error',
+            message: 'User not found'
+          });
+        }
+      } else {
+        return res.status(400).json({
           status: 'error',
-          message: 'User not found'
+          message: 'Either registrationData or userId is required'
         });
       }
 
@@ -1341,8 +1388,8 @@ export function registerRoutes(app: Express): Express {
         throw new Error(`Price ID for plan "${plan}" is not configured`);
       }
 
-      // Create a checkout session
-      const session = await stripe.checkout.sessions.create({
+      // Create a checkout session with appropriate parameters
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
         payment_method_types: ['card'],
         line_items: [
           {
@@ -1351,13 +1398,27 @@ export function registerRoutes(app: Express): Express {
           },
         ],
         mode: 'subscription',
-        success_url: `${req.protocol}://${req.get('host')}/registration-complete?session_id={CHECKOUT_SESSION_ID}&user_id=${userId}`,
         cancel_url: `${req.protocol}://${req.get('host')}/register`,
         metadata: {
-          userId: userId.toString(),
           plan,
         },
-      });
+      };
+      
+      // Handle different success URL formats based on registration method
+      if (registrationData) {
+        // For new flow, we don't pass user_id since it doesn't exist yet
+        sessionParams.success_url = `${req.protocol}://${req.get('host')}/registration-complete?session_id={CHECKOUT_SESSION_ID}`;
+        
+        // Store session token in metadata for lookup
+        const sessionToken = req.sessionID;
+        sessionParams.metadata.sessionToken = sessionToken;
+      } else if (userId) {
+        // For legacy flow, we include the user_id
+        sessionParams.success_url = `${req.protocol}://${req.get('host')}/registration-complete?session_id={CHECKOUT_SESSION_ID}&user_id=${userId}`;
+        sessionParams.metadata.userId = userId.toString();
+      }
+      
+      const session = await stripe.checkout.sessions.create(sessionParams);
 
       return res.status(200).json({
         status: 'success',
@@ -1377,10 +1438,10 @@ export function registerRoutes(app: Express): Express {
     try {
       const { session_id, user_id } = req.query;
       
-      if (!session_id || !user_id) {
+      if (!session_id) {
         return res.status(400).json({
           status: 'error',
-          message: 'Missing required parameters'
+          message: 'Missing session ID parameter'
         });
       }
 
@@ -1392,34 +1453,92 @@ export function registerRoutes(app: Express): Express {
       // Retrieve the session to verify payment
       const session = await stripe.checkout.sessions.retrieve(session_id as string);
       
-      // Verify the session is completed and belongs to this user
+      // Verify the session is completed
       if (session.status !== 'complete') {
         return res.status(400).json({
           status: 'error',
           message: 'Payment not completed'
         });
       }
+      
+      let user;
+      let userId;
+      
+      // Determine if we're using new flow (session-based) or legacy flow (user_id-based)
+      if (session.metadata?.sessionToken) {
+        // New flow - create user from session data
+        const sessionToken = session.metadata.sessionToken;
+        
+        // Check if this is the same session that was used for registration
+        if (sessionToken !== req.sessionID) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Invalid session or session expired'
+          });
+        }
+        
+        // Get registration data from session
+        const registrationData = req.session.registrationData;
+        
+        if (!registrationData) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Registration data not found in session'
+          });
+        }
+        
+        // Create the user now that payment is confirmed
+        const [newUser] = await db
+          .insert(users)
+          .values({
+            username: registrationData.username,
+            email: registrationData.email,
+            password: registrationData.password, // Already hashed when stored in session
+            role: 'user',
+            emailVerified: true, // Verified because payment completed
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            verificationToken: null,
+            verificationTokenExpiry: null,
+            lastLoginAt: new Date(),
+            resetToken: null,
+            resetTokenExpiry: null,
+            trialStartedAt: null,
+            trialEndedAt: null,
+            dataDeletionStatus: "none",
+          })
+          .returning();
+          
+        user = newUser;
+        userId = newUser.id;
+        
+        // Clear registration data from session
+        delete req.session.registrationData;
+      } 
+      else if (user_id && session.metadata?.userId === user_id) {
+        // Legacy flow - user already exists
+        userId = parseInt(user_id as string);
+        
+        // Check if user exists
+        const [existingUser] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
 
-      if (session.metadata?.userId !== user_id) {
+        if (!existingUser) {
+          return res.status(404).json({
+            status: 'error',
+            message: 'User not found'
+          });
+        }
+        
+        user = existingUser;
+      } 
+      else {
         return res.status(400).json({
           status: 'error',
-          message: 'Invalid user ID for this session'
-        });
-      }
-
-      const userId = parseInt(user_id as string);
-      
-      // Check if user exists
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
-      if (!user) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'User not found'
+          message: 'Invalid session data'
         });
       }
 

@@ -32,6 +32,7 @@ export default function RegistrationCompletePage() {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // Important to include cookies for session data
         });
         
         if (!response.ok) {
