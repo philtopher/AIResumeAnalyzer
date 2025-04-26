@@ -778,24 +778,17 @@ export function registerRoutes(app: Express): Express {
         
         // Only apply restriction to free users (non-admin, non-premium)
         if (!hasActiveSubscription) {
-          // Check last transformation time
-          const oneDayAgo = new Date();
-          oneDayAgo.setHours(oneDayAgo.getHours() - 24);
-          
-          const recentTransformations = await db
+          // Check if user has EVER done any transformations before
+          const previousTransformations = await db
             .select()
             .from(cvs)
-            .where(
-              and(
-                eq(cvs.userId, req.user.id),
-                gte(cvs.createdAt, oneDayAgo)
-              )
-            );
+            .where(eq(cvs.userId, req.user.id))
+            .limit(1);
           
-          if (recentTransformations.length > 0) {
-            // User has converted CV in the last 24 hours
+          if (previousTransformations.length > 0) {
+            // User has already used their one free transformation
             return res.status(403).json({ 
-              error: "Free users can only convert CVs once every 24 hours. Please subscribe to our premium plan for unlimited conversions." 
+              error: "You have used your free CV transformation. Please subscribe to our Standard or Pro plan to continue using this service and unlock unlimited transformations." 
             });
           }
         }
