@@ -189,11 +189,11 @@ export function FreeTrialWarning() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {subscriptionTier === "basic" ? "Basic Plan Limit" : "Standard Plan Limit"}
+              {subscriptionPlan === "basic" ? "Basic Plan Limit" : "Standard Plan Limit"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {transformationsLeft > 0 ? (
-                subscriptionTier === "basic" ? (
+                subscriptionPlan === "basic" ? (
                   <>
                     You have only <strong>{transformationsLeft}</strong> CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your Basic plan. 
                     <p className="mt-2">Upgrade to our Standard plan for £5/month to get 20 transformations per month, or Pro plan for £30/month for unlimited transformations.</p>

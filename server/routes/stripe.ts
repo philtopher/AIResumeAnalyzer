@@ -322,12 +322,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       const planType = session.metadata?.plan || 'basic'; // Default to basic if not specified
       const isPro = planType === 'pro';
       
-      // Determine monthly conversion limits based on tier
-      let monthlyLimit = 10; // Default for basic tier
+      // Determine monthly conversion limits based on subscription plan
+      let monthlyLimit = 10; // Default for Basic plan (£3/month)
       if (planType === 'standard') {
-        monthlyLimit = 20;
+        monthlyLimit = 20;   // Standard plan (£5/month)
       } else if (planType === 'pro') {
-        monthlyLimit = 9999; // Essentially unlimited
+        monthlyLimit = 9999; // Pro plan (£30/month) - Essentially unlimited
       }
 
       console.log('Processing successful checkout for user:', userId, 'plan:', planType, 'monthly limit:', monthlyLimit);
@@ -372,13 +372,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
           console.log('Sending confirmation email to:', user.email);
           
-          // Change email content based on subscription tier
+          // Change email content based on subscription plan
           let planName = 'Basic';
+          let planPrice = '£3/month';
           let conversionsText = '10 CV transformations per month';
           let features = '';
           
           if (planType === 'standard') {
             planName = 'Standard';
+            planPrice = '£5/month';
             conversionsText = '20 CV transformations per month';
             features = `<ul>
               <li>${conversionsText}</li>
@@ -388,6 +390,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             </ul>`;
           } else if (planType === 'pro') {
             planName = 'Pro';
+            planPrice = '£30/month';
             conversionsText = 'Unlimited CV transformations';
             features = `<ul>
               <li>${conversionsText}</li>
@@ -411,7 +414,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             subject: `Welcome to CV Transformer ${planName} Plan!`,
             html: `
               <h1>Welcome to CV Transformer ${planName} Plan!</h1>
-              <p>Thank you for subscribing to our ${planName} Plan! Your subscription is now active.</p>
+              <p>Thank you for subscribing to our ${planName} Plan (${planPrice})! Your subscription is now active.</p>
               <h2>Your ${planName} Plan Features Include:</h2>
               ${features}
               <p>Start exploring your new features now by visiting your <a href="${baseUrl}/dashboard">dashboard</a>.</p>
@@ -659,13 +662,15 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
       }
     }
     
-    // Change email content based on subscription tier
+    // Change email content based on subscription plan
     let planName = 'Basic';
+    let planPrice = '£3/month';
     let conversionsText = '10 CV transformations per month';
     let features = '';
     
     if (tier === 'standard') {
       planName = 'Standard';
+      planPrice = '£5/month';
       conversionsText = '20 CV transformations per month';
       features = `<ul>
         <li>${conversionsText}</li>
@@ -675,6 +680,7 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
       </ul>`;
     } else if (tier === 'pro') {
       planName = 'Pro';
+      planPrice = '£30/month';
       conversionsText = 'Unlimited CV transformations';
       features = `<ul>
         <li>${conversionsText}</li>
@@ -698,7 +704,7 @@ router.post('/test-send-welcome-email/:userId', async (req, res) => {
       subject: `Welcome to CV Transformer ${planName} Plan!`,
       html: `
         <h1>Welcome to CV Transformer ${planName} Plan!</h1>
-        <p>Thank you for subscribing to our ${planName} Plan! Your subscription is now active.</p>
+        <p>Thank you for subscribing to our ${planName} Plan (${planPrice})! Your subscription is now active.</p>
         <h2>Your ${planName} Plan Features Include:</h2>
         ${features}
         <p>Start exploring your new features now by visiting your <a href="${baseUrl}/dashboard">dashboard</a>.</p>
