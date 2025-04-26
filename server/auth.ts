@@ -296,8 +296,27 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid username or password." });
         }
 
+        // Check if user is an admin (they can access everything)
+        const isAdmin = user.role === 'super_admin' || user.role === 'admin' || user.role === 'sub_admin';
+        
         // Check if user has an active subscription
         const hasActiveSubscription = user.subscription && user.subscription.status === 'active';
+        
+        // If user is not an admin and doesn't have an active subscription, deny login
+        if (!isAdmin && !hasActiveSubscription) {
+          return done(null, false, { 
+            message: "Subscription required. Please purchase a subscription to access your account." 
+          });
+        }
+
+        // Determine subscription tier based on isPro flag (until migration is complete)
+        let subscriptionTier = 'basic';
+        if (user.subscription && user.subscription.isPro) {
+          subscriptionTier = 'pro';
+        } else if (user.subscription) {
+          // If they have a subscription but not pro, default to standard
+          subscriptionTier = 'standard';
+        }
 
         // Convert user to match Express.User interface
         const userForAuth = {
@@ -305,12 +324,13 @@ export function setupAuth(app: Express) {
           username: user.username,
           password: user.password,
           email: user.email,
-          // Only update to pro_user if user is not an admin or super_admin
-          role: (hasActiveSubscription && !user.role.includes('admin') && user.role !== 'super_admin') 
-            ? 'pro_user' 
-            : user.role,
+          // Maintain admin roles, otherwise use subscription tier to determine role
+          role: isAdmin ? user.role : 'pro_user',
           emailVerified: user.emailVerified ?? false,
-          subscriptions: user.subscription ? { status: user.subscription.status } : null,
+          subscriptions: user.subscription ? { 
+            status: user.subscription.status,
+            tier: subscriptionTier
+          } : null,
           createdAt: user.createdAt,
           trialStartedAt: user.trialStartedAt,
         };
@@ -328,35 +348,55 @@ export function setupAuth(app: Express) {
 
   passport.deserializeUser(async (id: number, done) => {
     try {
-      const [user] = await db
-        .select()
+      // Get user with subscription information
+      const result = await db
+        .select({
+          user: users,
+          subscription: subscriptions
+        })
         .from(users)
+        .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
         .where(eq(users.id, id))
         .limit(1);
 
-      if (!user) {
+      if (!result.length) {
         return done(null, false);
       }
 
-      // Check subscription status for existing users
-      const hasActiveSubscription = await checkSubscriptionStatus(user.id);
-
-      // If subscription expired, ensure user has basic access
-      // But don't downgrade admin accounts
-      if (!hasActiveSubscription && !user.role.includes('admin') && user.role !== 'super_admin') {
-        // Update role to 'user' if they don't have an active subscription and aren't an admin
-        await db
-          .update(users)
-          .set({ role: 'user' })
-          .where(eq(users.id, user.id));
-
-        user.role = 'user';
+      const { user, subscription } = result[0];
+      
+      // Check if user is an admin
+      const isAdmin = user.role === 'super_admin' || user.role === 'admin' || user.role === 'sub_admin';
+      
+      // If not admin, check active subscription
+      if (!isAdmin) {
+        const hasActiveSubscription = subscription && subscription.status === 'active';
+        
+        if (!hasActiveSubscription) {
+          // If no active subscription and not an admin, log them out (subscription required)
+          return done(null, false);
+        }
       }
-
+      
+      // Determine subscription tier based on isPro flag (until migration is complete)
+      let subscriptionTier = 'basic';
+      if (subscription && subscription.isPro) {
+        subscriptionTier = 'pro';
+      } else if (subscription) {
+        // If they have a subscription but not pro, default to standard
+        subscriptionTier = 'standard';
+      }
+      
       // Convert nullable boolean to boolean for consistency
       const userForAuth = {
         ...user,
         emailVerified: user.emailVerified ?? false,
+        subscription: subscription ? {
+          status: subscription.status,
+          tier: subscriptionTier,
+          conversionsUsed: subscription.conversionsUsed || 0,
+          monthlyLimit: subscription.monthlyLimit || (subscriptionTier === 'standard' ? 20 : 10)
+        } : null
       };
 
       done(null, userForAuth);
@@ -476,6 +516,21 @@ export function setupAuth(app: Express) {
         .where(eq(subscriptions.userId, user.id))
         .limit(1);
 
+      // Determine subscription tier based on isPro flag (until migration is complete)
+      let subscriptionTier = 'basic';
+      let monthlyLimit = 10; // Default basic tier limit
+      
+      if (subscription) {
+        if (subscription.isPro) {
+          subscriptionTier = 'pro';
+          monthlyLimit = Number.MAX_SAFE_INTEGER; // Unlimited for pro tier
+        } else {
+          // If they have a subscription but not pro, default to standard
+          subscriptionTier = 'standard';
+          monthlyLimit = 20; // Standard tier limit
+        }
+      }
+
       req.logIn(user, (err) => {
         if (err) {
           return next(err);
@@ -488,7 +543,12 @@ export function setupAuth(app: Express) {
             username: user.username,
             email: user.email,
             role: user.role,
-            subscription: subscription ? { status: subscription.status } : null,
+            subscription: subscription ? { 
+              status: subscription.status,
+              tier: subscriptionTier,
+              conversionsUsed: subscription.conversionsUsed || 0,
+              monthlyLimit: monthlyLimit,
+            } : null,
             emailVerified: user.emailVerified,
           },
           requiresSubscription: !subscription,
