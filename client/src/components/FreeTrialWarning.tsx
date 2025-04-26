@@ -52,7 +52,7 @@ export function FreeTrialWarning() {
         return response.json();
       } catch (error) {
         console.error("Error fetching recent transformations:", error);
-        return { count: 0, limit: 10, remaining: 10, tier: "basic", requiresPayment: false, unlimited: false };
+        return { count: 0, limit: 10, remaining: 10, tier: "basic", requiresPayment: false, unlimited: false }; // tier refers to subscription plan
       }
     },
     refetchOnWindowFocus: true,
@@ -114,7 +114,7 @@ export function FreeTrialWarning() {
     }
   };
 
-  // Don't show anything for unlimited users (Pro tier or admin)
+  // Don't show anything for unlimited users (Pro subscription plan or admin)
   if (isUnlimited) {
     return null;
   }
@@ -124,8 +124,8 @@ export function FreeTrialWarning() {
     return null; // The payment requirement will be handled elsewhere in the app
   }
 
-  // Get friendly name and tier color
-  const getTierInfo = (tier: string | null) => {
+  // Get friendly name and subscription plan color
+  const getSubscriptionPlanInfo = (tier: string | null) => {
     switch(tier) {
       case "basic":
         return { name: "Basic", color: "amber" };
@@ -136,7 +136,7 @@ export function FreeTrialWarning() {
     }
   };
   
-  const { name: tierName, color: tierColor } = getTierInfo(subscriptionPlan);
+  const { name: planName, color: planColor } = getSubscriptionPlanInfo(subscriptionPlan);
   const colorClasses = {
     amber: {
       bg: "bg-amber-50",
@@ -153,7 +153,7 @@ export function FreeTrialWarning() {
       icon: "text-emerald-400",
     }
   };
-  const classes = colorClasses[tierColor as keyof typeof colorClasses];
+  const classes = colorClasses[planColor as keyof typeof colorClasses];
 
   return (
     <>
@@ -167,7 +167,7 @@ export function FreeTrialWarning() {
             </div>
             <div className="ml-3">
               <p className={`text-sm ${classes.text}`}>
-                <span className="font-bold">{tierName} Plan:</span> You have used {transformationsUsed} of {totalLimit} CV transformations this month ({transformationsLeft} remaining).
+                <span className="font-bold">{planName} Plan:</span> You have used {transformationsUsed} of {totalLimit} CV transformations this month ({transformationsLeft} remaining).
               </p>
             </div>
           </div>
