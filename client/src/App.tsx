@@ -15,6 +15,8 @@ import TutorialPage from "./pages/TutorialPage";
 import ContactPage from "./pages/ContactPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import CheckoutPage from "./pages/CheckoutPage";
+import RegisterPage from "./pages/RegisterPage";
+import RegistrationCompletePage from "./pages/RegistrationCompletePage";
 import { useUser } from "./hooks/use-user";
 import {
   DropdownMenu,
