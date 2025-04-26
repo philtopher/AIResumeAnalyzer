@@ -16,6 +16,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import StripeCheckout from '@/components/StripeCheckout';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Check, ArrowRight } from 'lucide-react';
 
 // Create a schema for form validation
 const registerFormSchema = z.object({
@@ -44,6 +46,8 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tempUserId, setTempUserId] = useState<number | null>(null);
   const [showPayment, setShowPayment] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'basic' | 'standard' | 'pro'>('basic');
+  const [showPlanSelection, setShowPlanSelection] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -78,11 +82,11 @@ export default function RegisterPage() {
 
         const responseData = await response.json();
         setTempUserId(responseData.userId);
-        setShowPayment(true);
+        setShowPlanSelection(true);
         
         toast({
           title: "Step 1 complete",
-          description: "Please complete your payment to activate your account.",
+          description: "Please select a subscription plan to continue.",
         });
       } catch (error) {
         toast({
@@ -94,6 +98,17 @@ export default function RegisterPage() {
         setIsSubmitting(false);
       }
     })(e);
+  }
+  
+  function handleSelectPlan(plan: 'basic' | 'standard' | 'pro') {
+    setSelectedPlan(plan);
+    setShowPlanSelection(false);
+    setShowPayment(true);
+    
+    toast({
+      title: `${plan.charAt(0).toUpperCase() + plan.slice(1)} plan selected`,
+      description: "Please complete your payment to activate your account.",
+    });
   }
 
   function handlePaymentSuccess() {
@@ -119,16 +134,22 @@ export default function RegisterPage() {
         <div className="md:w-1/2 p-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">
-              {showPayment ? 'Complete Your Registration' : 'Create an Account'}
+              {showPayment 
+                ? 'Complete Your Payment' 
+                : showPlanSelection 
+                  ? 'Choose Your Plan'
+                  : 'Create an Account'}
             </h1>
             <p className="text-muted-foreground">
               {showPayment 
-                ? 'Please select a subscription plan to continue.'
-                : 'Sign up to get started with CV transformation.'}
+                ? 'Please complete payment to activate your subscription.'
+                : showPlanSelection
+                  ? 'Select a subscription plan that suits your needs.'
+                  : 'Sign up to get started with CV transformation.'}
             </p>
           </div>
 
-          {!showPayment ? (
+          {!showPlanSelection && !showPayment ? (
             <Form {...form}>
               <form onSubmit={handleFormSubmit} className="space-y-6">
                 <FormField
@@ -186,7 +207,7 @@ export default function RegisterPage() {
                   className="w-full" 
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Creating account...' : 'Continue to Payment'}
+                  {isSubmitting ? 'Creating account...' : 'Continue to Plan Selection'}
                 </Button>
 
                 <p className="text-sm text-center mt-4">
@@ -197,11 +218,119 @@ export default function RegisterPage() {
                 </p>
               </form>
             </Form>
+          ) : showPlanSelection ? (
+            <div className="space-y-6">
+              <h2 className="text-xl font-medium">Choose Your Subscription Plan</h2>
+              
+              <div className="grid gap-4 md:grid-cols-3">
+                {/* Basic Plan */}
+                <Card className={`border-2 ${selectedPlan === 'basic' ? 'border-primary' : 'border-transparent'} transition-all`}>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Basic Plan</CardTitle>
+                    <CardDescription>For occasional CV updates</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <div className="text-3xl font-bold">£3<span className="text-base font-normal text-muted-foreground">/month</span></div>
+                    <ul className="mt-4 space-y-2 text-sm">
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>10 CV transformations per month</span>
+                      </li>
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>AI-powered insights</span>
+                      </li>
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>Basic PDF export</span>
+                      </li>
+                    </ul>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      onClick={() => handleSelectPlan('basic')} 
+                      className="w-full"
+                      variant={selectedPlan === 'basic' ? 'default' : 'outline'}
+                    >
+                      Select Basic
+                    </Button>
+                  </CardFooter>
+                </Card>
+                
+                {/* Standard Plan */}
+                <Card className={`border-2 ${selectedPlan === 'standard' ? 'border-primary' : 'border-transparent'} transition-all`}>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Standard Plan</CardTitle>
+                    <CardDescription>For active job seekers</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <div className="text-3xl font-bold">£5<span className="text-base font-normal text-muted-foreground">/month</span></div>
+                    <ul className="mt-4 space-y-2 text-sm">
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>20 CV transformations per month</span>
+                      </li>
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>Enhanced AI insights</span>
+                      </li>
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>Premium formatting options</span>
+                      </li>
+                    </ul>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      onClick={() => handleSelectPlan('standard')} 
+                      className="w-full"
+                      variant={selectedPlan === 'standard' ? 'default' : 'outline'}
+                    >
+                      Select Standard
+                    </Button>
+                  </CardFooter>
+                </Card>
+                
+                {/* Pro Plan */}
+                <Card className={`border-2 ${selectedPlan === 'pro' ? 'border-primary' : 'border-transparent'} transition-all`}>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Pro Plan</CardTitle>
+                    <CardDescription>For professional career growth</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <div className="text-3xl font-bold">£30<span className="text-base font-normal text-muted-foreground">/month</span></div>
+                    <ul className="mt-4 space-y-2 text-sm">
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>Unlimited CV transformations</span>
+                      </li>
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>Advanced analytics & insights</span>
+                      </li>
+                      <li className="flex items-center">
+                        <Check className="h-4 w-4 mr-2 text-primary" />
+                        <span>Priority support</span>
+                      </li>
+                    </ul>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      onClick={() => handleSelectPlan('pro')} 
+                      className="w-full"
+                      variant={selectedPlan === 'pro' ? 'default' : 'outline'}
+                    >
+                      Select Pro
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </div>
+            </div>
           ) : (
             <div className="mt-6">
               {tempUserId && (
                 <StripeCheckout
-                  planType="basic"
+                  planType={selectedPlan}
                   onSuccess={handlePaymentSuccess}
                   onError={handlePaymentError}
                   isRegistration={true}
