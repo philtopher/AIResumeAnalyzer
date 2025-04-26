@@ -1401,7 +1401,7 @@ export function registerRoutes(app: Express): Express {
         cancel_url: `${req.protocol}://${req.get('host')}/register`,
         metadata: {
           plan,
-        },
+        } as Record<string, string>,
       };
       
       // Handle different success URL formats based on registration method
