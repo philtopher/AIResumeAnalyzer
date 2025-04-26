@@ -33,19 +33,18 @@ export default function SettingsPage() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [selectedDowngradeTier, setSelectedDowngradeTier] = useState<'standard' | 'basic'>('standard');
 
-  // Check what plan the user is on
-  const isPro = subscription?.tier === 'pro' || subscription?.isPro === true;
-  const isStandard = subscription?.tier === 'standard' || 
-    (subscription && !subscription.isPro && subscription.tier !== 'basic');
-  const isBasic = subscription?.tier === 'basic';
+  // Check what plan the user is on based on isPro flag and monthlyLimit
+  const isPro = subscription?.isPro === true;
+  const isStandard = !isPro && subscription?.monthlyLimit === 20;
+  const isBasic = !isPro && subscription?.monthlyLimit === 10 || (!subscription?.monthlyLimit && !isPro);
 
   // Handle downgrade (Pro to Standard or Basic, or Standard to Basic)
   const handleDowngrade = async () => {
     try {
-      const result = await downgradeSubscription(selectedDowngradeTier);
+      await downgradeSubscription(selectedDowngradeTier);
       toast({
         title: `Plan Downgraded to ${selectedDowngradeTier.charAt(0).toUpperCase() + selectedDowngradeTier.slice(1)}`,
-        description: "You have been successfully downgraded to the Standard plan.",
+        description: `You have been successfully downgraded to the ${selectedDowngradeTier} plan.`,
       });
       setShowDowngradeConfirm(false);
     } catch (error) {
@@ -60,7 +59,7 @@ export default function SettingsPage() {
   // Handle cancellation (end premium)
   const handleCancel = async () => {
     try {
-      const result = await cancelSubscription();
+      await cancelSubscription();
       toast({
         title: "Subscription Cancelled",
         description: "Your premium subscription has been cancelled. You've been returned to the Basic plan.",
@@ -85,7 +84,7 @@ export default function SettingsPage() {
 
   // Determine subscription status from user object
   const subscriptionStatus = user?.subscription?.status || "inactive";
-  const isPro = user?.subscription?.isPro === true;
+  // Using the isPro variable defined earlier
   const isActive = subscriptionStatus === "active";
 
   return (
@@ -186,12 +185,30 @@ export default function SettingsPage() {
                 <AlertTriangle className="h-4 w-4 text-yellow-600" />
                 <AlertDescription className="mt-2">
                   <p className="mb-4">
-                    Are you sure you want to downgrade to the Standard Subscription Plan? You'll lose access to:
+                    Are you sure you want to downgrade to the {selectedDowngradeTier.charAt(0).toUpperCase() + selectedDowngradeTier.slice(1)} Subscription Plan? You'll lose access to:
                   </p>
                   <ul className="list-disc pl-5 mb-4 space-y-1">
-                    <li>Interviewer LinkedIn Insights</li>
-                    <li>Employer Competition Analysis</li>
-                    <li>Advanced CV Analysis</li>
+                    {isPro && selectedDowngradeTier === 'standard' && (
+                      <>
+                        <li>Interviewer LinkedIn Insights</li>
+                        <li>Employer Competition Analysis</li>
+                        <li>Advanced CV Analysis</li>
+                        <li>Unlimited CV transformations (limit will be 20 per month)</li>
+                      </>
+                    )}
+                    {isPro && selectedDowngradeTier === 'basic' && (
+                      <>
+                        <li>Interviewer LinkedIn Insights</li>
+                        <li>Employer Competition Analysis</li>
+                        <li>Advanced CV Analysis</li>
+                        <li>Unlimited CV transformations (limit will be 10 per month)</li>
+                      </>
+                    )}
+                    {isStandard && selectedDowngradeTier === 'basic' && (
+                      <>
+                        <li>20 monthly CV transformations (limit will be 10 per month)</li>
+                      </>
+                    )}
                   </ul>
                   <div className="flex gap-4">
                     <Button

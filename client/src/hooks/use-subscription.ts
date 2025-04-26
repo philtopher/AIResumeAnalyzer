@@ -15,15 +15,16 @@ export function useSubscription() {
     staleTime: 1000 * 60, // 1 minute
   });
 
-  // Mutation to downgrade from Pro to Standard
-  const downgradeSubscription = useMutation<ApiResponse, Error>({
-    mutationFn: async () => {
+  // Mutation to downgrade subscription to a different plan
+  const downgradeSubscription = useMutation<ApiResponse, Error, 'basic' | 'standard'>({
+    mutationFn: async (planType: 'basic' | 'standard') => {
       const response = await fetch('/api/stripe/downgrade-subscription', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ planType }),
       });
       
       const data = await response.json();
