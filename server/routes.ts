@@ -767,52 +767,73 @@ export function registerRoutes(app: Express): Express {
       
       // For admin users, bypass all checks and allow the transformation
       if (!isAdmin) {
-        // Only regular users get checked for subscription status
-        // Check if user has an active subscription (could be from old or new schema)
-        const hasActiveSubscription = 
-          // Check old schema format
-          (req.user.subscription && req.user.subscription.status === "active") ||
-          // Check new schema format (array of subscriptions)
-          (Array.isArray(req.user.subscriptions) && 
-           req.user.subscriptions.some((sub: any) => sub.status === "active"));
+        // Get device info for better tracking
+        const userAgent = req.headers['user-agent'] || 'unknown';
+        const ip = req.ip || req.socket.remoteAddress || 'unknown';
         
-        // Only apply restriction to free users (non-admin, non-premium)
-        if (!hasActiveSubscription) {
-          // Get device info for better tracking
-          const userAgent = req.headers['user-agent'] || 'unknown';
-          const ip = req.ip || req.socket.remoteAddress || 'unknown';
+        // Get user's active subscription if any
+        const userSubscription = await db
+          .select()
+          .from(subscriptions)
+          .where(
+            and(
+              eq(subscriptions.userId, req.user.id),
+              eq(subscriptions.status, "active")
+            )
+          )
+          .orderBy(desc(subscriptions.createdAt))
+          .limit(1);
+        
+        // If no subscription, they should not be able to use the service at all
+        // All users should have a subscription (basic, standard, or pro)
+        if (userSubscription.length === 0) {
+          console.log(`User ${req.user.id} has no subscription. Device: ${userAgent}, IP: ${ip}`);
+          return res.status(403).json({ 
+            error: "You need a valid subscription to use this service. Please complete the payment process to continue.",
+            requiresPayment: true
+          });
+        }
+        
+        const subscription = userSubscription[0];
+        
+        // Check if this is a Pro subscription which has unlimited conversions
+        if (subscription.tier === "pro" || subscription.isPro) {
+          // Pro users have unlimited transformations
+          console.log(`Pro user ${req.user.id} accessing transformation. Device: ${userAgent}, IP: ${ip}`);
+        } else {
+          // For Basic (10/month) and Standard (20/month) users, check monthly usage limits
           
-          // Check transformations in the last 24 hours
-          const oneDayAgo = new Date();
-          oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+          // Get current number of transformations used this month
+          const currentUsage = subscription.conversionsUsed || 0;
+          const monthlyLimit = subscription.monthlyLimit || 
+            (subscription.tier === "standard" ? 20 : 10); // Default: 10 for basic, 20 for standard
           
-          const recentTransformations = await db
-            .select()
-            .from(cvs)
-            .where(
-              and(
-                eq(cvs.userId, req.user.id),
-                gte(cvs.createdAt, oneDayAgo)
-              )
-            );
-          
-          // Free users get 3 transformations in 24 hours
-          if (recentTransformations.length >= 3) {
-            // Log device info for analytics
-            console.log(`User ${req.user.id} reached free limit. Device: ${userAgent}, IP: ${ip}`);
+          // Check if user has reached their monthly limit
+          if (currentUsage >= monthlyLimit) {
+            console.log(`User ${req.user.id} reached ${subscription.tier} tier limit of ${monthlyLimit}. Device: ${userAgent}, IP: ${ip}`);
             
-            // User has already used their 3 free transformations in 24 hours
             return res.status(403).json({ 
-              error: "You have reached the limit of 3 CV transformations in 24 hours. Please subscribe to our Standard or Pro plan to continue using this service and unlock unlimited transformations.",
-              reachedFreeLimit: true,
-              transformationsUsed: recentTransformations.length
+              error: `You have reached your monthly limit of ${monthlyLimit} CV transformations. Please upgrade your plan to continue using this service.`,
+              reachedTierLimit: true,
+              tier: subscription.tier,
+              transformationsUsed: currentUsage,
+              monthlyLimit: monthlyLimit
             });
           }
           
-          // If they're on their last free transformation, warn them
-          if (recentTransformations.length === 2) {
-            console.log(`User ${req.user.id} on final free transformation. Device: ${userAgent}, IP: ${ip}`);
+          // If they're close to their limit, warn them
+          if (monthlyLimit - currentUsage <= 2) {
+            console.log(`User ${req.user.id} approaching ${subscription.tier} tier limit. ${currentUsage}/${monthlyLimit} used. Device: ${userAgent}, IP: ${ip}`);
           }
+          
+          // Increment the usage count for this user's subscription
+          await db
+            .update(subscriptions)
+            .set({ 
+              conversionsUsed: currentUsage + 1,
+              updatedAt: new Date()
+            })
+            .where(eq(subscriptions.id, subscription.id));
         }
       }
       
@@ -978,56 +999,95 @@ export function registerRoutes(app: Express): Express {
     }
   });
   
-  // Get recent transformations count for free trial tracking
+  // Get monthly transformations count and limit based on subscription tier
   app.get("/api/cv/recent-count", async (req: Request, res: Response) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ error: "Not authenticated" });
       }
       
-      // Check if user has a premium subscription - they don't need to see the count
+      // Check if user is admin (unlimited access)
       const isAdmin = req.user.role === "super_admin" || req.user.role === "sub_admin" || req.user.role === "admin";
-      const hasActiveSubscription = 
-        (req.user.subscription && req.user.subscription.status === "active") ||
-        (Array.isArray(req.user.subscriptions) && 
-         req.user.subscriptions.some((sub: any) => sub.status === "active"));
       
-      // If user is admin or has subscription, return 0 count (no limits)
-      if (isAdmin || hasActiveSubscription) {
-        return res.json({ count: 0, limit: 3, unlimited: true });
+      if (isAdmin) {
+        return res.json({ 
+          count: 0, 
+          limit: Infinity, 
+          remaining: Infinity,
+          unlimited: true,
+          tier: "admin"
+        });
       }
-      
-      // Get transformations in the last 24 hours
-      const oneDayAgo = new Date();
-      oneDayAgo.setHours(oneDayAgo.getHours() - 24);
-      
-      const recentTransformations = await db
+
+      // Get user's active subscription if any
+      const userSubscription = await db
         .select()
-        .from(cvs)
+        .from(subscriptions)
         .where(
           and(
-            eq(cvs.userId, req.user.id),
-            gte(cvs.createdAt, oneDayAgo)
+            eq(subscriptions.userId, req.user.id),
+            eq(subscriptions.status, "active")
           )
-        );
+        )
+        .orderBy(desc(subscriptions.createdAt))
+        .limit(1);
+      
+      // If no subscription, user needs to purchase one
+      if (userSubscription.length === 0) {
+        return res.json({ 
+          count: 0, 
+          limit: 0,
+          remaining: 0,
+          unlimited: false,
+          requiresPayment: true
+        });
+      }
+      
+      const subscription = userSubscription[0];
+      
+      // Check if this is a Pro subscription which has unlimited conversions
+      if (subscription.tier === "pro" || subscription.isPro) {
+        return res.json({ 
+          count: 0, 
+          limit: Infinity,
+          remaining: Infinity,
+          unlimited: true,
+          tier: "pro"
+        });
+      }
+      
+      // For Basic (10/month) and Standard (20/month) users, check monthly usage
+      const currentUsage = subscription.conversionsUsed || 0;
+      const monthlyLimit = subscription.monthlyLimit || 
+        (subscription.tier === "standard" ? 20 : 10); // Default: 10 for basic, 20 for standard
       
       // Get device info for better tracking
       const userAgent = req.headers['user-agent'] || 'unknown';
       const ip = req.ip || req.socket.remoteAddress || 'unknown';
       
-      // Log for analytics - helps track usage patterns
-      if (recentTransformations.length >= 2) {
-        console.log(`User ${req.user.id} has used ${recentTransformations.length}/3 free transformations. Device: ${userAgent}, IP: ${ip}`);
+      // Log for analytics - helps track usage patterns when approaching limit
+      if (monthlyLimit - currentUsage <= 3) {
+        console.log(`User ${req.user.id} approaching ${subscription.tier} tier limit. ${currentUsage}/${monthlyLimit} used. Device: ${userAgent}, IP: ${ip}`);
       }
       
+      // Calculate start of current month for display purposes
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      
       res.json({ 
-        count: recentTransformations.length, 
-        limit: 3,
-        remaining: Math.max(0, 3 - recentTransformations.length),
-        unlimited: false
+        count: currentUsage, 
+        limit: monthlyLimit,
+        remaining: Math.max(0, monthlyLimit - currentUsage),
+        unlimited: false,
+        tier: subscription.tier,
+        period: {
+          start: startOfMonth,
+          end: endOfMonth
+        }
       });
     } catch (error: any) {
-      console.error("Error retrieving recent transformations count:", error);
+      console.error("Error retrieving transformation usage count:", error);
       
       // Sanitize error message to remove curly braces for security
       let errorMessage = error.message || "Failed to retrieve transformation count";
