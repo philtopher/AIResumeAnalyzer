@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { Request, Response, NextFunction } from "express";
-import { setupAuth } from "./auth";
+import { setupAuth, hashPassword } from "./auth";
 import { db } from "@db";
 import { users, cvs, activityLogs, subscriptions, contacts } from "@db/schema";
 import { eq, desc, and, gte, inArray, or, ne, like, asc } from "drizzle-orm";
@@ -1278,6 +1278,289 @@ export function registerRoutes(app: Express): Express {
       return res.status(500).json({ 
         error: "Failed to process contact form", 
         message: errorMessage 
+      });
+    }
+  });
+
+  // Endpoint to create a temporary user record before payment
+  app.post("/api/register-temp", async (req: Request, res: Response) => {
+    try {
+      const { username, email, password } = req.body;
+      
+      if (!username || !email || !password) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Missing required fields'
+        });
+      }
+
+      // Check if username already exists
+      const [existingUsername] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      if (existingUsername) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Username already exists'
+        });
+      }
+
+      // Check if email already exists
+      const [existingEmail] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (existingEmail) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Email already exists'
+        });
+      }
+
+      // Hash the password
+      const hashedPassword = await hashPassword(password);
+
+      // Create a temporary user record (not verified yet)
+      const [user] = await db
+        .insert(users)
+        .values({
+          username,
+          email,
+          password: hashedPassword,
+          role: 'user',
+          emailVerified: false, // Not verified until payment is completed
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      return res.status(201).json({
+        status: 'success',
+        message: 'Temporary user record created',
+        user: {
+          id: user.id,
+          username: user.username
+        }
+      });
+    } catch (error: any) {
+      console.error('Temporary registration error:', error);
+      return res.status(500).json({
+        status: 'error',
+        message: error.message || 'An unexpected error occurred'
+      });
+    }
+  });
+
+  // Endpoint to create a checkout session for registration
+  app.post("/api/create-checkout-session", async (req: Request, res: Response) => {
+    try {
+      const { plan, userId } = req.body;
+      
+      if (!plan || !userId) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Missing required fields'
+        });
+      }
+
+      // Check if user exists
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'User not found'
+        });
+      }
+
+      // Initialize Stripe
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2023-10-16',
+      });
+
+      // Determine price ID based on plan
+      let priceId: string | undefined;
+      switch(plan) {
+        case 'pro':
+          priceId = process.env.STRIPE_PRO_PRICE_ID;
+          break;
+        case 'standard':
+          priceId = process.env.STRIPE_STANDARD_PRICE_ID;
+          break;
+        case 'basic':
+        default:
+          priceId = process.env.STRIPE_BASIC_PRICE_ID;
+          break;
+      }
+
+      if (!priceId) {
+        throw new Error(`Price ID for plan "${plan}" is not configured`);
+      }
+
+      // Create a checkout session
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${req.protocol}://${req.get('host')}/registration-complete?session_id={CHECKOUT_SESSION_ID}&user_id=${userId}`,
+        cancel_url: `${req.protocol}://${req.get('host')}/register`,
+        metadata: {
+          userId: userId.toString(),
+          plan,
+        },
+      });
+
+      return res.status(200).json({
+        status: 'success',
+        url: session.url
+      });
+    } catch (error: any) {
+      console.error('Checkout session error:', error);
+      return res.status(500).json({
+        status: 'error',
+        message: error.message || 'An unexpected error occurred'
+      });
+    }
+  });
+
+  // Endpoint to handle registration completion after payment
+  app.get("/api/registration-complete", async (req: Request, res: Response) => {
+    try {
+      const { session_id, user_id } = req.query;
+      
+      if (!session_id || !user_id) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Missing required parameters'
+        });
+      }
+
+      // Initialize Stripe
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2023-10-16',
+      });
+
+      // Retrieve the session to verify payment
+      const session = await stripe.checkout.sessions.retrieve(session_id as string);
+      
+      // Verify the session is completed and belongs to this user
+      if (session.status !== 'complete') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Payment not completed'
+        });
+      }
+
+      if (session.metadata?.userId !== user_id) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid user ID for this session'
+        });
+      }
+
+      const userId = parseInt(user_id as string);
+      
+      // Check if user exists
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'User not found'
+        });
+      }
+
+      // Check if the user already has a subscription
+      const [existingSubscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, userId))
+        .limit(1);
+
+      if (existingSubscription) {
+        return res.status(200).json({
+          status: 'success',
+          message: 'User already has an active subscription',
+          plan: existingSubscription.isPro ? 'pro' : (existingSubscription.monthlyLimit === 20 ? 'standard' : 'basic')
+        });
+      }
+
+      // Create subscription record for the user
+      const customerId = session.customer as string;
+      const subscriptionId = session.subscription as string;
+      const planType = session.metadata?.plan || 'basic';
+      const isPro = planType === 'pro';
+      
+      // Determine monthly conversion limits based on subscription plan
+      let monthlyLimit = 10; // Default for Basic plan (£3/month)
+      if (planType === 'standard') {
+        monthlyLimit = 20;   // Standard plan (£5/month)
+      } else if (planType === 'pro') {
+        monthlyLimit = 9999; // Pro plan (£30/month) - Essentially unlimited
+      }
+
+      // Insert subscription record
+      await db.insert(subscriptions).values({
+        userId: userId,
+        status: 'active',
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscriptionId,
+        isPro: isPro,
+        monthlyLimit: monthlyLimit,
+        conversionsUsed: 0,
+        lastResetDate: new Date(),
+        nextResetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      });
+
+      // Mark the user as verified and active
+      await db
+        .update(users)
+        .set({
+          emailVerified: true
+        })
+        .where(eq(users.id, userId));
+
+      // Log the user in
+      const userForLogin = {
+        ...user,
+        emailVerified: true
+      };
+      
+      req.login(userForLogin, (err) => {
+        if (err) {
+          console.error('Login error during registration completion:', err);
+          // Continue without logging in
+        }
+        
+        return res.status(200).json({
+          status: 'success',
+          message: 'Registration completed successfully',
+          plan: planType
+        });
+      });
+    } catch (error: any) {
+      console.error('Registration completion error:', error);
+      return res.status(500).json({
+        status: 'error',
+        message: error.message || 'An unexpected error occurred'
       });
     }
   });

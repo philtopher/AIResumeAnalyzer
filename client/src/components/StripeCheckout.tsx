@@ -15,13 +15,8 @@ interface CheckoutFormProps {
   clientSecret: string;
   onSuccess: () => void;
   onError: (message: string) => void;
-}
-
-interface CheckoutFormProps {
-  clientSecret: string;
-  onSuccess: () => void;
-  onError: (message: string) => void;
-  planType: 'standard' | 'pro';
+  planType: 'basic' | 'standard' | 'pro';
+  isRegistration?: boolean;
 }
 
 const CheckoutForm = ({ clientSecret, onSuccess, onError, planType }: CheckoutFormProps) => {
