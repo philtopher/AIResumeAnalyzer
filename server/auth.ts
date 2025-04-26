@@ -401,17 +401,16 @@ export function setupAuth(app: Express) {
         }
       }
       
-      // Determine subscription tier from the database (tier field) or fallback to isPro flag
-      let subscriptionTier = 'basic';
-      if (subscription && subscription.tier) {
-        // Use the existing tier from the database
-        subscriptionTier = subscription.tier;
-      } else if (subscription && subscription.isPro) {
-        // If tier is not available but isPro is true, use 'pro'
-        subscriptionTier = 'pro';
-      } else if (subscription) {
-        // If they have a subscription but no tier and not pro, default to standard
-        subscriptionTier = 'standard';
+      // Determine subscription plan based on isPro flag and monthly limits
+      let subscriptionPlan = 'basic';
+      if (subscription) {
+        if (subscription.isPro) {
+          // If isPro is true, use 'pro'
+          subscriptionPlan = 'pro';
+        } else if (subscription.monthlyLimit === 20) {
+          // If monthly limit is 20, it's the standard plan
+          subscriptionPlan = 'standard';
+        }
       }
       
       // Convert nullable boolean to boolean for consistency
@@ -420,9 +419,9 @@ export function setupAuth(app: Express) {
         emailVerified: user.emailVerified ?? false,
         subscription: subscription ? {
           status: subscription.status,
-          tier: subscriptionTier,
+          tier: subscriptionPlan, // Still using 'tier' in API for backwards compatibility
           conversionsUsed: subscription.conversionsUsed || 0,
-          monthlyLimit: subscription.monthlyLimit || (subscriptionTier === 'standard' ? 20 : 10)
+          monthlyLimit: subscription.monthlyLimit || (subscriptionPlan === 'standard' ? 20 : 10)
         } : null
       };
 
