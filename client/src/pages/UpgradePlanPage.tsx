@@ -182,15 +182,15 @@ export default function UpgradePlanPage() {
               </div>
             </div>
             <Button className="w-full" variant="outline" disabled>
-              {user && !hasStandardPlan && !hasProPlan ? "Current Plan" : "Trial Period"}
+              {user && !hasStandardPlan && !hasProPlan ? "Current Subscription" : "Trial Period"}
             </Button>
           </CardContent>
         </Card>
 
-        {/* Standard Plan Card */}
+        {/* Standard Subscription Plan Card */}
         <Card className={selectedPlan === 'standard' ? 'border-primary' : ''}>
           <CardHeader>
-            <CardTitle>Standard Plan</CardTitle>
+            <CardTitle>Standard Subscription Plan</CardTitle>
             <CardDescription>£5/month - Essential CV tools</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -265,20 +265,20 @@ export default function UpgradePlanPage() {
           </CardContent>
         </Card>
 
-        {/* Pro Plan Card */}
+        {/* Pro Subscription Plan Card */}
         <Card className={selectedPlan === 'pro' ? 'border-primary' : ''}>
           <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-sm rounded-bl">
             Best Value
           </div>
           <CardHeader>
-            <CardTitle>Pro Plan</CardTitle>
+            <CardTitle>Pro Subscription Plan</CardTitle>
             <CardDescription>£30/month - Premium features</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>All Standard Plan features</span>
+                <span>All Standard Subscription Plan features</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
