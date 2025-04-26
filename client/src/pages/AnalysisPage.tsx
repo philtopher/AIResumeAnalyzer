@@ -79,7 +79,7 @@ export default function AnalysisPage() {
           <CardHeader>
             <CardTitle>Pro Feature: Advanced Analysis</CardTitle>
             <CardDescription>
-              This feature is only available to Pro Plan users. Please upgrade to
+              This feature is only available to Pro Subscription Plan users. Please upgrade to
               access detailed interviewer and competitor analysis.
             </CardDescription>
           </CardHeader>

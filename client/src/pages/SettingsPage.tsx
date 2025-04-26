@@ -103,11 +103,11 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Current Plan</p>
+                <p className="font-medium">Current Subscription Plan</p>
                 <p className="text-muted-foreground">
                   {isActive 
-                    ? (isPro ? "Pro Plan (£30/month)" : "Standard Plan (£5/month)") 
-                    : "Basic Plan (£3/month)"}
+                    ? (isPro ? "Pro Subscription Plan (£30/month)" : "Standard Subscription Plan (£5/month)") 
+                    : "Basic Subscription Plan (£3/month)"}
                 </p>
                 {isActive && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -122,7 +122,7 @@ export default function SettingsPage() {
                     onClick={() => setShowDowngradeConfirm(true)}
                   >
                     <ArrowDown className="mr-2 h-4 w-4" />
-                    Downgrade to Standard
+                    Downgrade to Standard Subscription
                   </Button>
                 )}
                 {isActive && !showDowngradeConfirm && !showCancelConfirm && (
@@ -148,7 +148,7 @@ export default function SettingsPage() {
                 <AlertTriangle className="h-4 w-4 text-yellow-600" />
                 <AlertDescription className="mt-2">
                   <p className="mb-4">
-                    Are you sure you want to downgrade to the Standard plan? You'll lose access to:
+                    Are you sure you want to downgrade to the Standard Subscription Plan? You'll lose access to:
                   </p>
                   <ul className="list-disc pl-5 mb-4 space-y-1">
                     <li>Interviewer LinkedIn Insights</li>
@@ -215,7 +215,7 @@ export default function SettingsPage() {
           {isActive && (
             <CardFooter>
               <p className="text-sm text-muted-foreground">
-                Your subscription renews automatically. You can cancel or change your plan at any time.
+                Your subscription renews automatically. You can cancel or change your subscription plan at any time.
               </p>
             </CardFooter>
           )}
