@@ -167,7 +167,7 @@ export function FreeTrialWarning() {
             </div>
             <div className="ml-3">
               <p className={`text-sm ${classes.text}`}>
-                <span className="font-bold">{planName} Plan:</span> You have used {transformationsUsed} of {totalLimit} CV transformations this month ({transformationsLeft} remaining).
+                <span className="font-bold">{planName} Subscription Plan:</span> You have used {transformationsUsed} of {totalLimit} CV transformations this month ({transformationsLeft} remaining).
               </p>
             </div>
           </div>
@@ -189,31 +189,31 @@ export function FreeTrialWarning() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {subscriptionPlan === "basic" ? "Basic Plan Limit" : "Standard Plan Limit"}
+              {subscriptionPlan === "basic" ? "Basic Subscription Plan Limit" : "Standard Subscription Plan Limit"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {transformationsLeft > 0 ? (
                 subscriptionPlan === "basic" ? (
                   <>
-                    You have only <strong>{transformationsLeft}</strong> CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your Basic plan. 
-                    <p className="mt-2">Upgrade to our Standard plan for £5/month to get 20 transformations per month, or Pro plan for £30/month for unlimited transformations.</p>
+                    You have only <strong>{transformationsLeft}</strong> CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your Basic Subscription Plan. 
+                    <p className="mt-2">Upgrade to our Standard Subscription Plan for £5/month to get 20 transformations per month, or Pro Subscription Plan for £30/month for unlimited transformations.</p>
                   </>
                 ) : (
                   <>
-                    You have only <strong>{transformationsLeft}</strong> CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your Standard plan. 
-                    <p className="mt-2">Upgrade to our Pro plan for £30/month to get unlimited transformations and additional premium features.</p>
+                    You have only <strong>{transformationsLeft}</strong> CV transformation{transformationsLeft !== 1 ? 's' : ''} remaining in your Standard Subscription Plan. 
+                    <p className="mt-2">Upgrade to our Pro Subscription Plan for £30/month to get unlimited transformations and additional premium features.</p>
                   </>
                 )
               ) : (
                 subscriptionPlan === "basic" ? (
                   <>
-                    You've reached the limit of {totalLimit} transformations in your Basic plan. 
-                    <p className="mt-2">Upgrade to our Standard plan for £5/month to get 20 transformations per month, or Pro plan for £30/month for unlimited transformations.</p>
+                    You've reached the limit of {totalLimit} transformations in your Basic Subscription Plan. 
+                    <p className="mt-2">Upgrade to our Standard Subscription Plan for £5/month to get 20 transformations per month, or Pro Subscription Plan for £30/month for unlimited transformations.</p>
                   </>
                 ) : (
                   <>
-                    You've reached the limit of {totalLimit} transformations in your Standard plan. 
-                    <p className="mt-2">Upgrade to our Pro plan for £30/month to get unlimited transformations and additional premium features.</p>
+                    You've reached the limit of {totalLimit} transformations in your Standard Subscription Plan. 
+                    <p className="mt-2">Upgrade to our Pro Subscription Plan for £30/month to get unlimited transformations and additional premium features.</p>
                   </>
                 )
               )}
