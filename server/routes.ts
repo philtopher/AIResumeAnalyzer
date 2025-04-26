@@ -778,18 +778,40 @@ export function registerRoutes(app: Express): Express {
         
         // Only apply restriction to free users (non-admin, non-premium)
         if (!hasActiveSubscription) {
-          // Check if user has EVER done any transformations before
-          const previousTransformations = await db
+          // Get device info for better tracking
+          const userAgent = req.headers['user-agent'] || 'unknown';
+          const ip = req.ip || req.socket.remoteAddress || 'unknown';
+          
+          // Check transformations in the last 24 hours
+          const oneDayAgo = new Date();
+          oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+          
+          const recentTransformations = await db
             .select()
             .from(cvs)
-            .where(eq(cvs.userId, req.user.id))
-            .limit(1);
+            .where(
+              and(
+                eq(cvs.userId, req.user.id),
+                gte(cvs.createdAt, oneDayAgo)
+              )
+            );
           
-          if (previousTransformations.length > 0) {
-            // User has already used their one free transformation
+          // Free users get 3 transformations in 24 hours
+          if (recentTransformations.length >= 3) {
+            // Log device info for analytics
+            console.log(`User ${req.user.id} reached free limit. Device: ${userAgent}, IP: ${ip}`);
+            
+            // User has already used their 3 free transformations in 24 hours
             return res.status(403).json({ 
-              error: "You have used your free CV transformation. Please subscribe to our Standard or Pro plan to continue using this service and unlock unlimited transformations." 
+              error: "You have reached the limit of 3 CV transformations in 24 hours. Please subscribe to our Standard or Pro plan to continue using this service and unlock unlimited transformations.",
+              reachedFreeLimit: true,
+              transformationsUsed: recentTransformations.length
             });
+          }
+          
+          // If they're on their last free transformation, warn them
+          if (recentTransformations.length === 2) {
+            console.log(`User ${req.user.id} on final free transformation. Device: ${userAgent}, IP: ${ip}`);
           }
         }
       }
@@ -950,6 +972,65 @@ export function registerRoutes(app: Express): Express {
       
       // Sanitize error message to remove curly braces for security
       let errorMessage = error.message || "Failed to retrieve CV history";
+      errorMessage = errorMessage.replace(/[{}]/g, "");
+      
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+  
+  // Get recent transformations count for free trial tracking
+  app.get("/api/cv/recent-count", async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      // Check if user has a premium subscription - they don't need to see the count
+      const isAdmin = req.user.role === "super_admin" || req.user.role === "sub_admin" || req.user.role === "admin";
+      const hasActiveSubscription = 
+        (req.user.subscription && req.user.subscription.status === "active") ||
+        (Array.isArray(req.user.subscriptions) && 
+         req.user.subscriptions.some((sub: any) => sub.status === "active"));
+      
+      // If user is admin or has subscription, return 0 count (no limits)
+      if (isAdmin || hasActiveSubscription) {
+        return res.json({ count: 0, limit: 3, unlimited: true });
+      }
+      
+      // Get transformations in the last 24 hours
+      const oneDayAgo = new Date();
+      oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+      
+      const recentTransformations = await db
+        .select()
+        .from(cvs)
+        .where(
+          and(
+            eq(cvs.userId, req.user.id),
+            gte(cvs.createdAt, oneDayAgo)
+          )
+        );
+      
+      // Get device info for better tracking
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      
+      // Log for analytics - helps track usage patterns
+      if (recentTransformations.length >= 2) {
+        console.log(`User ${req.user.id} has used ${recentTransformations.length}/3 free transformations. Device: ${userAgent}, IP: ${ip}`);
+      }
+      
+      res.json({ 
+        count: recentTransformations.length, 
+        limit: 3,
+        remaining: Math.max(0, 3 - recentTransformations.length),
+        unlimited: false
+      });
+    } catch (error: any) {
+      console.error("Error retrieving recent transformations count:", error);
+      
+      // Sanitize error message to remove curly braces for security
+      let errorMessage = error.message || "Failed to retrieve transformation count";
       errorMessage = errorMessage.replace(/[{}]/g, "");
       
       res.status(500).json({ error: errorMessage });
