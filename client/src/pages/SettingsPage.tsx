@@ -31,13 +31,20 @@ export default function SettingsPage() {
   
   const [showDowngradeConfirm, setShowDowngradeConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [selectedDowngradeTier, setSelectedDowngradeTier] = useState<'standard' | 'basic'>('standard');
 
-  // Handle downgrade (Pro to Standard)
+  // Check what plan the user is on
+  const isPro = subscription?.tier === 'pro' || subscription?.isPro === true;
+  const isStandard = subscription?.tier === 'standard' || 
+    (subscription && !subscription.isPro && subscription.tier !== 'basic');
+  const isBasic = subscription?.tier === 'basic';
+
+  // Handle downgrade (Pro to Standard or Basic, or Standard to Basic)
   const handleDowngrade = async () => {
     try {
-      const result = await downgradeSubscription();
+      const result = await downgradeSubscription(selectedDowngradeTier);
       toast({
-        title: "Plan Downgraded",
+        title: `Plan Downgraded to ${selectedDowngradeTier.charAt(0).toUpperCase() + selectedDowngradeTier.slice(1)}`,
         description: "You have been successfully downgraded to the Standard plan.",
       });
       setShowDowngradeConfirm(false);
@@ -116,14 +123,45 @@ export default function SettingsPage() {
                 )}
               </div>
               <div className="flex gap-4">
-                {isPro && isActive && !showDowngradeConfirm && !showCancelConfirm && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowDowngradeConfirm(true)}
-                  >
-                    <ArrowDown className="mr-2 h-4 w-4" />
-                    Downgrade to Standard Subscription
-                  </Button>
+                {isActive && !showDowngradeConfirm && !showCancelConfirm && (
+                  <>
+                    {isPro && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedDowngradeTier('standard');
+                            setShowDowngradeConfirm(true);
+                          }}
+                        >
+                          <ArrowDown className="mr-2 h-4 w-4" />
+                          Downgrade to Standard
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedDowngradeTier('basic');
+                            setShowDowngradeConfirm(true);
+                          }}
+                        >
+                          <ArrowDown className="mr-2 h-4 w-4" />
+                          Downgrade to Basic
+                        </Button>
+                      </div>
+                    )}
+                    {!isPro && isStandard && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedDowngradeTier('basic');
+                          setShowDowngradeConfirm(true);
+                        }}
+                      >
+                        <ArrowDown className="mr-2 h-4 w-4" />
+                        Downgrade to Basic
+                      </Button>
+                    )}
+                  </>
                 )}
                 {isActive && !showDowngradeConfirm && !showCancelConfirm && (
                   <Button

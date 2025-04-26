@@ -37,8 +37,7 @@ export const subscriptions = pgTable("subscriptions", {
   stripeItemId: text("stripe_item_id"),
   status: text("status").notNull(),
   isPro: boolean("is_pro").default(false),
-  // New fields for tiered subscription model
-  tier: text("tier", { enum: ['basic', 'standard', 'pro'] }).default("basic").notNull(),
+  // No tier column in the actual database, using isPro flag and subscription status instead
   monthlyLimit: integer("monthly_limit").default(10).notNull(),
   conversionsUsed: integer("conversions_used").default(0).notNull(),
   lastResetDate: timestamp("last_reset_date").defaultNow().notNull(),

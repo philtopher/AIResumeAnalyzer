@@ -276,7 +276,15 @@ export function setupAuth(app: Express) {
             email: users.email,
             role: users.role,
             emailVerified: users.emailVerified,
-            subscription: subscriptions,
+            subscription: {
+              id: subscriptions.id,
+              status: subscriptions.status,
+              isPro: subscriptions.isPro,
+              createdAt: subscriptions.createdAt,
+              endedAt: subscriptions.endedAt,
+              stripeCustomerId: subscriptions.stripeCustomerId,
+              stripeSubscriptionId: subscriptions.stripeSubscriptionId
+            },
             createdAt: users.createdAt,
             trialStartedAt: users.trialStartedAt,
           })
@@ -309,17 +317,18 @@ export function setupAuth(app: Express) {
           });
         }
 
-        // Determine subscription tier from the database (tier field) or fallback to isPro flag
-        let subscriptionTier = 'basic';
-        if (user.subscription && user.subscription.tier) {
-          // Use the existing tier from the database
-          subscriptionTier = user.subscription.tier;
-        } else if (user.subscription && user.subscription.isPro) {
-          // If tier is not available but isPro is true, use 'pro'
-          subscriptionTier = 'pro';
-        } else if (user.subscription) {
-          // If they have a subscription but no tier and not pro, default to standard
-          subscriptionTier = 'standard';
+        // Determine subscription plan type based on isPro flag and monthlyLimit
+        let subscriptionPlan = 'basic';
+        
+        if (user.subscription) {
+          if (user.subscription.isPro) {
+            // If isPro is true, use 'pro' plan
+            subscriptionPlan = 'pro';
+          } else if (user.subscription.monthlyLimit === 20) {
+            // If monthlyLimit is 20, it's the standard plan
+            subscriptionPlan = 'standard';
+          }
+          // Otherwise it's the basic plan with 10 monthly conversions
         }
 
         // Convert user to match Express.User interface
@@ -333,7 +342,7 @@ export function setupAuth(app: Express) {
           emailVerified: user.emailVerified ?? false,
           subscriptions: user.subscription ? { 
             status: user.subscription.status,
-            tier: subscriptionTier
+            tier: subscriptionPlan
           } : null,
           createdAt: user.createdAt,
           trialStartedAt: user.trialStartedAt,
@@ -356,7 +365,17 @@ export function setupAuth(app: Express) {
       const result = await db
         .select({
           user: users,
-          subscription: subscriptions
+          subscription: {
+            id: subscriptions.id,
+            status: subscriptions.status,
+            isPro: subscriptions.isPro,
+            createdAt: subscriptions.createdAt,
+            endedAt: subscriptions.endedAt,
+            stripeCustomerId: subscriptions.stripeCustomerId,
+            stripeSubscriptionId: subscriptions.stripeSubscriptionId,
+            conversionsUsed: subscriptions.conversionsUsed,
+            monthlyLimit: subscriptions.monthlyLimit
+          }
         })
         .from(users)
         .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
