@@ -38,6 +38,7 @@ import PaymentCompletePage from "./pages/PaymentCompletePage";
 import InterviewerAnalysisPage from "./pages/InterviewerAnalysisPage";
 import { Footer } from "./components/Footer";
 import LanguageSelector from "./components/LanguageSelector"; // Add language selector import
+import { AdSenseScript } from "./components/AdSenseScript"; // Add AdSense component
 
 
 // Add type for user subscription
@@ -214,6 +215,8 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
+      {/* AdSense script component - will only display on non-admin pages */}
+      <AdSenseScript />
       <main className="flex-1">
         <Switch>
           <Route path="/" component={HomePage} />
