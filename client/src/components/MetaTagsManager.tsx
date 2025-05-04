@@ -22,7 +22,7 @@ export function MetaTagsManager() {
       if (!monetagMeta) {
         monetagMeta = document.createElement('meta');
         monetagMeta.setAttribute('name', 'monetag');
-        monetagMeta.setAttribute('content', '19fc9814122c6480b30427e6c08805b6');
+        monetagMeta.setAttribute('content', '683e00ec16089dff8076d190c8be7093');
         document.head.appendChild(monetagMeta);
       }
     } else {
