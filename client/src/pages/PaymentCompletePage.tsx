@@ -180,7 +180,7 @@ export default function PaymentCompletePage() {
 
           <div className="text-center text-sm text-muted-foreground mt-6">
             <p>Need help getting started?</p>
-            <Link href="/tutorial">
+            <Link href="/how-it-works">
               <span className="text-primary hover:underline cursor-pointer">
                 Check out our tutorial guide
               </span>
