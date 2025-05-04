@@ -32,7 +32,7 @@ export default function HomePage() {
                   <Link href="/auth">
                     <Button size="lg">Get Started</Button>
                   </Link>
-                  <Link href="/how-it-works">
+                  <Link href="/tutorial">
                     <Button variant="outline" size="lg">
                       <Play className="w-4 h-4 mr-2" />
                       See Example
@@ -134,7 +134,7 @@ export default function HomePage() {
                 <Link href="/features">
                   <Button variant="link" className="text-muted-foreground">Features</Button>
                 </Link>
-                <Link href="/how-it-works">
+                <Link href="/tutorial">
                   <Button variant="link" className="text-muted-foreground">How It Works</Button>
                 </Link>
                 <Link href="/contact">
