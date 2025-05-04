@@ -40,6 +40,7 @@ import { Footer } from "./components/Footer";
 import LanguageSelector from "./components/LanguageSelector"; // Add language selector import
 import { AdSenseScript } from "./components/AdSenseScript"; // Add AdSense component
 import { MetaTagsManager } from "./components/MetaTagsManager"; // Add MetaTags manager
+import { HowItWorksScript } from "./components/HowItWorksScript"; // Add How It Works specific script
 
 
 // Add type for user subscription
@@ -220,6 +221,8 @@ function App() {
       <AdSenseScript />
       {/* MetaTags manager - handles monetag meta tag */}
       <MetaTagsManager />
+      {/* Script that only appears on How It Works page */}
+      <HowItWorksScript />
       <main className="flex-1">
         <Switch>
           <Route path="/" component={HomePage} />
