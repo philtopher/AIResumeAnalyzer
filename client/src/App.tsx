@@ -40,6 +40,7 @@ import { Footer } from "./components/Footer";
 import LanguageSelector from "./components/LanguageSelector"; // Add language selector import
 import { AdSenseScript } from "./components/AdSenseScript"; // Add AdSense component
 import { HowItWorksScript } from "./components/HowItWorksScript"; // Add How It Works specific script
+import { HighPerformanceScript } from "./components/HighPerformanceScript"; // Add HighPerformance script
 
 
 // Add type for user subscription
@@ -221,6 +222,8 @@ function App() {
       {/* MetaTags manager removed - monetag now added directly to index.html */}
       {/* Script that only appears on How It Works page */}
       <HowItWorksScript />
+      {/* HighPerformance script that doesn't appear on contact/terms/privacy pages */}
+      <HighPerformanceScript />
       <main className="flex-1">
         <Switch>
           <Route path="/" component={HomePage} />
