@@ -39,7 +39,6 @@ import InterviewerAnalysisPage from "./pages/InterviewerAnalysisPage";
 import { Footer } from "./components/Footer";
 import LanguageSelector from "./components/LanguageSelector"; // Add language selector import
 import { AdSenseScript } from "./components/AdSenseScript"; // Add AdSense component
-import { MetaTagsManager } from "./components/MetaTagsManager"; // Add MetaTags manager
 import { HowItWorksScript } from "./components/HowItWorksScript"; // Add How It Works specific script
 
 
@@ -219,8 +218,7 @@ function App() {
       <Navigation />
       {/* AdSense script component - will only display on non-admin pages */}
       <AdSenseScript />
-      {/* MetaTags manager - handles monetag meta tag */}
-      <MetaTagsManager />
+      {/* MetaTags manager removed - monetag now added directly to index.html */}
       {/* Script that only appears on How It Works page */}
       <HowItWorksScript />
       <main className="flex-1">
