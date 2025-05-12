@@ -207,7 +207,7 @@ export default function PublicCVPage() {
                   
                   <p className="text-sm text-muted-foreground">
                     All plans include secure payment processing and SSL encryption. 
-                    Cancel anytime. No free trials available.
+                    Plans start from just £3/month for our Basic Plan with 10 transformations.
                   </p>
                 </div>
                 

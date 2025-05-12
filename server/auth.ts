@@ -209,14 +209,9 @@ declare global {
 
 // Add trial period check function
 async function checkTrialStatus(user: Express.User) {
+  // We no longer have free trials, so this function always returns false for users without a subscription
   if (user.role === 'user' && !user.subscriptions?.status) {
-    const trialDuration = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
-    const trialStart = user.trialStartedAt || user.createdAt;
-    const trialExpired = Date.now() - trialStart.getTime() > trialDuration;
-
-    if (trialExpired) {
-      return false;
-    }
+    return false;
   }
   return true;
 }
