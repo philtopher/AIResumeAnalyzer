@@ -5,6 +5,15 @@ import { eq, or } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { hashPassword } from '../auth';
 
+// Initialize Stripe
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('Missing STRIPE_SECRET_KEY environment variable');
+}
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2023-10-16',
+});
+
 // Create a router instance
 const router = Router();
 
@@ -264,6 +273,172 @@ router.post('/complete-registration', async (req, res) => {
     return res.status(500).json({
       status: 'error',
       message: error.message || 'An unexpected error occurred'
+    });
+  }
+});
+
+// API endpoint to complete registration after payment
+router.post('/complete-registration', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Missing Stripe session ID'
+      });
+    }
+
+    // Retrieve the Stripe session to verify payment was successful
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (!session || session.status !== 'complete') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Payment not completed'
+      });
+    }
+
+    // Get the registration data from the session
+    const registrationData = req.session.registrationData;
+
+    if (!registrationData) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Registration data not found. Please try registering again.'
+      });
+    }
+
+    const { username, email, password, plan } = registrationData;
+
+    // Create the user
+    const hashedPassword = await hashPassword(password);
+    
+    // Check if user already exists (could happen if they refresh the page after completion)
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.username, username),
+          eq(users.email, email)
+        )
+      )
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      // User already exists, login and redirect
+      const userForLogin = {
+        id: existingUser[0].id,
+        username: existingUser[0].username,
+        email: existingUser[0].email,
+        role: existingUser[0].role,
+        emailVerified: true,
+        subscription: {
+          status: 'active',
+          isPro: plan === 'pro'
+        }
+      };
+      
+      req.login(userForLogin, (err) => {
+        if (err) {
+          console.error('Error logging in existing user:', err);
+        }
+      });
+      
+      return res.status(200).json({
+        status: 'success',
+        message: 'Already registered. Logging you in.',
+        userId: existingUser[0].id
+      });
+    }
+
+    // Insert the new user
+    const [newUser] = await db.insert(users).values({
+      username,
+      email,
+      password: hashedPassword,
+      role: 'user',
+      createdAt: new Date(),
+      emailVerified: true, // Already verified via payment
+      verificationToken: null,
+      verificationTokenExpiry: null,
+      resetToken: null,
+      resetTokenExpiry: null,
+      trialStartedAt: new Date(),
+      trialEndedAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      dataDeletionStatus: 'none'
+    }).returning();
+
+    if (!newUser) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to create user account'
+      });
+    }
+
+    // Determine plan parameters
+    let monthlyLimit = 10; // Default Basic plan limit
+    let isPro = false;
+    
+    if (plan === 'standard') {
+      monthlyLimit = 20; // Standard plan - £5/month - 20 CV transformations
+    } else if (plan === 'pro') {
+      monthlyLimit = 9999; // Pro plan (£30/month) - Essentially unlimited
+      isPro = true;
+    }
+    
+    // Insert subscription record
+    await db.insert(subscriptions).values({
+      userId: newUser.id,
+      stripeCustomerId: session.customer as string,
+      stripeSubscriptionId: session.subscription as string,
+      stripeItemId: null,
+      status: 'active',
+      isPro,
+      monthlyLimit,
+      conversionsUsed: 0,
+      lastResetDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      startedAt: new Date(),
+      endedAt: null
+    });
+    
+    // Clear registration data from session after successful registration
+    delete req.session.registrationData;
+    
+    // Log in the user automatically
+    const userForLogin = {
+      id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      role: newUser.role,
+      emailVerified: true,
+      subscription: {
+        status: 'active',
+        isPro
+      }
+    };
+    
+    if (req.login) {
+      req.login(userForLogin, (err) => {
+        if (err) {
+          console.error('Error logging in user after registration:', err);
+        }
+      });
+    }
+    
+    return res.status(200).json({
+      status: 'success',
+      message: 'Registration completed successfully',
+      userId: newUser.id
+    });
+  } catch (error) {
+    console.error('Error completing registration:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'An unexpected error occurred'
     });
   }
 });
