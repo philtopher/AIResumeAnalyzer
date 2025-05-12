@@ -891,8 +891,8 @@ export function setupAuth(app: Express) {
     const hasValidTrial = await checkTrialStatus(req.user);
     if (!hasValidTrial && !req.user.subscriptions?.status) {
       return res.status(402).json({
-        error: "trial_expired",
-        message: "Your trial period has expired. Please upgrade to continue using the service.",
+        error: "subscription_required",
+        message: "A subscription is required to access this feature. Please subscribe to continue using the service.",
         upgradeUrl: "/upgrade"
       });
     }
