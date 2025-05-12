@@ -373,6 +373,7 @@ export function registerRoutes(app: Express): Express {
   // Register Stripe payment routes
   console.log("Registering Stripe payment routes...");
   app.use('/api', stripeRoutes);
+  app.use('/api', directSubscriptionRoutes);
   
   // Setup authentication routes
   setupAuth(app);
