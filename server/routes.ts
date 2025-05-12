@@ -9,6 +9,7 @@ import { extname, resolve } from "path";
 import * as fs from 'fs';
 import { transformCVWithAI, generateCVFeedbackWithAI } from "./openai";
 import stripeRoutes from "./routes/stripe";
+import directSubscriptionRoutes from "./routes/directSubscription";
 import { sendContactFormNotification, sendActivityReport } from "./email";
 import Stripe from "stripe";
 
