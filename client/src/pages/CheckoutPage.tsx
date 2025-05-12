@@ -10,18 +10,19 @@ export default function CheckoutPage() {
   const { user, isLoading: userLoading, refetch } = useUser();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [planType, setPlanType] = useState<'standard' | 'pro'>('standard');
+  const [planType, setPlanType] = useState<'basic' | 'standard' | 'pro'>('standard');
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
+  const registrationData = searchParams.get('registration') === 'true';
   
   useEffect(() => {
     if (!userLoading) {
       // Get plan from URL parameters
       const planParam = searchParams.get('plan');
-      if (planParam === 'standard' || planParam === 'pro') {
-        setPlanType(planParam);
+      if (planParam === 'standard' || planParam === 'pro' || planParam === 'basic') {
+        setPlanType(planParam as 'basic' | 'standard' | 'pro');
       }
       setIsLoading(false);
     }
@@ -35,7 +36,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (!user) {
+  if (!user && !registrationData) {
     return (
       <div className="container mx-auto px-4 py-12">
         <Alert variant="destructive">
@@ -84,12 +85,16 @@ export default function CheckoutPage() {
       
       <div className="text-center mb-8">
         <p className="text-lg mb-2">
-          You're subscribing to the <span className="font-semibold">{planType === 'pro' ? 'Pro' : 'Standard'} Plan</span>
+          You're subscribing to the <span className="font-semibold">
+            {planType === 'pro' ? 'Pro' : planType === 'standard' ? 'Standard' : 'Basic'} Subscription Plan
+          </span>
         </p>
         <p className="text-muted-foreground">
           {planType === 'pro' 
-            ? 'Get access to all premium features for £15/month'
-            : 'Basic subscription with standard features for £5/month'}
+            ? 'Get access to all premium features for £30/month'
+            : planType === 'standard'
+              ? 'Standard subscription with enhanced features for £5/month'
+              : 'Basic subscription with essential features for £3/month'}
         </p>
       </div>
       
@@ -97,6 +102,7 @@ export default function CheckoutPage() {
         planType={planType}
         onSuccess={handleSuccess}
         onError={handleError}
+        isRegistration={registrationData}
       />
     </div>
   );
