@@ -49,8 +49,8 @@ export default function FAQPage() {
       answer: "Yes! You can provide specific job descriptions and target roles to customize how your CV is optimized. The AI will tailor the content accordingly.",
     },
     {
-      question: "What's included in the free trial?",
-      answer: "The free trial includes one CV transformation with basic feedback. Premium features like detailed analytics and unlimited transformations require a subscription.",
+      question: "What's included in the Basic Plan?",
+      answer: "The Basic Plan costs £3/month and includes 10 CV transformations per month with download capability and basic keyword optimization. For more features like enhanced optimization and unlimited transformations, consider our Standard (£5/month) or Pro (£30/month) plans.",
     },
     {
       question: "How do I cancel my subscription?",
