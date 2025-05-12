@@ -69,9 +69,9 @@ export default function UpgradePlanPage() {
 
   // Determine if user has an active subscription and what kind
   const hasBasicPlan = !userLoading && user?.subscription?.status === "active" && 
-    !user.subscription?.isPro && user.subscription?.monthlyLimit === 10;
+    !user.subscription?.isPro && (user.subscription as any)?.monthlyLimit === 10;
   const hasStandardPlan = !userLoading && user?.subscription?.status === "active" && 
-    !user.subscription?.isPro && user.subscription?.monthlyLimit === 20;
+    !user.subscription?.isPro && (user.subscription as any)?.monthlyLimit === 20;
   const hasProPlan = !userLoading && user?.subscription?.status === "active" && user.subscription?.isPro;
 
   useEffect(() => {
@@ -268,7 +268,10 @@ export default function UpgradePlanPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Create Your Account</h1>
           <p className="text-muted-foreground mt-2">
-            Set up your account to continue with your {selectedPlan === 'standard' ? 'Standard' : 'Pro'} Subscription Plan.
+            Set up your account to continue with your {
+              selectedPlan === 'basic' ? 'Basic' : 
+              selectedPlan === 'standard' ? 'Standard' : 'Pro'
+            } Subscription Plan.
           </p>
         </div>
       )}
@@ -277,7 +280,10 @@ export default function UpgradePlanPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Complete Your Payment</h1>
           <p className="text-muted-foreground mt-2">
-            Finalize your {selectedPlan === 'standard' ? 'Standard' : 'Pro'} Subscription Plan purchase.
+            Finalize your {
+              selectedPlan === 'basic' ? 'Basic' : 
+              selectedPlan === 'standard' ? 'Standard' : 'Pro'
+            } Subscription Plan purchase.
           </p>
         </div>
       )}
@@ -401,11 +407,11 @@ export default function UpgradePlanPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
-                    <span>All Free Trial features</span>
+                    <span>20 CV transformations per month</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
-                    <span>Basic CV transformation</span>
+                    <span>Enhanced CV transformation</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
@@ -413,7 +419,7 @@ export default function UpgradePlanPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
-                    <span>Basic keyword optimization</span>
+                    <span>Keyword optimization</span>
                   </div>
                 </div>
 
@@ -487,7 +493,7 @@ export default function UpgradePlanPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
-                    <span>All Standard Subscription Plan features</span>
+                    <span>Unlimited CV transformations</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
@@ -504,6 +510,10 @@ export default function UpgradePlanPage() {
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
                     <span>Advanced CV scoring</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="h-5 w-5 text-green-500" />
+                    <span>Priority customer support</span>
                   </div>
                 </div>
 
