@@ -181,9 +181,14 @@ router.post('/complete-registration', async (req, res) => {
       password: hashedPassword,
       role: 'user',
       createdAt: new Date(),
-      emailVerified: false,
+      emailVerified: true, // Mark as verified since they've completed payment
+      verificationToken: null,
+      verificationTokenExpiry: null,
+      resetToken: null,
+      resetTokenExpiry: null,
       trialStartedAt: new Date(),
       trialEndedAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      dataDeletionStatus: 'none'
     }).returning();
     
     if (!newUser) {
@@ -207,22 +212,37 @@ router.post('/complete-registration', async (req, res) => {
       userId: newUser.id,
       stripeCustomerId: session.customer as string,
       stripeSubscriptionId: session.subscription as string,
+      stripeItemId: null,
       status: 'active',
       isPro,
-      tier: plan,
       monthlyLimit,
       conversionsUsed: 0,
       lastResetDate: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
+      startedAt: new Date(),
+      endedAt: null
     });
     
     // Clear registration data from session after successful registration
     delete req.session.registrationData;
     
     // Log in the user automatically
+    // Create a version of the user object that matches Express.User
+    const userForLogin = {
+      id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      role: newUser.role,
+      emailVerified: true,
+      subscription: {
+        status: 'active',
+        isPro: isPro
+      }
+    };
+    
     if (req.login) {
-      req.login(newUser, (err) => {
+      req.login(userForLogin, (err) => {
         if (err) {
           console.error('Error logging in user after registration:', err);
         }

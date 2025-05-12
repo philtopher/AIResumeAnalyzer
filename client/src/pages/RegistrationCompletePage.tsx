@@ -1,155 +1,144 @@
-import { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-
-type RegistrationStatus = "loading" | "success" | "error" | "invalid";
+import { useState, useEffect } from "react";
+import { useSearch, useLocation } from "wouter";
+import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function RegistrationCompletePage() {
-  const [status, setStatus] = useState<RegistrationStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState('');
-  const [_, navigate] = useLocation();
-
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  
+  const [, setLocation] = useLocation();
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const sessionId = params.get('session_id');
+
   useEffect(() => {
-    async function completeRegistration() {
+    const completeRegistration = async () => {
+      if (!sessionId) {
+        setError("No session ID found. Registration cannot be completed.");
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        // Parse URL params to get the session ID
-        const params = new URLSearchParams(window.location.search);
-        const sessionId = params.get('session_id');
-        
-        if (!sessionId) {
-          setStatus("invalid");
-          setErrorMessage("Invalid request. Session ID not found.");
-          return;
-        }
-        
-        // Complete the registration
-        const response = await fetch(`/api/registration-complete?session_id=${sessionId}`, {
-          method: 'GET',
+        // Send the session ID to complete the registration
+        const response = await fetch('/api/direct-subscription/complete-registration', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include', // Important to include cookies for session data
+          body: JSON.stringify({ sessionId }),
+          credentials: 'include',
         });
-        
+
+        const data = await response.json();
+
         if (!response.ok) {
-          const errorData = await response.text();
-          throw new Error(errorData || 'Failed to complete registration');
+          throw new Error(data.message || 'Failed to complete registration');
         }
-        
-        setStatus("success");
+
+        setIsSuccess(true);
         toast({
-          title: "Registration successful",
-          description: "Your account has been created and is ready to use.",
+          title: "Registration Complete",
+          description: "Your account has been created and subscription activated!",
         });
-        
-        // Redirect to home after a delay
-        setTimeout(() => {
-          navigate('/');
-        }, 5000);
       } catch (error) {
         console.error('Registration completion error:', error);
-        setStatus("error");
-        setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
+        setError(error instanceof Error ? error.message : 'An unexpected error occurred');
         toast({
-          title: "Registration failed",
+          title: "Registration Failed",
           description: error instanceof Error ? error.message : 'An unexpected error occurred',
           variant: "destructive",
         });
+      } finally {
+        setIsLoading(false);
       }
-    }
-    
+    };
+
     completeRegistration();
-  }, [navigate, toast]);
-  
-  return (
-    <div className="container max-w-md mx-auto py-16 px-4">
-      <div className="bg-card p-8 rounded-lg shadow-lg text-center">
-        {status === "loading" && (
-          <>
-            <div className="flex justify-center mb-6">
-              <Loader2 className="h-16 w-16 text-primary animate-spin" />
-            </div>
-            <h1 className="text-2xl font-bold mb-2">Completing Your Registration</h1>
-            <p className="text-muted-foreground">
-              Please wait while we set up your account...
-            </p>
-          </>
-        )}
-        
-        {status === "success" && (
-          <>
-            <div className="flex justify-center mb-6">
-              <CheckCircle2 className="h-16 w-16 text-green-500" />
-            </div>
-            <h1 className="text-2xl font-bold mb-2">Registration Complete!</h1>
-            <p className="text-muted-foreground mb-6">
-              Your account has been created successfully and your subscription is active.
-              You will be redirected to the homepage shortly.
-            </p>
-            <Button 
-              onClick={() => navigate('/')}
-              className="w-full"
-            >
-              Go to Homepage
-            </Button>
-          </>
-        )}
-        
-        {status === "error" && (
-          <>
-            <div className="flex justify-center mb-6">
-              <XCircle className="h-16 w-16 text-red-500" />
-            </div>
-            <h1 className="text-2xl font-bold mb-2">Registration Failed</h1>
-            <p className="text-muted-foreground mb-2">
-              We encountered an error while completing your registration.
-            </p>
-            {errorMessage && (
-              <div className="p-3 bg-red-50 text-red-800 rounded-md mb-6 text-sm">
-                {errorMessage}
-              </div>
-            )}
-            <div className="space-y-3">
-              <Button 
-                onClick={() => navigate('/register')}
-                className="w-full"
-                variant="outline"
-              >
-                Try Again
-              </Button>
-              <Button 
-                onClick={() => navigate('/contact')}
-                className="w-full"
-              >
-                Contact Support
-              </Button>
-            </div>
-          </>
-        )}
-        
-        {status === "invalid" && (
-          <>
-            <div className="flex justify-center mb-6">
-              <XCircle className="h-16 w-16 text-amber-500" />
-            </div>
-            <h1 className="text-2xl font-bold mb-2">Invalid Request</h1>
-            <p className="text-muted-foreground mb-6">
-              Your registration request is invalid or expired.
-              Please try registering again.
-            </p>
-            <Button 
-              onClick={() => navigate('/register')}
-              className="w-full"
-            >
-              Register Again
-            </Button>
-          </>
-        )}
+  }, [sessionId, toast]);
+
+  const handleGoToDashboard = () => {
+    setLocation('/dashboard');
+  };
+
+  const handleGoToHomepage = () => {
+    setLocation('/');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle>Completing Registration...</CardTitle>
+            <CardDescription>Please wait while we set up your account</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center py-8">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          </CardContent>
+        </Card>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+              Registration Error
+            </CardTitle>
+            <CardDescription>We encountered a problem completing your registration</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+            <p className="text-center text-muted-foreground mb-4">
+              Please contact support if you believe your payment was processed successfully.
+            </p>
+          </CardContent>
+          <CardFooter className="flex justify-center">
+            <Button onClick={handleGoToHomepage}>
+              Return to Homepage
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="flex items-center justify-center gap-2">
+            <CheckCircle2 className="h-6 w-6 text-green-500" />
+            Registration Complete!
+          </CardTitle>
+          <CardDescription>Your account has been created successfully</CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <p className="mb-4">Thank you for subscribing to CV Transformer!</p>
+          <p className="mb-6 text-muted-foreground">
+            Your account is now active and your subscription has been set up. 
+            You can start transforming your CV immediately.
+          </p>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Button onClick={handleGoToDashboard}>
+            Go to Dashboard
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

@@ -117,17 +117,25 @@ export default function StripeCheckout({ planType, onSuccess, onError, isRegistr
         
         // Determine which endpoint to use based on whether this is registration or normal subscription
         const endpoint = isRegistration 
-          ? '/api/create-checkout-session'
+          ? '/api/direct-subscription/direct-subscription'
           : '/api/stripe/create-payment-intent';
         
-        const body = isRegistration 
-          ? registrationData 
-            ? { 
-                plan: planType, 
-                registrationData // Send the registration data instead of userId
-              } 
-            : { plan: planType, userId }
-          : { plan: planType };
+        // Create the appropriate request body based on the endpoint and available data
+        let body;
+        
+        if (isRegistration && registrationData) {
+          body = { 
+            plan: planType, 
+            registrationData // For direct subscription with registration
+          };
+        } else if (!isRegistration && userId) {
+          body = { 
+            plan: planType,
+            userId // For existing users upgrading
+          };
+        } else {
+          body = { plan: planType };
+        }
           
         const response = await fetch(endpoint, {
           method: 'POST',
