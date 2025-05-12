@@ -199,11 +199,42 @@ export default function TutorialPage() {
             <h2 className="text-2xl font-bold mb-8 text-center">
               Choose Your Plan
             </h2>
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-3 gap-8">
+              {/* Basic Plan */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Basic Plan</CardTitle>
+                    <CardDescription>£3/month - Starter CV tools</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <ul className="space-y-2">
+                        <li className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
+                          <span>10 CV transformations per month</span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
+                          <span>Download transformed CVs</span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
+                          <span>Basic keyword optimization</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
               {/* Standard Plan */}
               <motion.div
-                initial={{ opacity:
- 0, y: 20 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
               >
@@ -217,7 +248,7 @@ export default function TutorialPage() {
                       <ul className="space-y-2">
                         <li className="flex items-start">
                           <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
-                          <span>Basic CV transformation</span>
+                          <span>20 CV transformations per month</span>
                         </li>
                         <li className="flex items-start">
                           <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
@@ -225,7 +256,11 @@ export default function TutorialPage() {
                         </li>
                         <li className="flex items-start">
                           <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
-                          <span>Basic keyword optimization</span>
+                          <span>Enhanced keyword optimization</span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
+                          <span>Email support</span>
                         </li>
                       </ul>
                     </div>
@@ -252,7 +287,7 @@ export default function TutorialPage() {
                       <ul className="space-y-2">
                         <li className="flex items-start">
                           <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
-                          <span>All Standard Plan features</span>
+                          <span>Unlimited CV transformations</span>
                         </li>
                         <li className="flex items-start">
                           <CheckCircle className="h-5 w-5 text-green-500 mr-2 shrink-0 mt-0.5" />
