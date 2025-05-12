@@ -47,7 +47,7 @@ export default function UpgradePlanPage() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'standard' | 'pro'>('standard');
+  const [selectedPlan, setSelectedPlan] = useState<'basic' | 'standard' | 'pro'>('standard');
   const [currentStep, setCurrentStep] = useState<SubscriptionStep>('plan-selection');
   const [registrationData, setRegistrationData] = useState<RegisterFormValues | null>(null);
   const { toast } = useToast();
@@ -68,7 +68,10 @@ export default function UpgradePlanPage() {
   });
 
   // Determine if user has an active subscription and what kind
-  const hasStandardPlan = !userLoading && user?.subscription?.status === "active" && !user.subscription?.isPro;
+  const hasBasicPlan = !userLoading && user?.subscription?.status === "active" && 
+    !user.subscription?.isPro && user.subscription?.monthlyLimit === 10;
+  const hasStandardPlan = !userLoading && user?.subscription?.status === "active" && 
+    !user.subscription?.isPro && user.subscription?.monthlyLimit === 20;
   const hasProPlan = !userLoading && user?.subscription?.status === "active" && user.subscription?.isPro;
 
   useEffect(() => {
@@ -313,26 +316,78 @@ export default function UpgradePlanPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Free Plan Card */}
-            <Card>
+            {/* Basic Plan Card */}
+            <Card className={selectedPlan === 'basic' ? 'border-primary' : ''}>
               <CardHeader>
-                <CardTitle>Free Trial</CardTitle>
-                <CardDescription>Limited time access</CardDescription>
+                <CardTitle>Basic Plan</CardTitle>
+                <CardDescription>£3/month - 10 CV transformations</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
-                    <span>30-day trial period</span>
+                    <span>10 CV transformations per month</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-5 w-5 text-green-500" />
-                    <span>Basic features preview</span>
+                    <span>Download transformed CVs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="h-5 w-5 text-green-500" />
+                    <span>Basic CV feedback</span>
                   </div>
                 </div>
-                <Button className="w-full" variant="outline" disabled>
-                  {user && !hasStandardPlan && !hasProPlan ? "Current Subscription" : "Trial Period"}
-                </Button>
+                
+                {hasBasicPlan ? (
+                  <Button className="w-full" variant="outline" disabled>
+                    Current Subscription Plan
+                  </Button>
+                ) : hasStandardPlan || hasProPlan ? (
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      setSelectedPlan('basic');
+                      handleSubscriptionAction('downgrade');
+                    }}
+                    disabled={isProcessing}
+                    variant="outline"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDown className="mr-2 h-4 w-4" />
+                        Downgrade to Basic Plan
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      setSelectedPlan('basic');
+                      handleSubscriptionAction('subscribe');
+                    }}
+                    disabled={isProcessing || isSubscribed}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : user ? (
+                      "Subscribe - £3/month"
+                    ) : (
+                      <>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Subscribe - £3/month
+                      </>
+                    )}
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
