@@ -1,0 +1,143 @@
+Known security vulnerabilities detected
+
+Dependency
+nanoid	
+Version
+< 3.3.8	
+Upgrade to
+~> 3.3.8
+Defined in
+package-lock.json
+Vulnerabilities
+CVE-2024-55565 Moderate severity
+Dependency
+vite	
+Version
+>= 5.0.0 <= 5.4.11	
+Upgrade to
+~> 5.4.12
+Defined in
+package-lock.json
+Vulnerabilities
+CVE-2025-24010 Moderate severity
+CVE-2025-30208 Moderate severity
+CVE-2025-31125 Moderate severity
+Dependency
+esbuild	
+Version
+<= 0.24.2	
+Upgrade to
+~> 0.25.0
+Defined in
+package-lock.json
+Vulnerabilities
+GHSA-67mh-4wv8-2f99 Moderate severity
+Dependency
+@babel/runtime	
+Version
+< 7.26.10	
+Upgrade to
+~> 7.26.10
+Defined in
+package-lock.json
+Vulnerabilities
+CVE-2025-27789 Moderate severity
+Dependency
+axios	
+Version
+>= 1.0.0 < 1.8.2	
+Upgrade to
+~> 1.8.2
+Defined in
+package-lock.json
+Vulnerabilities
+CVE-2025-27152 High severity
+Review all vulnerable dependencies
+Warning!	
+philtopher / cv-surf-converter
+Known security vulnerabilities detected
+
+Dependency
+axios	
+Version
+>= 0.8.1 < 0.28.0	
+Upgrade to
+~> 0.28.0
+Defined in
+package.json
+Vulnerabilities
+CVE-2023-45857 Moderate severity
+Review all vulnerable dependencies
+Warning!	
+philtopher / CareerCraftAI
+Known security vulnerabilities detected
+
+Dependency
+esbuild	
+Version
+<= 0.24.2	
+Upgrade to
+~> 0.25.0
+Defined in
+package-lock.json
+Vulnerabilities
+GHSA-67mh-4wv8-2f99 Moderate severity
+Dependency
+@babel/helpers	
+Version
+< 7.26.10	
+Upgrade to
+~> 7.26.10
+Defined in
+package-lock.json
+Vulnerabilities
+CVE-2025-27789 Moderate severity
+Dependency
+@babel/runtime	
+Version
+< 7.26.10	
+Upgrade to
+~> 7.26.10
+Defined in
+package-lock.json
+Vulnerabilities
+CVE-2025-27789 Moderate severity
+Review all vulnerable dependencies
+Warning!	
+philtopher / McpCloud
+Known security vulnerabilities detected
+
+Dependency
+esbuild	
+Version
+<= 0.24.2	
+Upgrade to
+~> 0.25.0
+Defined in
+package-lock.json
+Vulnerabilities
+GHSA-67mh-4wv8-2f99 Moderate severity
+Dependency
+@babel/helpers	
+Version
+< 7.26.10	
+Upgrade to
+~> 7.26.10
+Defined in
+package-lock.json
+Vulnerabilities
+CVE-2025-27789 Moderate severity
+Dependency
+vite	
+Version
+>= 5.0.0 < 5.4.15	
+Upgrade to
+~> 5.4.15
+Defined in
+package-lock.json
+Vulnerabilities
+CVE-2025-30208 Moderate severity
+CVE-2025-31125 Moderate severity
+CVE-2025-31486 Moderate severity
+CVE-2025-32395 Moderate severity
+CVE-2025-46565 Moderate severity
